@@ -6,6 +6,7 @@
 #include <iostream>
 #include "crypto/common.h"
 #include "crypto/sha256.h"
+#include "wallet/wallet.h"
 
 static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 
