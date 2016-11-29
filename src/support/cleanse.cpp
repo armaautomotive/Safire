@@ -9,5 +9,5 @@
 
 void memory_cleanse(void *ptr, size_t len)
 {
-    OPENSSL_cleanse(ptr, len);
+    //OPENSSL_cleanse(ptr, len);
 }

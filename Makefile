@@ -6,7 +6,7 @@ SRC_PATH=./src
 OUT_PATH=./bin
 VPATH=${SRC_PATH}
 #FILES= ./src/crypto/aes.cpp ./src/main.cpp 
-FILES= ./src/main.cpp ./src/crypto/sha256.cpp 
+FILES= ./src/main.cpp ./src/crypto/sha256.cpp ./src/crypto/hmac_sha256.cpp ./src/support/cleanse.cpp ./src/support/lockedpool.cpp ./src/key.cpp  
 #	./src/wallet/wallet.cpp
 SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 
