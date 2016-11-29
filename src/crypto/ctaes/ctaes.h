@@ -1,4 +1,4 @@
-/*********************************************************************
+ /*********************************************************************
  * Copyright (c) 2016 Pieter Wuille                                   *
  * Distributed under the MIT software license, see the accompanying   *
  * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
@@ -39,4 +39,3 @@ void AES256_encrypt(const AES256_ctx* ctx, size_t blocks, unsigned char* cipher1
 void AES256_decrypt(const AES256_ctx* ctx, size_t blocks, unsigned char* plain16, const unsigned char* cipher16);
 
 #endif
-
