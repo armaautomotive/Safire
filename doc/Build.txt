@@ -1,0 +1,10 @@
+
+
+Builing on Mac OS
+
+1) brew install openssl
+2) Ensure -L/usr/local/opt/openssl/lib -I/usr/local/opt/openssl/include compiler args.
+
+
+
+

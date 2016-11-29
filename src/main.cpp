@@ -10,7 +10,7 @@
 //#include "wallet/wallet.h"
 //#include "support/cleanse.h"
 #include "key.h"
-//#include "pubkey.h"
+#include "pubkey.h"
 
 //#include <openssl/crypto.h> // no worky
 #include <openssl/ec.h>
@@ -55,16 +55,23 @@ CPubKey CWallet::GenerateNewKey()
 
 int main()
 {
-	std::cout << "Maple Digital Currency v0.0.1" << std::endl;
+	std::cout << "Magnite Digital Currency v0.0.1" << std::endl;
 
-	//sha256::
-	//CSHA256 sha;
+	// sha256 Test
+	CSHA256 sha;
 	uint8_t hash[CSHA256::OUTPUT_SIZE];
 	std::vector<uint8_t> in(BUFFER_SIZE, 0);
 	//while (state.KeepRunning())
         //CSHA256().Write(begin_ptr(in), in.size()).Finalize(hash);
+	unsigned char * data = new unsigned char[1024]();
+	data[0] = 'H'; data[1] = 0; 
+	CSHA256().Write(data, 1024).Finalize(hash);		
+
+	std::cout << " hash " << hash << std::endl;
 
 	std::string message("Test");
+
+	delete[] data;
 
 	//CKey secret;
 	//CPubKey pub
