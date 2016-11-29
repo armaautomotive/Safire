@@ -8,9 +8,12 @@
 #include "crypto/sha256.h"
 
 //#include "wallet/wallet.h"
-#include "support/cleanse.h"
+//#include "support/cleanse.h"
 #include "key.h"
-#include "pubkey.h"
+//#include "pubkey.h"
+
+//#include <openssl/crypto.h> // no worky
+#include <openssl/ec.h>
 
 static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 
@@ -63,8 +66,7 @@ int main()
 
 	std::string message("Test");
 
-	CKey secret;
-
+	//CKey secret;
 	//CPubKey pub
 
 
