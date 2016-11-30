@@ -10,12 +10,11 @@
 #include "utilstrencodings.h"
 
 //#include "wallet/wallet.h"
-//#include "support/cleanse.h"
-#include "key.h"
-#include "pubkey.h"
+//#include "key.h"
+//#include "pubkey.h"
 
 //#include <openssl/crypto.h> // no worky
-#include <openssl/ec.h>
+//#include <openssl/ec.h>
 
 static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 
@@ -119,9 +118,9 @@ int main()
 	// sha256 123 = a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3 
 	// sah256 jon = bb472edb86809a761936d90c70aeb4346618aa71da7a00c16e334863499108fd
 
-	CKey secret; // note clense.cpp is commented out
-	secret.MakeNewKey(false);
-	CPubKey pub;
+	//CKey secret; // note clense.cpp is commented out
+	//secret.MakeNewKey(false);
+	//CPubKey pub;
 
 
 }
