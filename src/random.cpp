@@ -12,7 +12,12 @@
 #include <wincrypt.h>
 #endif
 #include "serialize.h"        // for begin_ptr(vec)
-#include "util.h"             // for LogPrint()
+//#include "util.h"             // for LogPrint()
+
+#include <sys/stat.h> // temp because we removed util
+#include <fcntl.h> // temp removed util.h
+
+
 #include "utilstrencodings.h" // for GetTime()
 
 #include <stdlib.h>
@@ -27,7 +32,7 @@
 
 static void RandFailure()
 {
-    LogPrintf("Failed to read randomness, aborting\n");
+    //LogPrintf("Failed to read randomness, aborting\n");
     abort();
 }
 
@@ -81,11 +86,11 @@ static void RandAddSeedPerfmon()
     if (ret == ERROR_SUCCESS) {
         RAND_add(begin_ptr(vData), nSize, nSize / 100.0);
         memory_cleanse(begin_ptr(vData), nSize);
-        LogPrint("rand", "%s: %lu bytes\n", __func__, nSize);
+//        LogPrint("rand", "%s: %lu bytes\n", __func__, nSize);
     } else {
         static bool warned = false; // Warn only once
         if (!warned) {
-            LogPrintf("%s: Warning: RegQueryValueExA(HKEY_PERFORMANCE_DATA) failed with code %i\n", __func__, ret);
+//            LogPrintf("%s: Warning: RegQueryValueExA(HKEY_PERFORMANCE_DATA) failed with code %i\n", __func__, ret);
             warned = true;
         }
     }
@@ -112,6 +117,8 @@ static void GetOSRand(unsigned char *ent32)
         RandFailure();
     }
     int have = 0;
+
+
     do {
         ssize_t n = read(f, ent32 + have, 32 - have);
         if (n <= 0 || n + have > 32) {
@@ -120,6 +127,9 @@ static void GetOSRand(unsigned char *ent32)
         have += n;
     } while (have < 32);
     close(f);
+
+// WTF ??? 
+
 #endif
 }
 
