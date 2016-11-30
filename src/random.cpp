@@ -116,7 +116,7 @@ static void GetOSRand(unsigned char *ent32)
     //unsigned char tempBuffer[32] = {};
     //ent32 = tempBuffer;
 
-
+/*
     int f = open("/dev/urandom", O_RDONLY);
     if (f == -1) {
         RandFailure();
@@ -130,7 +130,7 @@ static void GetOSRand(unsigned char *ent32)
         have += n;
     } while (have < 32);
     close(f);
-
+*/
     // WTF ??? 
 
 #endif
