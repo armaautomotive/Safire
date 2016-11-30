@@ -16,10 +16,10 @@ CC=clang++
 #CFLAGS=-Wall -shared
 CFLAGS= -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -L/usr/local/opt/openssl/lib -L/usr/local/lib -lssl -lcrypto -lboost_system -lsecp256k1 -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w 
 # -Weverything  
+# -std=gnu99  
 
 all:
 	#mkdir -p ${OUT_PATH}
-	#${CC} ${CFLAGS} -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Maple
 	${CC} ${CFLAGS}  -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Magnite	
 
 

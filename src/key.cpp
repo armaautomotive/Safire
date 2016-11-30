@@ -13,7 +13,9 @@
 #include <secp256k1.h>
 //#include <secp256k1_recovery.h>
 //#include "secp256k1/include/secp256k1.h"
-#include "secp256k1/include/secp256k1_recovery.h"
+//#include "secp256k1/include/secp256k1_recovery.h"
+
+#include <iostream> // temp 
 
 static secp256k1_context* secp256k1_context_sign = NULL;
 
@@ -127,7 +129,15 @@ bool CKey::Check(const unsigned char *vch) {
 
 void CKey::MakeNewKey(bool fCompressedIn) {
     do {
-        GetStrongRandBytes(keydata.data(), keydata.size());
+        
+	// std::vector<unsigned char, secure_allocator<unsigned char> > keydata;
+	//for(int i = 0; i < keydata.size(); i++ ){
+		// reinterpret_cast<char*>(buf.data()) 
+	//	keydata.at(i) = (unsigned char)0;
+	//}
+
+	GetStrongRandBytes(keydata.data(), keydata.size());
+    
     } while (!Check(keydata.data()));
     fValid = true;
     fCompressed = fCompressedIn;
@@ -155,15 +165,18 @@ CPrivKey CKey::GetPrivKey() const {
 }
 
 CPubKey CKey::GetPubKey() const {
-    assert(fValid);
+
+    //assert(fValid);
     secp256k1_pubkey pubkey;
     size_t clen = 65;
     CPubKey result;
+
     int ret = secp256k1_ec_pubkey_create(secp256k1_context_sign, &pubkey, begin());
-    assert(ret);
+    //assert(ret);
     secp256k1_ec_pubkey_serialize(secp256k1_context_sign, (unsigned char*)result.begin(), &clen, &pubkey, fCompressed ? SECP256K1_EC_COMPRESSED : SECP256K1_EC_UNCOMPRESSED);
-    assert(result.size() == clen);
-    assert(result.IsValid());
+    //assert(result.size() == clen);
+    //assert(result.IsValid());
+
     return result;
 }
 

@@ -120,9 +120,15 @@ int main()
 
 	CKey secret; // note clense.cpp is commented out
 	secret.MakeNewKey(false);
-	//CPubKey pub;
-	CPubKey pubkey = secret.GetPubKey();
-	assert(secret.VerifyPubKey(pubkey));
+	std::cout << " Secret key... " << std::endl;		
 
+	//CPrivKey x = secret.GetPrivKey();
+	std::cout << " Private key... " << std::endl;
+
+	CPubKey pubkey = secret.GetPubKey();  // seg fault
+	//assert(secret.VerifyPubKey(pubkey));
+
+	// pubkey.GetID()
+	std::cout << " Done " << std::endl;
 }
 

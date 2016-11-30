@@ -112,13 +112,16 @@ static void GetOSRand(unsigned char *ent32)
     }
     CryptReleaseContext(hProvider, 0);
 #else
+
+    //unsigned char tempBuffer[32] = {};
+    //ent32 = tempBuffer;
+
+
     int f = open("/dev/urandom", O_RDONLY);
     if (f == -1) {
         RandFailure();
     }
     int have = 0;
-
-
     do {
         ssize_t n = read(f, ent32 + have, 32 - have);
         if (n <= 0 || n + have > 32) {
@@ -128,7 +131,7 @@ static void GetOSRand(unsigned char *ent32)
     } while (have < 32);
     close(f);
 
-// WTF ??? 
+    // WTF ??? 
 
 #endif
 }
