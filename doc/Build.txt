@@ -2,8 +2,26 @@
 
 Builing on Mac OS
 
-1) brew install openssl
-2) Ensure -L/usr/local/opt/openssl/lib -I/usr/local/opt/openssl/include compiler args.
+1) Install Brew
+2) brew install automake berkeley-db4 libtool boost --c++11 miniupnpc openssl pkg-config homebrew/versions/protobuf260 --c++11 qt5 libevent 
+
+3) cd /src/secp256k1/
+4) ./autogen.sh
+5) ./configure
+6) make
+7) make install 
+
+8) cd ~ make
+
+
+
+Building on Linux
+
+Work in progress
+
+
+
+
 
 
 
