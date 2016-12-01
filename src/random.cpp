@@ -16,6 +16,9 @@
 
 #include <sys/stat.h> // temp because we removed util
 #include <fcntl.h> // temp removed util.h
+//#include <sys/types.h>
+//#include <sys/stat.h>
+#include <unistd.h>   // open and close
 
 
 #include "utilstrencodings.h" // for GetTime()
@@ -113,25 +116,36 @@ static void GetOSRand(unsigned char *ent32)
     CryptReleaseContext(hProvider, 0);
 #else
 
-    //unsigned char tempBuffer[32] = {};
-    //ent32 = tempBuffer;
-
 /*
+    unsigned int number;
+    FILE* urandom = fopen("/dev/urandom", "r");
+    if (urandom) {
+        int have  = 0;
+        do {
+           size_t bytes_read = fread(ent32, 1, 32, urandom);
+           //DCHECK(bytes_read == sizeof(number));
+           have += bytes_read; 
+        } while(have < 32);
+        fclose(urandom);
+    } else { RandFailure(); }
+*/
+
     int f = open("/dev/urandom", O_RDONLY);
     if (f == -1) {
+        printf("ERROR 1");
         RandFailure();
     }
     int have = 0;
     do {
         ssize_t n = read(f, ent32 + have, 32 - have);
         if (n <= 0 || n + have > 32) {
+	    printf("ERROR 2");
             RandFailure();
         }
         have += n;
     } while (have < 32);
     close(f);
-*/
-    // WTF ??? 
+    printf(" data: %s  \n", ent32 );
 
 #endif
 }

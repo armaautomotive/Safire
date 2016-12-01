@@ -166,17 +166,23 @@ CPrivKey CKey::GetPrivKey() const {
 
 CPubKey CKey::GetPubKey() const {
 
-    //assert(fValid);
+    printf("GetPubKey \n");
+
+    assert(fValid);
     secp256k1_pubkey pubkey;
     size_t clen = 65;
     CPubKey result;
 
+    printf("GetPubKey 1 \n");
+
     int ret = secp256k1_ec_pubkey_create(secp256k1_context_sign, &pubkey, begin());
+    printf("GetPubKey 2 \n");
     //assert(ret);
     secp256k1_ec_pubkey_serialize(secp256k1_context_sign, (unsigned char*)result.begin(), &clen, &pubkey, fCompressed ? SECP256K1_EC_COMPRESSED : SECP256K1_EC_UNCOMPRESSED);
     //assert(result.size() == clen);
     //assert(result.IsValid());
 
+    printf("GetPubKey 3 \n");
     return result;
 }
 

@@ -15,6 +15,7 @@ SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 CC=clang++
 #CFLAGS=-Wall -shared
 CFLAGS= -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -L/usr/local/opt/openssl/lib -L/usr/local/lib -lssl -lcrypto -lboost_system -lsecp256k1 -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w 
+# -lsecp256k1
 # -Weverything  
 # -std=gnu99  
 

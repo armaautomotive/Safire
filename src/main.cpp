@@ -132,17 +132,19 @@ int main()
 	// sha256 123 = a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3 
 	// sah256 jon = bb472edb86809a761936d90c70aeb4346618aa71da7a00c16e334863499108fd
 
-	CKey secret; // note clense.cpp is commented out
-	secret.MakeNewKey(false);
+	CKey secret; // 
+	//secret.resize(32);
+        secret.MakeNewKey(false);
 	std::cout << " Secret key... " << std::endl;		
 
-	//CPrivKey x = secret.GetPrivKey();
+	//CPrivKey x = secret.GetPrivKey(); // Seg fault
 	std::cout << " Private key... " << std::endl;
 
-	//CPubKey pubkey = secret.GetPubKey();  // seg fault
+	//vector<unsigned char> vchPubKey = secret.GetPubKey(); 
+	CPubKey pubkey = secret.GetPubKey();  // seg fault
 	//assert(secret.VerifyPubKey(pubkey));
 
-	generate_key();
+	//generate_key();
 
 	// pubkey.GetID()
 	std::cout << " Done " << std::endl;
