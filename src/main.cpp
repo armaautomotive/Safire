@@ -143,14 +143,24 @@ int main()
 	std::cout << " Private key... " << std::endl;
 
 	//vector<unsigned char> vchPubKey = secret.GetPubKey(); 
-	CPubKey pubkey = secret.GetPubKey();  // seg fault
+	//CPubKey pubkey = secret.GetPubKey();  // seg fault
 	//assert(secret.VerifyPubKey(pubkey));
 
 	//generate_key();
 
 	//ECC_InitSanityCheck(); // seg fault
 
+	CRSACrypto crypto;
+	std::string p;
+	std::string v;
+	crypto.GetKeyPair(p,v);
+	std::cout << " public: " << p << "  private: " << v << std::endl;
+	//std::string message = "Do eeet.";
+	std::string signature = "";
+        crypto.SignMessage(p, message, signature);
+	std::cout << " sig " << signature << std::endl;	
+
+
 	// pubkey.GetID()
 	std::cout << " Done " << std::endl;
 }
-

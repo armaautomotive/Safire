@@ -21,6 +21,12 @@
 #include <openssl/rsa.h>
 #include <openssl/sha.h>
 #include <openssl/rand.h>
+#include <openssl/pem.h>
+#include <openssl/crypto.h>
+
+typedef unsigned char byte;
+#define UNUSED(x) ((void)x)
+const char hn[] = "SHA256";
 
 class CRSACrypto
 {
@@ -42,6 +48,12 @@ public:
     }
 
     int GetKeyPair(std::string & privateKey, std::string & publicKey);
+    int SignMessage(std::string & privateKey, std::string & message, std::string & signature);    
+
+    int make_keys(EVP_PKEY** skey, EVP_PKEY** vkey);
+    int sign_it(const byte* msg, size_t mlen, byte** sig, size_t* slen, EVP_PKEY* pkey);
+    int verify_it(const byte* msg, size_t mlen, const byte* sig, size_t slen, EVP_PKEY* pkey);
+    void print_it(const char* label, const byte* buff, size_t len); // Private?
 
 };
 
