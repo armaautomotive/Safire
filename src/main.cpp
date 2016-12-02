@@ -18,6 +18,8 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
+#include "rsacrypto.h"
+
 static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 
 
@@ -134,7 +136,7 @@ int main()
 
 	CKey secret; // 
 	//secret.resize(32);
-        secret.MakeNewKey(false);
+        secret.MakeNewKey(true);
 	std::cout << " Secret key... " << std::endl;		
 
 	//CPrivKey x = secret.GetPrivKey(); // Seg fault
@@ -145,6 +147,8 @@ int main()
 	//assert(secret.VerifyPubKey(pubkey));
 
 	//generate_key();
+
+	//ECC_InitSanityCheck(); // seg fault
 
 	// pubkey.GetID()
 	std::cout << " Done " << std::endl;
