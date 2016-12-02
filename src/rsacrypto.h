@@ -49,12 +49,18 @@ public:
 
     int GetKeyPair(std::string & privateKey, std::string & publicKey);
     int SignMessage(std::string & privateKey, std::string & message, std::string & signature);    
+    int verify(std::string message, std::string sig, std::string pkey);
 
     int make_keys(EVP_PKEY** skey, EVP_PKEY** vkey);
     int sign_it(const byte* msg, size_t mlen, byte** sig, size_t* slen, EVP_PKEY* pkey);
     int verify_it(const byte* msg, size_t mlen, const byte* sig, size_t slen, EVP_PKEY* pkey);
     void print_it(const char* label, const byte* buff, size_t len); // Private?
 
+    void DataToString(const byte * buff, size_t buff_len, std::string & str);
+    void StringToData(std::string & str, const byte * buff, int * buff_len);
+
+    unsigned char gethex(const char *s, char **endptr);
+    unsigned char * convert(const char *s, int *length);
 };
 
 #endif // MAGNITE_RSA_CRYPTO_H

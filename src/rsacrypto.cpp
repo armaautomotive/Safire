@@ -176,6 +176,17 @@ int CRSACrypto::SignMessage(std::string & privateKey, std::string & message, std
 
 	print_it("Signature", sig, slen);
 
+	//std::string signature = "";
+	DataToString(sig, slen, signature);
+	//printf("Signature!!!: %s ", signature);
+	//std::cout << "Signature!!! " << signature << std::endl;
+
+	//byte * back = NULL;
+	//int len = 0;
+	//StringToData(signature, back, &len);
+	//print_it("Check : ", back, len); 
+
+
 	//signature = std::string(sig);
 	return 1;
 }
@@ -363,6 +374,15 @@ int CRSACrypto::sign_it(const byte* msg, size_t mlen, byte** sig, size_t* slen, 
     return !!result;
 }
 
+
+int CRSACrypto::verify(std::string message, std::string sig, std::string pkey)
+{
+	//EVP_PKEY k = NULL;		
+
+	//verify_it( (const byte*)message.c_str(), message.length(), (const byte*)sig, sig.length(), k );
+	return 1;
+}
+
 int CRSACrypto::verify_it(const byte* msg, size_t mlen, const byte* sig, size_t slen, EVP_PKEY* pkey)
 {
     /* Returned to caller */
@@ -448,7 +468,44 @@ void CRSACrypto::print_it(const char* label, const byte* buff, size_t len)
     printf("\n");
 }
 
+void CRSACrypto::DataToString(const byte * buff, size_t buff_len, std::string & str)
+{
+	if(!buff || !buff_len)
+		return;
 
+	for(size_t i=0; i < buff_len; ++i)
+	{
+		char b[3];
+		snprintf(b, sizeof(b), "%02X", buff[i]);
+		str += b;
+	}
+}
+
+
+void CRSACrypto::StringToData(std::string & str, const byte * buff, int * buff_len)
+{
+	byte * data = ( byte*)malloc( (str.length()/2) );	
+	int length = 0;
+
+	int target = 0;	
+	for(unsigned int i = 0; i < str.length(); )
+        {	
+		std::string s_hex = str.substr(i, 2);
+								
+		printf(" hex _%s_ ", s_hex.c_str());
+
+		unsigned uchr;
+		sscanf( s_hex.c_str(), "%2x", &uchr );
+		data[target++] = uchr;	
+		printf(" char %u ", uchr);
+
+		i += 2;
+		length += 1;
+	}
+
+	buff = (const byte*)data;
+	*buff_len = length;
+}
 
 
 

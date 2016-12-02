@@ -161,6 +161,18 @@ int main()
 	std::cout << " sig " << signature << std::endl;	
 
 
+	//byte * back = NULL;
+        //int len = 0;
+        //crypto.StringToData(signature, back, &len);
+	//std::cout << " back "  <<  " len " << len << std::endl;
+	//std::string again = "";
+	//crypto.DataToString(back, len, again);
+        //std::cout << " again " << again << std::endl;	
+
+
+	int verified = crypto.verify(message, signature, v);
+	std::cout << " verify " << verified << std::endl;
+
 	// pubkey.GetID()
 	std::cout << " Done " << std::endl;
 }
