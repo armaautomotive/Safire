@@ -62,76 +62,58 @@ int CECDSACrypto::GetPublicKey(std::string & privateKey, std::string & publicKey
 
 int CECDSACrypto::SignMessage(std::string & privateKey, std::string & message, std::string & signature)
 {
-    //std::cout << "SignMessage: " << message << std::endl; // bus error 10 
-    //printf("SignMessage: %s \n", message.c_str() );
+    //if( privateKey == NULL || message == NULL ){
+    //   return 0;
+    //}
+    printf("SignMessage\n");
+    printf("    Private: %s  \n", std::string(privateKey).c_str() );
+    printf("    Message: %s  \n", std::string(message).c_str() );
     
     unsigned char * c_digest = usha256((char *)message.c_str());
     //unsigned char c_digest[] = "c7fbca202a95a570285e3d700eb04ca2";
+    //std::cout << "    message digest: " << message << std::endl; 
 
     EC_KEY *eckey = NULL;
     eckey = EC_KEY_new_by_curve_name(NID_secp256k1);
 
-    BIGNUM *res;
-    BN_hex2bn(&res, privateKey.c_str());
-
+    BIGNUM *res = new BIGNUM();
+    printf("1 \n");
+    BN_hex2bn(&res, (const char *) std::string(privateKey).c_str());
+    printf("2 \n");
     EC_KEY_set_private_key(eckey, res);
+    printf("3 \n");
 
     ECDSA_SIG *e_signature = ECDSA_do_sign( (unsigned char *) c_digest , strlen((char*)c_digest), eckey);
     if (NULL == e_signature)
     {
         printf("Failed to generate EC Signature\n");
         //function_status = -1;
+        //return 0;
     } else {
-        printf(" GENERATED SIG \n ");
-
-        printf("(sig->r, sig->s): (%s, %s)\n", BN_bn2hex(e_signature->r), BN_bn2hex(e_signature->s));
+        //printf(" GENERATED SIG \n ");
+        //printf("(sig->r, sig->s): (%s, %s)\n", BN_bn2hex(e_signature->r), BN_bn2hex(e_signature->s));
   
         char *r = BN_bn2hex(e_signature->r);
         char *s = BN_bn2hex(e_signature->s);  
-	//printf(" r len %d ", strlen(r) );
-        //std::string R(r);    // crash
-	//std::string S(s);  // seg fault
-        //signature = R + S;
-
         char * csig = (char *)malloc(129);
-        //char sig[129];
         for(int i = 0; i < 64; i++){
             csig[i] = r[i];
         }
         for(int i = 0; i < 64; i++){
             csig[i + 64] =  s[i];
         }
-        
-        //sprintf(sig, "%s%s", r, s);
-        //signature = std::string(sig);
-        //memcpy(sig, r, 64);
-        //memcpy(sig+64, s, 64);
         csig[128] = 0;
-
-
         signature = std::string(csig);
-        //std::stringstream ss;
-        //ss << std::string(r) << std::string(s); 
-        //signature = ss.str();
-        //signature = std::string(r) + std::string(s);
-
-        //OPENSSL_free(r);
-        //OPENSSL_free(s);
-
-        // Get der encoded signature
-        //const uint8_t *der_copy;
-        //int der_len = ECDSA_size(eckey);
-        //const uint8_t * der = (const uint8_t *)calloc(der_len, sizeof(uint8_t));
-        //der_copy = der;
-        //i2d_ECDSA_SIG( (const ECDSA_SIG *) e_signature, (unsigned char **) * der_copy);
-        //printf(" DER %d  \n", der_copy );
+        free(csig);
+        OPENSSL_free(r);
+        OPENSSL_free(s);
     }
     return 1;
 } 
 
 int CECDSACrypto::VerifyMessage(std::string & message, std::string & signature, std::string & publicKey)
 {
-    
+    printf("VerifyMessage \n");    
     unsigned char * c_digest = usha256((char *)message.c_str());
     //unsigned char hash[] = "c7fbca202a95a570285e3d700eb04ca2";
 
@@ -139,7 +121,14 @@ int CECDSACrypto::VerifyMessage(std::string & message, std::string & signature, 
     eckey = EC_KEY_new_by_curve_name(NID_secp256k1);
     EC_POINT * ec_point;
 
-    int r = EC_KEY_set_public_key(eckey, ec_point);    
+    int rs = EC_KEY_set_public_key(eckey, ec_point);    
+
+    std::string sr = signature.substr(0, 64);
+    std::string ss = signature.substr(64, 64);
+    std::cout << " beep " << sr << " " << ss << std::endl;
+    //char *r = const_cast<char*>(std::string(signature.substr(0, 64)).c_str());
+    //char *s = const_cast<char*>(std::string(signature.substr(64, 64)).c_str()); 
+    //printf(" Verify %s  %s   \n", r, s);
 
 /*
     int verify_status = ECDSA_do_verify(hash, strlen((char*)hash), signature, eckey);
@@ -186,12 +175,15 @@ int CECDSACrypto::GetKeyPair(std::string & privateKey, std::string & publicKey)
     std::string privateKey2(privateHex);
     GetPublicKey( privateKey2, publicKey2);
     
-    std::cout << " yo " << publicKey2 << std::endl;
+    std::cout << " public key: " << publicKey2 << std::endl;
  
     std::string signature2 = "";
     std::string message = "123";
     SignMessage(privateKey2, message, signature2);
-    std::cout << " sig " << signature2 << std::endl;
+    std::cout << "Signature: " << signature2 << std::endl;
+ 
+
+    VerifyMessage(message, signature2, publicKey2);
 
     
     /* Sign and Verify HMAC keys */
