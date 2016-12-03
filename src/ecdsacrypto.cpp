@@ -4,6 +4,7 @@
 
 #include "ecdsacrypto.h"
 
+#include <sstream>
 
 //int CECDSACrypto::RandomPrivateKey()
 
@@ -61,6 +62,9 @@ int CECDSACrypto::GetPublicKey(std::string & privateKey, std::string & publicKey
 
 int CECDSACrypto::SignMessage(std::string & privateKey, std::string & message, std::string & signature)
 {
+    //std::cout << "SignMessage: " << message << std::endl; // bus error 10 
+    //printf("SignMessage: %s \n", message.c_str() );
+    
     unsigned char * c_digest = usha256((char *)message.c_str());
     //unsigned char c_digest[] = "c7fbca202a95a570285e3d700eb04ca2";
 
@@ -81,24 +85,55 @@ int CECDSACrypto::SignMessage(std::string & privateKey, std::string & message, s
         printf(" GENERATED SIG \n ");
 
         printf("(sig->r, sig->s): (%s, %s)\n", BN_bn2hex(e_signature->r), BN_bn2hex(e_signature->s));
-        printf("(sig->r, sig->s): (%s, %s)\n", BN_bn2hex(e_signature->r), BN_bn2hex(e_signature->s)); 
-    
+  
+        char *r = BN_bn2hex(e_signature->r);
+        char *s = BN_bn2hex(e_signature->s);  
+	//printf(" r len %d ", strlen(r) );
+        //std::string R(r);    // crash
+	//std::string S(s);  // seg fault
+        //signature = R + S;
+
+        char * csig = (char *)malloc(129);
+        //char sig[129];
+        for(int i = 0; i < 64; i++){
+            csig[i] = r[i];
+        }
+        for(int i = 0; i < 64; i++){
+            csig[i + 64] =  s[i];
+        }
+        
+        //sprintf(sig, "%s%s", r, s);
+        //signature = std::string(sig);
+        //memcpy(sig, r, 64);
+        //memcpy(sig+64, s, 64);
+        csig[128] = 0;
+
+
+        signature = std::string(csig);
+        //std::stringstream ss;
+        //ss << std::string(r) << std::string(s); 
+        //signature = ss.str();
+        //signature = std::string(r) + std::string(s);
+
+        //OPENSSL_free(r);
+        //OPENSSL_free(s);
+
         // Get der encoded signature
-        const uint8_t *der_copy;
-        int der_len = ECDSA_size(eckey);
-        const uint8_t * der = (const uint8_t *)calloc(der_len, sizeof(uint8_t));
-        der_copy = der;
-        i2d_ECDSA_SIG( (const ECDSA_SIG *) e_signature, (unsigned char **) * der_copy);
-
-        printf(" DER %d  \n", der_copy );
+        //const uint8_t *der_copy;
+        //int der_len = ECDSA_size(eckey);
+        //const uint8_t * der = (const uint8_t *)calloc(der_len, sizeof(uint8_t));
+        //der_copy = der;
+        //i2d_ECDSA_SIG( (const ECDSA_SIG *) e_signature, (unsigned char **) * der_copy);
+        //printf(" DER %d  \n", der_copy );
     }
-
     return 1;
 } 
 
 int CECDSACrypto::VerifyMessage(std::string & message, std::string & signature, std::string & publicKey)
 {
-    unsigned char hash[] = "c7fbca202a95a570285e3d700eb04ca2";
+    
+    unsigned char * c_digest = usha256((char *)message.c_str());
+    //unsigned char hash[] = "c7fbca202a95a570285e3d700eb04ca2";
 
     EC_KEY *eckey = NULL;
     eckey = EC_KEY_new_by_curve_name(NID_secp256k1);
@@ -144,8 +179,8 @@ int CECDSACrypto::GetKeyPair(std::string & privateKey, std::string & publicKey)
     sha256((char *)input.c_str(), privateHex);
     printf(" private %s \n", privateHex);
     
-    unsigned char * un = usha256((char *)input.c_str());
-    printf(" p unsigned: %s \n", un);
+    //unsigned char * un = usha256((char *)input.c_str());
+    //printf(" p unsigned: %s \n", un);
 
     std::string publicKey2 = "";
     std::string privateKey2(privateHex);
