@@ -114,14 +114,33 @@ int CECDSACrypto::SignMessage(std::string & privateKey, std::string & message, s
 int CECDSACrypto::VerifyMessage(std::string & message, std::string & signature, std::string & publicKey)
 {
     printf("VerifyMessage \n");    
+    printf("    Message: %s  \n", std::string(message).c_str() );
+    printf("    Public : %s  \n", std::string(publicKey).c_str() ); 
     unsigned char * c_digest = usha256((char *)message.c_str());
     //unsigned char hash[] = "c7fbca202a95a570285e3d700eb04ca2";
 
+    BN_CTX *ctx;
+    ctx = BN_CTX_new(); // ctx is an optional buffer to save time from allocating and deallocating memory whenever required
+    //RSA *pubkey = RSA_new(); // seg fault
+    //BN_hex2bn(&pubkey->e, std::string(publicKey).c_str());    
+
+    const EC_GROUP *group = NULL;
     EC_KEY *eckey = NULL;
     eckey = EC_KEY_new_by_curve_name(NID_secp256k1);
-    EC_POINT * ec_point;
+    group = EC_KEY_get0_group(eckey);
+    //BN_hex2bn(&pubkey->e, "010001");   
+    EC_POINT *pub_key = NULL;
+    pub_key = EC_POINT_new(group);
+    //BN_hex2bn(&pub_key->e, std::string(publicKey).c_str()); 
+    // EC_KEY_set_public_key
+    // EC_POINT_bn2point
+    pub_key = EC_POINT_hex2point(group, std::string(publicKey).c_str(), pub_key, ctx);
+    // Verify pub_key ... 
 
-    int rs = EC_KEY_set_public_key(eckey, ec_point);    
+
+    printf("a \n");
+    int rs = EC_KEY_set_public_key(eckey, pub_key);    
+    printf("b \n");
 
     std::string sr = signature.substr(0, 64);
     std::string ss = signature.substr(64, 64);
@@ -130,8 +149,19 @@ int CECDSACrypto::VerifyMessage(std::string & message, std::string & signature, 
     //char *s = const_cast<char*>(std::string(signature.substr(64, 64)).c_str()); 
     //printf(" Verify %s  %s   \n", r, s);
 
-/*
-    int verify_status = ECDSA_do_verify(hash, strlen((char*)hash), signature, eckey);
+    ECDSA_SIG *e_signature = ECDSA_SIG_new();
+    printf("1 \n");
+    int len = BN_hex2bn(&e_signature->r, (const char *) std::string(sr).c_str() );
+    printf("2 \n");
+    printf(" length: %d \n", len);
+    len = BN_hex2bn(&e_signature->s, (const char *) std::string(ss).c_str() );
+    printf("    Verify (sig->r, sig->s): (%s, %s)\n", BN_bn2hex(e_signature->r), BN_bn2hex(e_signature->s)); 
+
+    //BN_hex2bn(&pubkey->e, "010001");
+
+
+
+    int verify_status = ECDSA_do_verify(c_digest, strlen((char*)c_digest), e_signature, eckey);
     const int verify_success = 1;
     if (verify_success != verify_status)
                         {
@@ -143,7 +173,7 @@ int CECDSACrypto::VerifyMessage(std::string & message, std::string & signature, 
                             printf("Verifed EC Signature\n");
                             //function_status = 1;
                         }
-*/
+
     return 1;
 }
 
