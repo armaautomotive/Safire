@@ -19,6 +19,7 @@
 #include <openssl/pem.h>
 
 #include "rsacrypto.h"
+#include "ecdsacrypto.h"
 
 static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 
@@ -168,10 +169,12 @@ int main()
 	//std::string again = "";
 	//crypto.DataToString(back, len, again);
         //std::cout << " again " << again << std::endl;	
+	//int verified = crypto.verify(message, signature, v);
+	//std::cout << " verify " << verified << std::endl;
 
-
-	int verified = crypto.verify(message, signature, v);
-	std::cout << " verify " << verified << std::endl;
+	std::cout << "  " << std::endl;	
+	CECDSACrypto ecdsa;
+	int r = ecdsa.GetKeyPair(p, v );
 
 	// pubkey.GetID()
 	std::cout << " Done " << std::endl;
