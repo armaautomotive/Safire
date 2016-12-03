@@ -28,7 +28,7 @@
 #include <openssl/ecdsa.h>   // for ECDSA_do_sign, ECDSA_do_verify
 #include <openssl/obj_mac.h> // for NID_secp192k1
 
-//typedef unsigned char byte;
+typedef unsigned char byte;
 //#define UNUSED(x) ((void)x)
 //const char hn[] = "SHA256";
 
@@ -74,6 +74,7 @@ public:
 
     //unsigned char gethex(const char *s, char **endptr);
     //unsigned char * convert(const char *s, int *length);
+    void print_it(const char* label, const byte* buff, size_t len);
 };
 
 #endif // MAGNITE_ECDSA_CRYPTO_H
