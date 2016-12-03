@@ -5,10 +5,64 @@
 #include "ecdsacrypto.h"
 
 #include <sstream>
+#include <unistd.h>   // open and close
+#include <sys/stat.h> // temp because we removed util
+#include <fcntl.h> // temp removed util.h
 
-//int CECDSACrypto::RandomPrivateKey()
+int CECDSACrypto::RandomPrivateKey(std::string & privateKey)
+{
+    unsigned char *ent32;
+
+#ifdef WIN32
+    HCRYPTPROV hProvider;
+    int ret = CryptAcquireContextW(&hProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT);
+    if (!ret) {
+        RandFailure();
+    }
+    ret = CryptGenRandom(hProvider, 32, ent32);
+    if (!ret) {
+        RandFailure();
+    }
+    CryptReleaseContext(hProvider, 0);
+#else
+    int f = open("/dev/urandom", O_RDONLY);
+    if (f == -1) {
+        printf("ERROR 1");
+        //RandFailure();
+    }
+    int have = 0;
+    do {
+        ssize_t n = read(f, ent32 + have, 32 - have);
+        if (n <= 0 || n + have > 32) {
+            printf("ERROR 2");
+            break;
+            //RandFailure();
+        }
+        have += n;
+    } while (have < 32);
+    close(f);
+#endif
+
+    print_it(" random ", ent32, sizeof(ent32) );
+    printf(" \n ");
+
+    std::string input = "jon";
+    char privateHex[65];
+    sha256((char *)input.c_str(), privateHex);
+    //printf(" private %s \n", privateHex);
+    privateKey = std::string(privateHex);
+    
+
+    return 1;
+}
 
 
+/**
+* GetPublicKey
+*
+* Description: Given a private key, derive the public key from it.
+*
+*/
 int CECDSACrypto::GetPublicKey(std::string & privateKey, std::string & publicKey)
 {
     EC_KEY *eckey = NULL;
@@ -60,6 +114,17 @@ int CECDSACrypto::GetPublicKey(std::string & privateKey, std::string & publicKey
 }
 
 
+/**
+* SignMessage
+*
+* Description: Given a private key and message, sha256 the message and sign it with the private key
+*  resulting in a signature.
+*
+* @param std::string private key - input private key hex string.
+* @param std::string message - input message to create a signature for.
+* @param std::string signature - output signature string in hex format. Concatinated numbers.
+* @return int - 1 if success.
+*/
 int CECDSACrypto::SignMessage(std::string & privateKey, std::string & message, std::string & signature)
 {
     //if( privateKey == NULL || message == NULL ){
@@ -69,24 +134,35 @@ int CECDSACrypto::SignMessage(std::string & privateKey, std::string & message, s
     printf("    Private: %s  \n", std::string(privateKey).c_str() );
     printf("    Message: %s  \n", std::string(message).c_str() );
  
-    //unsigned char * c_digest = usha256((char *)message.c_str());
-    //unsigned char c_digest[33];
-    //sha256((char *)message.c_str(), (char*)c_digest);
-    unsigned char c_digest[] = "c7fbca202a95a570285e3d700eb04ca2";
+    unsigned char * uc_digest = usha256((char *)message.c_str());
+    unsigned char c_digest[33];
+    char d[33]; 
+    sha256((char *)message.c_str(), (char*)d);
+    //c_digest =  reinterpret_cast<unsigned char*>(d);
+    for(int i = 0; i < 32; i++){
+        c_digest[i] = (unsigned char)d[i];
+    }
+    c_digest[32] = 0;
+
+//    unsigned char c_digest[] = "c7fbca202a95a570285e3d700eb04ca2";
     int digest_length = sizeof(c_digest); // 32; // strlen((char*)c_digest) 
     print_it("    digest: ", c_digest, digest_length);
-    //unsigned char c_digest[] = "c7fbca202a95a570285e3d700eb04ca2";
-    //std::cout << "    message digest: " << message << std::endl; 
+    //printf("     d len: %d  \n", digest_length);
+
+    //unsigned char c_digest2[] = "c7fbca202a95a570285e3d700eb04ca2";
+    //int digest_length2 = sizeof(c_digest2);
+    //print_it("    digest2: ", c_digest2, digest_length2);
+    //printf("     d len2: %d \n ", digest_length2);
 
     EC_KEY *eckey = NULL;
     eckey = EC_KEY_new_by_curve_name(NID_secp256k1);
 
     BIGNUM *res = new BIGNUM();
-    printf("1 \n");
+    //printf("1 \n");
     BN_hex2bn(&res, (const char *) std::string(privateKey).c_str());
-    printf("2 \n");
+    //printf("2 \n");
     EC_KEY_set_private_key(eckey, res);
-    printf("3 \n");
+    //printf("3 \n");
 
     ECDSA_SIG *e_signature = ECDSA_do_sign( (unsigned char *) c_digest, digest_length, eckey);
     if (NULL == e_signature)
@@ -123,8 +199,18 @@ int CECDSACrypto::VerifyMessage(std::string & message, std::string & signature, 
     printf("    Public : %s  \n", std::string(publicKey).c_str() ); 
     printf("    Signat : %s  \n", std::string(signature).c_str() );
     //unsigned char * c_digest = usha256((char *)message.c_str());
-    unsigned char c_digest[] = "c7fbca202a95a570285e3d700eb04ca2";
-    //unsigned char c_digest[33];
+//    unsigned char c_digest[] = "c7fbca202a95a570285e3d700eb04ca2";
+    
+    unsigned char c_digest[33];
+    char d[33];
+    sha256((char *)message.c_str(), (char*)d);
+    //c_digest = reinterpret_cast<unsigned char*>(d);
+    for(int i = 0; i < 32; i++){
+        c_digest[i] = (unsigned char)d[i];
+    }
+    c_digest[32] = 0;
+
+    //unsigned char * c_digest;
     //sha256((char *)message.c_str(), (char*)c_digest);
     int digest_length = sizeof(c_digest); // 32; // strlen((char*)c_digest)
     print_it("    digest: ", c_digest, digest_length);
@@ -200,6 +286,10 @@ int CECDSACrypto::GetKeyPair(std::string & privateKey, std::string & publicKey)
     OpenSSL_add_all_algorithms();
 
 
+    std::string randomKey;
+    RandomPrivateKey(randomKey);
+    printf("Random Key: %s\n\n", (char *)randomKey.c_str());
+   
     std::string input = "jon";
     char privateHex[65];
     sha256((char *)input.c_str(), privateHex);
@@ -386,6 +476,16 @@ std::string CECDSACrypto::base58_encode(BIGNUM num, std::string vers)
 }
 */
 
+
+/**
+* runUnitTests
+*
+* Description: TODO put this in an interface for all classes. 
+*/
+void CECDSACrypto::runUnitTests()
+{
+
+} 
 
 void CECDSACrypto::print_it(const char* label, const byte* buff, size_t len)
 {

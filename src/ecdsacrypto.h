@@ -55,7 +55,8 @@ public:
     //void usha256(char *string, unsigned char outputBuffer[65]);
     unsigned char * usha256(char *string);
     //std::string base58_encode(BIGNUM num, std::string vers);
-    
+
+    int RandomPrivateKey(std::string & privateKey);    
     int GetPublicKey(std::string & privateKey, std::string & publicKey);
     int SignMessage(std::string & privateKey, std::string & message, std::string & signature);
     int VerifyMessage(std::string & message, std::string & signature, std::string & publicKey);
@@ -75,6 +76,7 @@ public:
     //unsigned char gethex(const char *s, char **endptr);
     //unsigned char * convert(const char *s, int *length);
     void print_it(const char* label, const byte* buff, size_t len);
+    void runUnitTests();
 };
 
 #endif // MAGNITE_ECDSA_CRYPTO_H
