@@ -57,26 +57,24 @@ public:
     //std::string base58_encode(BIGNUM num, std::string vers);
 
     int RandomPrivateKey(std::string & privateKey);    
-    int GetPublicKey(std::string & privateKey, std::string & publicKey);
+    int GetPublicKey(std::string privateKey, std::string & publicKey, std::string & publicKeyCompressed);
     int SignMessage(std::string privateKey, std::string message, std::string & signature);
-    int VerifyMessage(std::string & message, std::string & signature, std::string & publicKey);
+    int VerifyMessage(std::string message, std::string signature, std::string publicKey);
+    int VerifyMessageCompressed(std::string message, std::string signature, std::string publicKey);
+    int compressPublicKey(std::string uncompressed, std::string & compressed);
 
-    int GetKeyPair(std::string & privateKey, std::string & publicKey);
+    int GetKeyPair(std::string & privateKey, std::string & publicKey, std::string & publicKeyCompressed);
     //int SignMessage(std::string & privateKey, std::string & message, std::string & signature);    
     //int verify(std::string message, std::string sig, std::string pkey);
 
-    //int make_keys(EVP_PKEY** skey, EVP_PKEY** vkey);
-    //int sign_it(const byte* msg, size_t mlen, byte** sig, size_t* slen, EVP_PKEY* pkey);
-    //int verify_it(const byte* msg, size_t mlen, const byte* sig, size_t slen, EVP_PKEY* pkey);
-    //void print_it(const char* label, const byte* buff, size_t len); // Private?
-
-    //void DataToString(const byte * buff, size_t buff_len, std::string & str);
-    //void StringToData(std::string & str, const byte * buff, int * buff_len);
-
     //unsigned char gethex(const char *s, char **endptr);
     //unsigned char * convert(const char *s, int *length);
+    int base64_encode(std::string input, std::string & output);
     void print_it(const char* label, const byte* buff, size_t len);
-    void runUnitTests();
+    void runTests();
+
+    char base58valuetochar(int v);
+    void encode58(char input[]);
 };
 
 #endif // MAGNITE_ECDSA_CRYPTO_H
