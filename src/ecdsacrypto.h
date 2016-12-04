@@ -58,7 +58,7 @@ public:
 
     int RandomPrivateKey(std::string & privateKey);    
     int GetPublicKey(std::string & privateKey, std::string & publicKey);
-    int SignMessage(std::string & privateKey, std::string & message, std::string & signature);
+    int SignMessage(std::string privateKey, std::string message, std::string & signature);
     int VerifyMessage(std::string & message, std::string & signature, std::string & publicKey);
 
     int GetKeyPair(std::string & privateKey, std::string & publicKey);

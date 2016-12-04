@@ -113,9 +113,13 @@ int main()
 	//int verified = crypto.verify(message, signature, v);
 	//std::cout << " verify " << verified << std::endl;
 
-	std::cout << "  " << std::endl;	
+	//std::cout << "  " << std::endl;	
 	CECDSACrypto ecdsa;
 	int r = ecdsa.GetKeyPair(p, v );
+        std::cout << "  private  " << p << "\n  public " << v << std::endl; 
+        
+
+        ecdsa.runUnitTests();
 
 	// pubkey.GetID()
 	std::cout << " Done " << std::endl;
