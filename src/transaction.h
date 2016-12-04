@@ -16,22 +16,25 @@
 #include <string.h>
 #include <assert.h>
 
-class CTransactions
+class CTransaction
 {
 private:
 
 
 public:
     //! Construct an empty wallet.
-    CTransactions()
+    CTransaction()
     {
     }
 
     //! Destructor.
-    ~CTransactions()
+    ~CTransaction()
     {
     }
 
+    std::string joinNetwork(std::string publicKey);
+    std::string sendPayment(std::string privateKey, std::string publicKey, std::string toAddress, double amount, int id);
+    bool verifyPayment(std::string message);
 
 };
 

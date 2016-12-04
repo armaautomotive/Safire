@@ -21,6 +21,7 @@
 //#include "rsacrypto.h"
 #include "ecdsacrypto.h"
 #include "wallet.h"
+#include "transaction.h"
 
 static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 
@@ -43,28 +44,30 @@ int main()
     //std::cout << "  private  " << p << "\n  public " << v << "\n  Public compressed: " << u << std::endl; 
     ecdsa.runTests();
 
+    std::string privateKey;
+    std::string publicKey;
+
     CWallet wallet;
     bool e = wallet.fileExists("wallet.dat");
     printf(" wallet exists: %d  \n", e);
     if(e == 0){
         printf("No wallet found. Creating a new one...\n");
-        std::string privateKey;
-        std::string publicKey;
         std::string publicKeyUncompressed;
         int r = ecdsa.RandomPrivateKey(privateKey);
         r = ecdsa.GetPublicKey(privateKey, publicKeyUncompressed, publicKey);        
-         
         wallet.write(privateKey, publicKey);
-
     } else {
         // Load wallet
-        std::string privateKey;
-        std::string publicKey;
         wallet.read(privateKey, publicKey);
-  
         std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl; 
-
     }
-	
+
+    // Transactions
+    CTransaction transaction;
+    std::string join = transaction.joinNetwork(publicKey);
+    std::cout << " join: " << join << std::endl;	
+    std::string sendPayment = transaction.sendPayment( privateKey, publicKey, u, 23.45, 1);
+    std::cout << " payment: " << sendPayment << std::endl;
+
     std::cout << " Done " << std::endl;
 }

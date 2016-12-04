@@ -10,6 +10,9 @@
 #include <string>
 #include <iostream>
 
+
+// TODO: Add function that checks and creates new wallet
+
 bool CWallet::fileExists(std::string fileName)
 {
     std::ifstream infile(fileName);
