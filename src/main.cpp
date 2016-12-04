@@ -61,7 +61,8 @@ int main()
         std::string privateKey;
         std::string publicKey;
         wallet.read(privateKey, publicKey);
-
+  
+        std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl; 
 
     }
 	

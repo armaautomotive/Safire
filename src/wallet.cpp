@@ -34,8 +34,15 @@ bool CWallet::read(std::string & privateKey, std::string & publicKey)
     std::string walletContent((std::istreambuf_iterator<char>(t)),
                  std::istreambuf_iterator<char>());
 
-    std::cout << " file: " << walletContent << std::endl;
-
+    //std::cout << " file: " << walletContent << std::endl;
+    std::size_t privateStart = walletContent.find("private:", 0);  
+    std::size_t privateEnd   = walletContent.find("\n", privateStart);
+    std::size_t publicStart  = walletContent.find("public:", 0);
+    std::size_t publicEnd    = walletContent.find("\n", publicStart);
+    if (privateStart!=std::string::npos) {
+        privateKey = walletContent.substr(privateStart + 8 , privateEnd - privateStart - 8);
+        publicKey = walletContent.substr(publicStart + 7 , publicEnd - publicStart - 7);
+    }
     return true;
 }
 
