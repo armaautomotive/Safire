@@ -7,7 +7,8 @@ OUT_PATH=./bin
 VPATH=${SRC_PATH}
 #FILES= ./src/crypto/aes.cpp ./src/main.cpp 
 #FILES= ./src/main.cpp ./src/crypto/sha256.cpp ./src/crypto/hmac_sha256.cpp ./src/support/cleanse.cpp ./src/support/lockedpool.cpp  ./src/key.cpp ./src/pubkey.cpp ./src/random.cpp ./src/crypto/sha512.cpp ./src/hash.cpp ./src/crypto/ripemd160.cpp ./src/crypto/hmac_sha512.cpp  ./src/ecdsacrypto.cpp 
-FILES= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp 
+
+FILES= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp ./src/transactions.cpp  
 # ./src/util.cpp ./src/rsacrypto.cpp  
 #	./src/wallet/wallet.cpp
 SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
@@ -30,4 +31,4 @@ linux:
 	${CC_LINUX} ${CFLAGS_LINUX}  -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Magnite	
 
 
-
+# TODO add tests application target to run all unit tests.
