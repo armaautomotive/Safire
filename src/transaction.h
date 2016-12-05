@@ -33,9 +33,14 @@ public:
     }
 
     std::string joinNetwork(std::string publicKey);
+    
     std::string sendPayment(std::string privateKey, std::string publicKey, std::string toAddress, double amount, int id);
+
+    std::string sendCurrencyIssuance(std::string privateKey, std::string publicKey, std::string toAddress, double amount, int id);
+
     bool verifyPayment(std::string message);
 
+    // TODO Parse messages 
 };
 
 #endif // MAGNITE_TRANSACTION_H

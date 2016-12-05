@@ -23,13 +23,10 @@
 #include "wallet.h"
 #include "transaction.h"
 
-static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
+#include "leveldb/db.h"
 
-bool is_file_exist(const char *fileName)
-{
-    std::ifstream infile(fileName);
-    return infile.good();
-}
+//static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
+using namespace std;
 
 int main()
 {
@@ -68,6 +65,19 @@ int main()
     std::cout << " join: " << join << std::endl;	
     std::string sendPayment = transaction.sendPayment( privateKey, publicKey, u, 23.45, 1);
     std::cout << " payment: " << sendPayment << std::endl;
+
+    leveldb::DB* db;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, "./userdb", &db);
+    if (false == status.ok())
+    {
+        cerr << "Unable to open/create test database './testdb'" << endl;
+        cerr << status.ToString() << endl;
+        return -1;
+    }
+    
+
 
     std::cout << " Done " << std::endl;
 }

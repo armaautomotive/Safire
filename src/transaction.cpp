@@ -43,6 +43,11 @@ std::string CTransaction::sendPayment(std::string privateKey, std::string public
     return message;
 }
 
+std::string CTransaction::sendCurrencyIssuance(std::string privateKey, std::string publicKey, std::string toAddress, double amount, int id)
+{
+
+}
+
 bool CTransaction::verifyPayment(std::string message)
 {
 
