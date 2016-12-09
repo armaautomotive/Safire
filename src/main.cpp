@@ -23,7 +23,8 @@
 #include "wallet.h"
 #include "transaction.h"
 
-#include "leveldb/db.h"
+#include "userdb.h"
+#include "leveldb/db.h" // TEMP 
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
@@ -77,7 +78,9 @@ int main()
         return -1;
     }
     
-
+    CUserDB userDB;
+    userDB.AddUser("test");
+    userDB.GetUsers(); 
 
     std::cout << " Done " << std::endl;
 }
