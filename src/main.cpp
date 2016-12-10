@@ -25,6 +25,7 @@
 
 #include "userdb.h"
 #include "leveldb/db.h" // TEMP 
+#include "blockdb.h"
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
@@ -67,20 +68,16 @@ int main()
     std::string sendPayment = transaction.sendPayment( privateKey, publicKey, u, 23.45, 1);
     std::cout << " payment: " << sendPayment << std::endl;
 
-    leveldb::DB* db;
-    leveldb::Options options;
-    options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./userdb", &db);
-    if (false == status.ok())
-    {
-        cerr << "Unable to open/create test database './testdb'" << endl;
-        cerr << status.ToString() << endl;
-        return -1;
-    }
     
     CUserDB userDB;
     userDB.AddUser("test");
     userDB.GetUsers(); 
+
+
+    CBlockDB blockDB;
+    blockDB.AddBlock("First");
+    blockDB.GetBlocks();
+
 
     std::cout << " Done " << std::endl;
 }
