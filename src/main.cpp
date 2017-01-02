@@ -27,7 +27,7 @@
 #include "leveldb/db.h" // TEMP 
 #include "blockdb.h"
 
-//#include "network.h"
+#include "network/server.h"
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
@@ -79,6 +79,15 @@ int main()
     CBlockDB blockDB;
     blockDB.AddBlock("First");
     blockDB.GetBlocks();
+
+
+    // Start Networking
+    std::cout << "Starting networking. " << std::endl;
+    std::size_t num_threads = 1;
+    http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
+
+    // Run the server until stopped.
+    s.run();
 
 
     std::cout << " Done " << std::endl;
