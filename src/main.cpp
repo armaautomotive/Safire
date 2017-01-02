@@ -27,6 +27,8 @@
 #include "leveldb/db.h" // TEMP 
 #include "blockdb.h"
 
+//#include "network.h"
+
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
 
