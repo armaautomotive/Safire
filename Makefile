@@ -16,7 +16,7 @@ SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 CC_LINUX=g++
 CC=clang++
 
-CFLAGS= -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -I./src/leveldb/include -L/usr/local/opt/openssl/lib -L/usr/local/lib -L./src/leveldb  -L./usr/local/Cellar/boost/1.62.0/lib  -lssl -lcrypto -lboost_system -lboost_thread-mt -lleveldb -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w 
+CFLAGS= -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -I./src/leveldb/include -L/usr/local/opt/openssl/lib -L/usr/local/lib -L./src/leveldb   -lssl -lcrypto -lboost_system -lboost_thread-mt -lleveldb -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w 
 # -lsecp256k1
 # -lboost_system -lboost_asio
 # -L./usr/local/Cellar/boost/1.62.0/lib

@@ -16,6 +16,7 @@
 #include "mime_types.h"
 #include "reply.h"
 #include "request.h"
+#include "wallet.h"
 
 namespace http {
 namespace server3 {
@@ -27,6 +28,7 @@ request_handler::request_handler(const std::string& doc_root)
 
 void request_handler::handle_request(const request& req, reply& rep)
 {
+/*
   // Decode url to path.
   std::string request_path;
   if (!url_decode(req.uri, request_path))
@@ -77,6 +79,36 @@ void request_handler::handle_request(const request& req, reply& rep)
   rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
   rep.headers[1].name = "Content-Type";
   rep.headers[1].value = mime_types::extension_to_type(extension);
+*/
+  std::string extension = "txt";
+  std::string responseContent = "Hello this is a response.";
+  
+  CWallet wallet;
+  std::string privateKey;
+    std::string publicKey;
+
+    bool e = wallet.fileExists("wallet.dat");
+    printf(" wallet exists: %d  \n", e);
+    if(e == 0){
+        printf("No wallet found. Creating a new one...\n");
+        //std::string publicKeyUncompressed;
+        //int r = ecdsa.RandomPrivateKey(privateKey);
+        //r = ecdsa.GetPublicKey(privateKey, publicKeyUncompressed, publicKey);
+        //wallet.write(privateKey, publicKey);
+    } else {
+        // Load wallet
+        wallet.read(privateKey, publicKey);
+        std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
+    }
+
+  rep.status = reply::ok;
+  rep.content.append(responseContent.c_str(), responseContent.length());
+  rep.headers.resize(2);
+  rep.headers[0].name = "Content-Length";
+  rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
+  rep.headers[1].name = "Content-Type";
+  rep.headers[1].value = mime_types::extension_to_type(extension);
+
 }
 
 bool request_handler::url_decode(const std::string& in, std::string& out)
