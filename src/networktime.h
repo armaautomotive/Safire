@@ -1,5 +1,5 @@
-#ifndef MAGNITE_TIME_H
-#define MAGNITE_TIME_H
+#ifndef MAGNITE_NETWORK_TIME_H
+#define MAGNITE_NETWORK_TIME_H
 
 #include <iostream>
 #include <string>
@@ -13,7 +13,7 @@
 #include <assert.h>
 
 
-class CTime
+class CNetworkTime
 {
 private:
     //! Whether this private key is valid. We check for correctness when modifying the key
@@ -23,16 +23,16 @@ private:
 
 public:
     //! Construct an invalid private key.
-    CTime()
+    CNetworkTime()
     {
     }
 
     //! Destructor (again necessary because of memlocking).
-    ~CTime()
+    ~CNetworkTime()
     {
     }
 
-
+    long getEpoch();
 };
 
-#endif // MAGNITE_TIME_H
+#endif // MAGNITE_NETWORK_TIME_H

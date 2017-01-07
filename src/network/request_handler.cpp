@@ -18,6 +18,8 @@
 #include "request.h"
 #include "wallet.h"
 
+#include "networktime.h"
+
 namespace http {
 namespace server3 {
 
@@ -81,16 +83,29 @@ void request_handler::handle_request(const request& req, reply& rep)
   rep.headers[1].value = mime_types::extension_to_type(extension);
 */
   std::string extension = "txt";
-  std::string responseContent = "Hello this is a response.";
-  
+
+  std::stringstream ss;
+  std::string responseContent = "";
+  ss << "Safire Client v0.0.1. \n";
+
+  CNetworkTime netTime;
+  ss << "Time " << netTime.getEpoch() << "\n";  
+  // Get Block time 
+  ss << "Block Time " << 0 << "\n";
+
+  ss << "Balance " << 0 << "\n";
+  ss << "Transactions " << 0 << "\n";
+  ss << "Users " << 0 << "\n";
+  ss << "Pending Messages " << 0 << "\n";
+
   CWallet wallet;
   std::string privateKey;
     std::string publicKey;
 
     bool e = wallet.fileExists("wallet.dat");
-    printf(" wallet exists: %d  \n", e);
+    //printf(" wallet exists: %d  \n", e);
     if(e == 0){
-        printf("No wallet found. Creating a new one...\n");
+        //printf("No wallet found. Creating a new one...\n");
         //std::string publicKeyUncompressed;
         //int r = ecdsa.RandomPrivateKey(privateKey);
         //r = ecdsa.GetPublicKey(privateKey, publicKeyUncompressed, publicKey);
@@ -98,8 +113,11 @@ void request_handler::handle_request(const request& req, reply& rep)
     } else {
         // Load wallet
         wallet.read(privateKey, publicKey);
-        std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
-    }
+        //std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
+        ss << "Public Key: " << publicKey << "\n";  
+  }
+  
+  responseContent = ss.str();
 
   rep.status = reply::ok;
   rep.content.append(responseContent.c_str(), responseContent.length());
