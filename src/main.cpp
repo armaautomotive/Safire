@@ -72,18 +72,18 @@ int main()
 
     
     CUserDB userDB;
-    userDB.AddUser("test");
+    //userDB.AddUser("test", "127.0.0.1");
     userDB.GetUsers(); 
 
 
     CBlockDB blockDB;
-    blockDB.AddBlock("First");
+    //blockDB.AddBlock("First");
     blockDB.GetBlocks();
 
 
     // Start Networking
     std::cout << "Starting networking. " << std::endl;
-    std::size_t num_threads = 1;
+    std::size_t num_threads = 10;
     http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
 
     // Run the server until stopped.

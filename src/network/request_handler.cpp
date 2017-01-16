@@ -30,7 +30,7 @@ request_handler::request_handler(const std::string& doc_root)
 
 void request_handler::handle_request(const request& req, reply& rep)
 {
-/*
+
   // Decode url to path.
   std::string request_path;
   if (!url_decode(req.uri, request_path))
@@ -39,6 +39,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
+/*
   // Request path must be absolute and not contain "..".
   if (request_path.empty() || request_path[0] != '/'
       || request_path.find("..") != std::string::npos)
@@ -82,40 +83,47 @@ void request_handler::handle_request(const request& req, reply& rep)
   rep.headers[1].name = "Content-Type";
   rep.headers[1].value = mime_types::extension_to_type(extension);
 */
-  std::string extension = "txt";
+  std::string line = "<br>";
+  std::string extension = "html"; //  "txt";
 
   std::stringstream ss;
   std::string responseContent = "";
-  ss << "Safire Client v0.0.1. \n";
-
-  CNetworkTime netTime;
-  ss << "Time " << netTime.getEpoch() << "\n";  
-  // Get Block time 
-  ss << "Block Time " << 0 << "\n";
-
-  ss << "Balance " << 0 << "\n";
-  ss << "Transactions " << 0 << "\n";
-  ss << "Users " << 0 << "\n";
-  ss << "Pending Messages " << 0 << "\n";
+  ss << "Safire Client v0.0.1. " << line;
+  ss << line;
 
   CWallet wallet;
   std::string privateKey;
-    std::string publicKey;
-
-    bool e = wallet.fileExists("wallet.dat");
-    //printf(" wallet exists: %d  \n", e);
-    if(e == 0){
-        //printf("No wallet found. Creating a new one...\n");
-        //std::string publicKeyUncompressed;
-        //int r = ecdsa.RandomPrivateKey(privateKey);
-        //r = ecdsa.GetPublicKey(privateKey, publicKeyUncompressed, publicKey);
-        //wallet.write(privateKey, publicKey);
-    } else {
-        // Load wallet
+  std::string publicKey;
+  bool e = wallet.fileExists("wallet.dat");
+  if(e != 0){
         wallet.read(privateKey, publicKey);
-        //std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
-        ss << "Public Key: " << publicKey << "\n";  
+        ss << "Public Key: " << publicKey << line;
   }
+
+  ss << "Balance " << 0 << line;
+  ss << "My Transactions " << 0 << line;
+
+  ss << line;
+  ss << "Network Users " << 0 << line;
+  ss << "Pending Users " << 0 << line;
+
+  CNetworkTime netTime;
+  ss << "Time " << netTime.getEpoch() << line;  
+  // Get Block time 
+  ss << "Block Time " << 0 << line;
+  ss << "Block Creator Key " << "" << line; 
+
+  ss << line;
+  // Blocks
+  ss << "Blocks Stored " << 0 << line;
+  ss << "Network Transactions " << 0 << line;
+  ss << "Pending Transactions " << 0 << line;
+
+  // Availability
+  // network reward
+  // currency outstanding.
+
+  ss << "Request " << request_path << line;
   
   responseContent = ss.str();
 

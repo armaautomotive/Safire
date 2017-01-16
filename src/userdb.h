@@ -32,9 +32,16 @@ public:
     {
     }
 
-    int AddUser(std::string publicKey);
-    void GetUsers();
+    struct user {
+        std::string publicKey;
+        std::string ipAddress;
+        std::string x;
+    };
 
+    int AddUser(std::string publicKey, std::string ipAddress);
+    int AddUser(CUserDB::user user);
+    void GetUsers();
+    int GetUsersCount();
 };
 
 #endif // MAGNITE_USER_DB_H

@@ -1,4 +1,4 @@
-#include "userdb.h"
+#include "transactiondb.h"
 
 #include <sstream>
 #include <unistd.h>   // open and close
@@ -7,7 +7,7 @@
 using namespace std;
 
 /**
-* RandomPrivateKey
+* 
 *
 * Description: Generate a random sha256 hash to be used as a private key.
 *     Generates 128 random ascii characters to feed into a sha256 hash.
@@ -15,7 +15,7 @@ using namespace std;
 * @param: std::string output private key.
 * @return int returns 1 is successfull.
 */
-int CUserDB::AddUser(std::string publicKey, std::string ipAddress)
+int CTransactionDB::AddTransaction(std::string id, std::string message)
 {
     user u;
     u.publicKey = publicKey;
@@ -23,14 +23,14 @@ int CUserDB::AddUser(std::string publicKey, std::string ipAddress)
     return AddUser(u);
 }
 
-int CUserDB::AddUser(CUserDB::user user){
+int CTransactionDB::AddTransaction(CTransactionDB::transaction transaction){
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./userdb", &db);
+    leveldb::Status status = leveldb::DB::Open(options, "./transactiondb", &db);
     if (false == status.ok())
     {
-        cerr << "Unable to open/create test database './userdb'" << endl;
+        cerr << "Unable to open/create test database './transactiondb'" << endl;
         cerr << status.ToString() << endl;
         return -1;
     }
@@ -39,7 +39,7 @@ int CUserDB::AddUser(CUserDB::user user){
 
     // Insert
     ostringstream keyStream;
-    keyStream << "Key" << user.publicKey;
+    keyStream << "Key" << transaction.;
     
     ostringstream valueStream;
     valueStream << "Test data value: " << user.publicKey << user.ipAddress;
@@ -51,15 +51,15 @@ int CUserDB::AddUser(CUserDB::user user){
 }
 
 
-void CUserDB::GetUsers()
+void CTransactionDB::GetTransactions()
 {
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./userdb", &db);
+    leveldb::Status status = leveldb::DB::Open(options, "./transactiondb", &db);
     if (false == status.ok())
     {
-        cerr << "Unable to open/create test database './userdb'" << endl;
+        cerr << "Unable to open/create test database './transactiondb'" << endl;
         cerr << status.ToString() << endl;
         return;
     }
@@ -77,14 +77,13 @@ void CUserDB::GetUsers()
         cerr << it->status().ToString() << endl; 
     }
 
-    
 
     // Close the database
     delete db; 
 }
 
 
-int CUserDB::GetUsersCount(){
+int CTransactionDB::GetTransactionCount(){
 
 	return 0;
 } 
