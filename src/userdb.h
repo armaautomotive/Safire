@@ -33,12 +33,12 @@ public:
     }
 
     struct user {
+        long position;
         std::string publicKey;
         std::string ipAddress;
-        std::string x;
     };
 
-    int AddUser(std::string publicKey, std::string ipAddress);
+    int AddUser(long position, std::string publicKey, std::string ipAddress);
     int AddUser(CUserDB::user user);
     void GetUsers();
     int GetUsersCount();

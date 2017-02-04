@@ -12,17 +12,28 @@ using namespace std;
 * Description: Generate a random sha256 hash to be used as a private key.
 *     Generates 128 random ascii characters to feed into a sha256 hash.
 *
+* @param: long position number of users accepted
 * @param: std::string output private key.
+* @param: std::string ipAddress user node address. 
 * @return int returns 1 is successfull.
 */
-int CUserDB::AddUser(std::string publicKey, std::string ipAddress)
+int CUserDB::AddUser(long position, std::string publicKey, std::string ipAddress)
 {
     user u;
+    u.position = position;
     u.publicKey = publicKey;
     u.ipAddress = ipAddress;
     return AddUser(u);
 }
 
+/**
+* AddUser
+*
+* Description: 
+*
+* @param: CUserDB::user
+* @return: int
+*/
 int CUserDB::AddUser(CUserDB::user user){
     leveldb::DB* db;
     leveldb::Options options;
@@ -37,18 +48,34 @@ int CUserDB::AddUser(CUserDB::user user){
 
     leveldb::WriteOptions writeOptions;
 
-    // Insert
+    // Insert user
     ostringstream keyStream;
-    keyStream << "Key" << user.publicKey;
-    
+    keyStream << user.publicKey;
     ostringstream valueStream;
-    valueStream << "Test data value: " << user.publicKey << user.ipAddress;
+    valueStream << user.position << user.publicKey << user.ipAddress;
     db->Put(writeOptions, keyStream.str(), valueStream.str());
+
+    // Save the position
+    ostringstream keyStreamPos;   
+    keyStreamPos << "lastPosition";
+    ostringstream valueStreamPos;
+  
 
     // Close the database
     delete db;
     return 1;
 }
+
+
+/**
+* GetLastUserPosition
+* Description: Get a cached copy of the last added user position. 
+*  
+*/
+long CUserDB::GetLastUserPosition(){
+
+    return 0;
+} 
 
 
 void CUserDB::GetUsers()
