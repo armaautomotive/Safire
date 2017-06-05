@@ -27,6 +27,8 @@
 #include "leveldb/db.h" // TEMP 
 #include "blockdb.h"
 
+#include "functions/functions.h"
+
 #include "network/server.h"
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
@@ -34,8 +36,19 @@ using namespace std;
 
 int main()
 {
-    std::cout << "Magnite Digital Currency v0.0.1" << std::endl;
+    std::cout << "Safire Digital Currency v0.0.1" << std::endl;
 
+    
+    CFunctions::record_structure record;
+    record.time = "XXX";
+    
+    CFunctions::transaction_types type = CFunctions::ADD_USER;
+    //record.transaction_type = CFunctions::transaction_types.ADD_USER;
+    
+    CFunctions functions;
+    functions.addToQueue(record);
+    
+    
     std::string p;
     std::string v;
     std::string u;
@@ -87,7 +100,7 @@ int main()
     http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
 
     // Run the server until stopped.
-    s.run();
+    //s.run();
 
 
     std::cout << " Done " << std::endl;

@@ -42,6 +42,8 @@ public:
     int AddUser(CUserDB::user user);
     void GetUsers();
     int GetUsersCount();
+    
+    long GetLastUserPosition();
 };
 
 #endif // MAGNITE_USER_DB_H
