@@ -129,7 +129,7 @@ int main()
     std::string message_siganture = "";
     ecdsa.SignMessage(privateKey, "add_user" + publicKey, message_siganture);
     joinRecord.message_signature = message_siganture;
-    functions.addToQueue(joinRecord);
+    //functions.addToQueue(joinRecord);
     
     
 

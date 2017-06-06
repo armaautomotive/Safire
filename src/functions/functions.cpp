@@ -8,7 +8,7 @@
 /**
  * addToQueue
  *
- * Description: DAO.
+ * Description: Add queue record to file. Data access object function.
  * @param time:
  * @param transaction_type: [add_user, issue_currency, transfer] designates action of this record.
  * @param amount: double amount of currency to be sent.
@@ -44,8 +44,17 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
         CFunctions::record_structure record;
         
         
-        std::size_t found = line.find("]");
-        if (found!=std::string::npos){
+        std::size_t start = line.find("[");
+        std::size_t end = line.find("]");
+        if (start!=std::string::npos && end!=std::string::npos){
+            std::string time = line.substr (start + 1, end-start -1);
+            record.time = time;
+            std::cout << "  Time:  " << time << " " << std::endl;
+            
+            start = line.find("[", end);
+            end = line.find("]", end + 1);
+            std::string type = line.substr (start + 1, end-start - 1);
+            std::cout << "  type:  " << type << " " << std::endl;
             
         }
             
@@ -56,15 +65,13 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
         // process pair (a,b)
         
         
-        record.time = "2017/06/02";
+        //record.time = "2017/06/02";
         
         
         records.push_back (record);
         
         
     }
-    
-    
     
     
     return records;
