@@ -1,0 +1,129 @@
+// Copyright (c) 2016 Jon Taylor
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#include "functions/functions.h"
+
+
+/**
+ * addToQueue
+ *
+ * Description: DAO.
+ * @param time:
+ * @param transaction_type: [add_user, issue_currency, transfer] designates action of this record.
+ * @param amount: double amount of currency to be sent.
+ * @param
+ */
+int CFunctions::addToQueue(record_structure record){
+    std::ofstream outfile;
+    outfile.open("queue.dat", std::ios_base::app);
+    outfile << "[" << record.time << "]" <<
+        "[" << record.transaction_type << "]" <<
+        "[" << record.amount << "]" <<
+        "[" << record.sender_public_key << "]" <<
+        "[" << record.recipient_public_key << "]" <<
+        "[" << record.message_signature << "]" <<
+        "\n";
+    outfile.close();
+    return 1;
+}
+
+/**
+ * parseQueueRecords
+ *
+ * Description: Read queued records from file into a vector of structures.
+ * @return vector or record_structures
+ */
+std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
+    std::vector<record_structure> records;
+    std::ifstream infile("queue.dat");
+    std::string line;
+    while (std::getline(infile, line))
+    {
+        std::istringstream iss(line);
+        CFunctions::record_structure record;
+        
+        
+        std::size_t found = line.find("]");
+        if (found!=std::string::npos){
+            
+        }
+            
+        //int a, b;
+        //if (!(iss >> a >> b)) { break; } // error
+        
+        std::cout << "  Line:  " << line << " " << std::endl;
+        // process pair (a,b)
+        
+        
+        record.time = "2017/06/02";
+        
+        
+        records.push_back (record);
+        
+        
+    }
+    
+    
+    
+    
+    return records;
+}
+
+int CFunctions::existsInQueue(record_structure record){
+    
+    
+    
+    return 0;
+}
+
+
+int CFunctions::getRecordsInQueue( int limit ){
+    
+    
+}
+
+
+/**
+ * validateRecord
+ *
+ * Description: validate record is formatted, the hashes match and balances are sufficient.
+ */
+int CFunctions::validateRecord(record_structure record){
+    //
+    // Read block
+    
+    return 0;
+}
+
+/**
+ *
+ *
+ */
+int CFunctions::generateBlock(std::vector<record_structure> records, std::string time ){
+    
+}
+
+
+int CFunctions::addToBlockFile( block_structure block ){
+    
+    time_t t = time(0);   // get time now
+    struct tm * now = localtime( & t );
+    int year = (now->tm_year + 1900);
+    
+    std::stringstream ss;
+    ss << "block_" << year << ".dat";
+    std::string file_path = ss.str();
+    
+    std::ofstream outfile;
+    outfile.open(file_path, std::ios_base::app);
+    //outfile << "[" << block.time << "][" << block.transaction_type << "]\n";
+    outfile.close();
+    
+    return 0;
+}
+
+int CFunctions::parseBlockFile(){
+    
+    return 0;
+}

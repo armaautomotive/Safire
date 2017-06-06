@@ -41,12 +41,20 @@ int main()
     
     CFunctions::record_structure record;
     record.time = "2017/06/03";
-    
     CFunctions::transaction_types type = CFunctions::ADD_USER;
     record.transaction_type = type;
+    record.amount = 0.1;
+    record.sender_public_key = "Fsadhjsd6576asdaDGHSjghjasdASD";
+    record.recipient_public_key = "SdhahBDGDhahsdbb6Bsdjj2dhjk";
+    record.message_signature = "HDAJSHABbhdhsjagdbJHSDGJha";
     
     CFunctions functions;
-    functions.addToQueue(record);
+    //functions.addToQueue(record);
+    std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();
+    for(int i = 0; i < records.size(); i++){
+        printf(" record n");
+    }
+    
     
     
     std::string p;
@@ -93,15 +101,37 @@ int main()
     //blockDB.AddBlock("First");
     blockDB.GetBlocks();
 
+    
+    
 
     // Start Networking
-    std::cout << "Starting networking. " << std::endl;
-    std::size_t num_threads = 10;
-    http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
+    //std::cout << "Starting networking. " << std::endl;
+    //std::size_t num_threads = 10;
+    //http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
 
     // Run the server until stopped.
     //s.run();
 
+    
+    // If not allready, send network request to join.
+    CFunctions::record_structure joinRecord;
+    time_t  timev;
+    time(&timev);
+    std::stringstream ss;
+    ss << timev;
+    std::string ts = ss.str();
+    joinRecord.time = ts;
+    CFunctions::transaction_types joinType = CFunctions::ADD_USER;
+    joinRecord.transaction_type = type;
+    joinRecord.amount = 0.0;
+    joinRecord.sender_public_key = publicKey;
+    joinRecord.recipient_public_key = "";
+    std::string message_siganture = "";
+    ecdsa.SignMessage(privateKey, "add_user" + publicKey, message_siganture);
+    joinRecord.message_signature = message_siganture;
+    functions.addToQueue(joinRecord);
+    
+    
 
     std::cout << " Done " << std::endl;
 }
