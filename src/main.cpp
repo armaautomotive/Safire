@@ -40,10 +40,10 @@ int main()
 
     
     CFunctions::record_structure record;
-    record.time = "XXX";
+    record.time = "2017/06/03";
     
     CFunctions::transaction_types type = CFunctions::ADD_USER;
-    //record.transaction_type = CFunctions::transaction_types.ADD_USER;
+    record.transaction_type = type;
     
     CFunctions functions;
     functions.addToQueue(record);

@@ -1,12 +1,12 @@
-# Magnite
+# Safire
 Peer to Peer Digital Currency
 
-Website: http://magnite.org
+Website: http://safire.org
 
 
 <h2>Overview:</h2>
 
-Magnite is a distributed digital currency. Every user can send payments to any other user with a small fee. Users are rewarded for relaying network transactions with new currency issued at a rate determined by a group preference average.
+Safire is a distributed digital currency. Every user can send payments to any other user with a small fee. Users are rewarded for relaying network transactions with new currency issued at a rate determined by a group preference average.
 
 Like Bitcoin it uses blocks to confirm pending transactions and validate them for all users across the network.
 
