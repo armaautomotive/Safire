@@ -21,7 +21,7 @@ CFLAGS= -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cella
 # -lboost_system -lboost_asio
 # -L./usr/local/Cellar/boost/1.62.0/lib
 
-CFLAGS_LINUX= -I/usr/local/include  -L/usr/local/lib -lssl -lcrypto -lboost_system -lsecp256k1  -Wdeprecated  -w
+CFLAGS_LINUX= -I/usr/local/include -I./src/leveldb/include -L/usr/local/lib -lssl -lcrypto -lboost_system -lsecp256k1  -Wdeprecated  -w
 # -Weverything  
 # -std=gnu99  
 

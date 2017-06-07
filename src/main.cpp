@@ -4,9 +4,9 @@
 #include <fstream>
 #include <string>
 #include <thread>
-#include "crypto/common.h"
-#include "crypto/sha256.h"
-#include "crypto/hmac_sha256.h"
+//#include "crypto/common.h"
+//#include "crypto/sha256.h"
+//#include "crypto/hmac_sha256.h"
 #include "utilstrencodings.h"
 
 //#include "wallet/wallet.h"
