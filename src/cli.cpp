@@ -48,13 +48,16 @@ void CCLI::processUserInput(){
 		std::cout << ">";		
 
 		std::string command;
-		cin >> command;
+		std::cin >> command;
 
-		if( command.find("join") != std::string:npos ){
+		if( command.find("join") != std::string::npos ){
 			std::cout << "Joining... \n" << std::endl;
-		} else if ( command.find("balance") != std::string:npos ){
+		} else if ( command.find("balance") != std::string::npos ){
 			std::cout << "Balance: 0.0 sfr \n" << std::endl;
 
+
+		} else if ( command.find("quit") != std::string::npos ){
+			running = false;	
 		} else {
 			printCommands();	
 		}
