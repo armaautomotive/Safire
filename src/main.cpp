@@ -25,7 +25,7 @@
 #include "transaction.h"
 
 #include "userdb.h"
-#include "leveldb/db.h" // TEMP 
+//#include "leveldb/db.h" // TEMP 
 #include "blockdb.h"
 
 #include "functions/functions.h"
