@@ -3,6 +3,7 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <thread>
 #include "crypto/common.h"
 #include "crypto/sha256.h"
 #include "crypto/hmac_sha256.h"
@@ -30,6 +31,7 @@
 #include "functions/functions.h"
 
 #include "network/server.h"
+#include "cli.h"
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
@@ -111,7 +113,7 @@ int main()
 
     // Run the server until stopped.
     //s.run();
-
+    // std::thread webserver_thread (foo); // void foo()  
     
     // If not allready, send network request to join.
     CFunctions::record_structure joinRecord;
@@ -131,7 +133,9 @@ int main()
     joinRecord.message_signature = message_siganture;
     //functions.addToQueue(joinRecord);
     
-    
+
+    CCLI cli;
+    cli.processUserInput();    
 
     std::cout << " Done " << std::endl;
 }
