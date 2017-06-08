@@ -37,6 +37,22 @@ Key Benefits:
 4) Graceful handling of excess capacity demands on the system. This means demand peaks transactions will take longer to confirm but the throughput of the network increases to compensate and catch up.
 
 
+Build:
+
+Mac:
+
+> make
+
+Linux: 
+
+Linux
+sudo apt-get install openssl
+sudo apt-get install libboost-all-dev
+sudo apt-get install aptitude
+aptitude search boost
+
+> make linux 
+
 
 Process:
 
