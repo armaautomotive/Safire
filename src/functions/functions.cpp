@@ -55,6 +55,7 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
             end = line.find("]", end + 1);
             std::string type = line.substr (start + 1, end-start - 1);
             std::cout << "  type:  " << type << " " << std::endl;
+
             
         }
             
@@ -112,7 +113,7 @@ int CFunctions::generateBlock(std::vector<record_structure> records, std::string
 }
 
 
-int CFunctions::addToBlockFile( block_structure block ){
+int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
@@ -124,7 +125,26 @@ int CFunctions::addToBlockFile( block_structure block ){
     
     std::ofstream outfile;
     outfile.open(file_path, std::ios_base::app);
-    //outfile << "[" << block.time << "][" << block.transaction_type << "]\n";
+    outfile << "[" << block.number << "]" <<
+		"[" << block.time << "]" << 
+		"[" << block.block_hash << "]" <<
+		//"[" << block.transaction_type << "]" << 
+		"\n";
+
+    // Loop though block records
+    for(int i = 0; i < block.records.size(); i++ ){
+	CFunctions::record_structure record = block.records.at(i);
+	outfile << " [" << record.time << "]" <<
+        "[" << record.transaction_type << "]" <<
+        "[" << record.amount << "]" <<
+        "[" << record.sender_public_key << "]" <<
+        "[" << record.recipient_public_key << "]" <<
+        "[" << record.message_signature << "]" <<
+        "\n";
+    }
+
+    
+
     outfile.close();
     
     return 0;

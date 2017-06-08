@@ -31,8 +31,9 @@ public:
     ~CFunctions()
     {
     }
-    
-    enum transaction_types { ADD_USER, ISSUE_CURRENCY, TRANSFER_CURRENCY };
+   
+    // ? Should these structures go elsewhere? 
+    enum transaction_types { ADD_USER, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD };
     
     struct record_structure {
         std::string time;
@@ -50,6 +51,7 @@ public:
         double file_index;                  // bytes into block file for fast lookup.
         std::string block_hash;             // sha256 hash of all record hashes in this block.
         std::string block_records;          // string value of all records in block.
+	std::vector<CFunctions::record_structure> records; 
     };
     
     

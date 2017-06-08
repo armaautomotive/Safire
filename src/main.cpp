@@ -32,9 +32,83 @@
 
 #include "network/server.h"
 #include "cli.h"
+#include <unistd.h>		// sleep
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
+
+
+/**
+* 
+* std::thread blockThread (blockBuilderThread);
+*/
+void blockBuilderThread(){
+	CECDSACrypto ecdsa;
+	CFunctions functions;
+	// Check block chain for latest block information.
+	// TODO...
+
+	// Get current user keys
+	std::string privateKey;
+    std::string publicKey;
+
+    CWallet wallet;
+    bool e = wallet.fileExists("wallet.dat");
+    //printf(" wallet exists: %d  \n", e);
+    if(e == 0){
+        //printf("No wallet found. Creating a new one...\n");
+    } else {
+        // Load wallet
+        wallet.read(privateKey, publicKey);
+        //std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
+    }
+
+	while(true){
+		std::cout << ".";
+		
+
+		// is it current users turn to generate a block.
+		bool build_block = false;
+
+		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.
+
+  
+		if(build_block){
+
+			// While time remaining in block
+			//int j = 0; 
+			for(int j = 0; j < 100; j++ ){
+				usleep(1000000);
+			}
+			
+			CFunctions::record_structure joinRecord;
+    time_t  timev;
+    time(&timev);
+    std::stringstream ss;
+    ss << timev;
+    std::string ts = ss.str();
+    joinRecord.time = ts;
+    CFunctions::transaction_types joinType = CFunctions::ISSUE_CURRENCY;
+    joinRecord.transaction_type = joinType;
+    joinRecord.amount = 1.0;
+    joinRecord.sender_public_key = "";
+    joinRecord.recipient_public_key = publicKey;
+    std::string message_siganture = "";
+    ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
+    joinRecord.message_signature = message_siganture;
+    //functions.addToQueue(joinRecord);
+
+    CFunctions::block_structure block;
+    block.records.push_back(joinRecord);
+    block.number = 0;
+
+    functions.addToBlockFile( block );
+			
+		}	
+
+		usleep(1000000);
+	}	
+}
 
 int main()
 {
@@ -132,7 +206,14 @@ int main()
     ecdsa.SignMessage(privateKey, "add_user" + publicKey, message_siganture);
     joinRecord.message_signature = message_siganture;
     //functions.addToQueue(joinRecord);
+
+    CFunctions::block_structure block;
+    block.records.push_back(joinRecord);
+    block.number = 0;
     
+    functions.addToBlockFile( block );
+
+    std::thread blockThread (blockBuilderThread);    
 
     CCLI cli;
     cli.processUserInput();    
