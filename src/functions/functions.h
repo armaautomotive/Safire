@@ -63,7 +63,10 @@ public:
     
     struct peer_structure {
         std::string ip;
+	bool active = true;
     };
+
+    std::string recordJSON(record_structure record);
     
     int addToQueue(record_structure record);
     std::vector<record_structure> parseQueueRecords();

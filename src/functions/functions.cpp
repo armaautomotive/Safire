@@ -6,6 +6,16 @@
 
 
 /**
+* 
+*
+*
+*/
+std::string CFunctions::recordJSON(record_structure record){
+
+	return "";
+}
+
+/**
  * addToQueue
  *
  * Description: Add queue record to file. Data access object function.
@@ -17,6 +27,7 @@
 int CFunctions::addToQueue(record_structure record){
     std::ofstream outfile;
     outfile.open("queue.dat", std::ios_base::app);
+/*
     outfile << "[" << record.time << "]" <<
         "[" << record.transaction_type << "]" <<
         "[" << record.amount << "]" <<
@@ -24,6 +35,17 @@ int CFunctions::addToQueue(record_structure record){
         "[" << record.recipient_public_key << "]" <<
         "[" << record.message_signature << "]" <<
         "\n";
+*/
+	outfile << "{\"record\":{\"time\":\"" << record.time << "\"," <<
+                "\"name:\":\"" <<record.name << "\"," <<
+                "\"typ\":\"" << record.transaction_type << "\"," <<
+                "\"amt\":" << record.amount << "," <<
+                "\"fee\":" << record.fee << "," <<
+                "\"sndkey\":\"" << record.sender_public_key << "\"," <<
+                "\"rcvkey\":\"" << record.recipient_public_key << "\"," <<
+                "\"sig\":\"" << record.message_signature << "\"" <<
+                "}}\n";
+
     outfile.close();
     return 1;
 }
@@ -125,11 +147,12 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     
     std::ofstream outfile;
     outfile.open(file_path, std::ios_base::app);
-    outfile << "[" << block.number << "]" <<
-		"[" << block.time << "]" << 
-		"[" << block.block_hash << "]" <<
-		//"[" << block.transaction_type << "]" << 
-		"\n";
+    outfile << "{\"block\":{" <<
+	"\"number\":" << block.number << "\"," <<
+	"\"time\":\"" << block.time << "\"," << 
+	"\"hash\":\"" << block.block_hash << "\"," <<
+	//"[" << block.transaction_type << "]" << 
+	"\"records\":{\n";
 
     // Loop though block records
     for(int i = 0; i < block.records.size(); i++ ){
@@ -143,7 +166,7 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
         "\n";
     }
 
-    
+    outfile << "}}}";
 
     outfile.close();
     
