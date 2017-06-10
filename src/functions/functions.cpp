@@ -13,7 +13,7 @@
 std::string CFunctions::recordJSON(record_structure record){
 	std::string json = "{\"record\":{\"time\":\"" + record.time + "\"," +
                 "\"name:\":\"" + record.name + "\"," +
-                "\"typ\":\"" +  boost::lexical_cast<std::string>(record.transaction_type) + "\"," +
+                "\"typ\":\"" + boost::lexical_cast<std::string>(record.transaction_type) + "\"," +
                 "\"amt\":" + boost::lexical_cast<std::string>(record.amount) + "," +
                 "\"fee\":" + boost::lexical_cast<std::string>(record.fee) + "," +
                 "\"sndkey\":\"" + record.sender_public_key + "\"," +
@@ -35,29 +35,30 @@ std::string CFunctions::recordJSON(record_structure record){
 int CFunctions::addToQueue(record_structure record){
     std::ofstream outfile;
     outfile.open("queue.dat", std::ios_base::app);
-/*
-    outfile << "[" << record.time << "]" <<
-        "[" << record.transaction_type << "]" <<
-        "[" << record.amount << "]" <<
-        "[" << record.sender_public_key << "]" <<
-        "[" << record.recipient_public_key << "]" <<
-        "[" << record.message_signature << "]" <<
-        "\n";
-*/
-/*
-	outfile << "{\"record\":{\"time\":\"" << record.time << "\"," <<
-                "\"name:\":\"" <<record.name << "\"," <<
-                "\"typ\":\"" << record.transaction_type << "\"," <<
-                "\"amt\":" << record.amount << "," <<
-                "\"fee\":" << record.fee << "," <<
-                "\"sndkey\":\"" << record.sender_public_key << "\"," <<
-                "\"rcvkey\":\"" << record.recipient_public_key << "\"," <<
-                "\"sig\":\"" << record.message_signature << "\"" <<
-                "}}\n";
-*/
-	outfile << recordJSON(record);
+    outfile << recordJSON(record);
     outfile.close();
     return 1;
+}
+
+CFunctions::record_structure parseRecordJson(std::string json){
+	CFunctions::record_structure record;
+
+	std::size_t start = line.find("[");
+        std::size_t end = line.find("]");
+        if (start!=std::string::npos && end!=std::string::npos){
+            std::string time = line.substr (start + 1, end-start -1);
+            record.time = time;
+            std::cout << "  Time:  " << time << " " << std::endl;
+
+            start = line.find("[", end);
+            end = line.find("]", end + 1);
+            std::string type = line.substr (start + 1, end-start - 1);
+            std::cout << "  type:  " << type << " " << std::endl;
+
+
+        }
+
+	return record;
 }
 
 /**
@@ -167,14 +168,6 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     // Loop though block records
     for(int i = 0; i < block.records.size(); i++ ){
 	CFunctions::record_structure record = block.records.at(i);
-	/*
-	outfile << " [" << record.time << "]" <<
-        "[" << record.transaction_type << "]" <<
-        "[" << record.amount << "]" <<
-        "[" << record.sender_public_key << "]" <<
-        "[" << record.recipient_public_key << "]" <<
-        "[" << record.message_signature << "]" <<
-        "\n";*/
 	outfile << recordJSON(record);
     }
 

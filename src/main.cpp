@@ -97,6 +97,9 @@ void blockBuilderThread(){
 			joinRecord.message_signature = message_siganture;
 			//functions.addToQueue(joinRecord);
 
+			// Add records from queue...
+			// 
+
 			CFunctions::block_structure block;
 			block.records.push_back(joinRecord);
 			block.number = blockNumber++;
