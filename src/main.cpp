@@ -4,9 +4,6 @@
 #include <fstream>
 #include <string>
 #include <thread>
-//#include "crypto/common.h"
-//#include "crypto/sha256.h"
-//#include "crypto/hmac_sha256.h"
 #include "utilstrencodings.h"
 
 //#include "wallet/wallet.h"
@@ -37,6 +34,7 @@
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
 
+volatile bool buildingBlocks = true;
 
 /**
 * 
@@ -50,25 +48,26 @@ void blockBuilderThread(){
 
 	// Get current user keys
 	std::string privateKey;
-    std::string publicKey;
+	std::string publicKey;
 
-    CWallet wallet;
-    bool e = wallet.fileExists("wallet.dat");
-    //printf(" wallet exists: %d  \n", e);
-    if(e == 0){
-        //printf("No wallet found. Creating a new one...\n");
-    } else {
-        // Load wallet
-        wallet.read(privateKey, publicKey);
-        //std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
-    }
+	CWallet wallet;
+	bool e = wallet.fileExists("wallet.dat");
+	//printf(" wallet exists: %d  \n", e);
+	if(e == 0){
+        	//printf("No wallet found. Creating a new one...\n");
+	} else {
+		// Load wallet
+        	wallet.read(privateKey, publicKey);
+        	//std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
+	}
 
-	while(true){
+	int blockNumber = 0;
+	while(buildingBlocks){
 		std::cout << ".";
 		
 
 		// is it current users turn to generate a block.
-		bool build_block = false;
+		bool build_block = true;
 
 		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.
 
@@ -77,37 +76,43 @@ void blockBuilderThread(){
 
 			// While time remaining in block
 			//int j = 0; 
-			for(int j = 0; j < 100; j++ ){
+			for(int j = 0; j < 10; j++ ){
 				usleep(1000000);
 			}
 			
 			CFunctions::record_structure joinRecord;
-    time_t  timev;
-    time(&timev);
-    std::stringstream ss;
-    ss << timev;
-    std::string ts = ss.str();
-    joinRecord.time = ts;
-    CFunctions::transaction_types joinType = CFunctions::ISSUE_CURRENCY;
-    joinRecord.transaction_type = joinType;
-    joinRecord.amount = 1.0;
-    joinRecord.sender_public_key = "";
-    joinRecord.recipient_public_key = publicKey;
-    std::string message_siganture = "";
-    ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
-    joinRecord.message_signature = message_siganture;
-    //functions.addToQueue(joinRecord);
+			time_t  timev;
+			time(&timev);
+			std::stringstream ss;
+			ss << timev;
+			std::string ts = ss.str();
+			joinRecord.time = ts;
+			CFunctions::transaction_types joinType = CFunctions::ISSUE_CURRENCY;
+			joinRecord.transaction_type = joinType;
+			joinRecord.amount = 1.0;
+			joinRecord.sender_public_key = "";
+			joinRecord.recipient_public_key = publicKey;
+			std::string message_siganture = "";
+			ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
+			joinRecord.message_signature = message_siganture;
+			//functions.addToQueue(joinRecord);
 
-    CFunctions::block_structure block;
-    block.records.push_back(joinRecord);
-    block.number = 0;
+			CFunctions::block_structure block;
+			block.records.push_back(joinRecord);
+			block.number = blockNumber++;
 
-    functions.addToBlockFile( block );
+			functions.addToBlockFile( block );
 			
 		}	
 
 		usleep(1000000);
 	}	
+}
+
+void stop() {
+    if ( !buildingBlocks ) return;
+    buildingBlocks = false;
+    // Join thread
 }
 
 int main()
@@ -219,4 +224,5 @@ int main()
     cli.processUserInput();    
 
     std::cout << " Done " << std::endl;
+    stop();
 }

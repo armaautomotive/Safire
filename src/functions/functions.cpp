@@ -3,16 +3,24 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "functions/functions.h"
-
+#include <boost/lexical_cast.hpp>
 
 /**
-* 
+* recordJSON 
 *
 *
 */
 std::string CFunctions::recordJSON(record_structure record){
-
-	return "";
+	std::string json = "{\"record\":{\"time\":\"" + record.time + "\"," +
+                "\"name:\":\"" + record.name + "\"," +
+                "\"typ\":\"" +  boost::lexical_cast<std::string>(record.transaction_type) + "\"," +
+                "\"amt\":" + boost::lexical_cast<std::string>(record.amount) + "," +
+                "\"fee\":" + boost::lexical_cast<std::string>(record.fee) + "," +
+                "\"sndkey\":\"" + record.sender_public_key + "\"," +
+                "\"rcvkey\":\"" + record.recipient_public_key + "\"," +
+                "\"sig\":\"" + record.message_signature + "\"" +
+                "}}\n";
+	return json;
 }
 
 /**
@@ -36,6 +44,7 @@ int CFunctions::addToQueue(record_structure record){
         "[" << record.message_signature << "]" <<
         "\n";
 */
+/*
 	outfile << "{\"record\":{\"time\":\"" << record.time << "\"," <<
                 "\"name:\":\"" <<record.name << "\"," <<
                 "\"typ\":\"" << record.transaction_type << "\"," <<
@@ -45,7 +54,8 @@ int CFunctions::addToQueue(record_structure record){
                 "\"rcvkey\":\"" << record.recipient_public_key << "\"," <<
                 "\"sig\":\"" << record.message_signature << "\"" <<
                 "}}\n";
-
+*/
+	outfile << recordJSON(record);
     outfile.close();
     return 1;
 }
@@ -157,16 +167,18 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     // Loop though block records
     for(int i = 0; i < block.records.size(); i++ ){
 	CFunctions::record_structure record = block.records.at(i);
+	/*
 	outfile << " [" << record.time << "]" <<
         "[" << record.transaction_type << "]" <<
         "[" << record.amount << "]" <<
         "[" << record.sender_public_key << "]" <<
         "[" << record.recipient_public_key << "]" <<
         "[" << record.message_signature << "]" <<
-        "\n";
+        "\n";*/
+	outfile << recordJSON(record);
     }
 
-    outfile << "}}}";
+    outfile << "}}}\n";
 
     outfile.close();
     
