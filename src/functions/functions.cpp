@@ -5,6 +5,28 @@
 #include "functions/functions.h"
 #include <boost/lexical_cast.hpp>
 
+
+/**
+* tokenClose
+*
+* Description: Find closing token for a structure in a string.
+*/
+int CFunctions::tokenClose(std::string content, std::string open, std::string close, int start){
+
+
+	std::size_t start = line.find("time\":\"");
+        std::size_t end = line.find("]");
+        if (start!=std::string::npos && end!=std::string::npos){
+            std::string time = line.substr (start + 1, end-start -1);
+
+	
+
+
+
+
+	return 0;
+}
+
 /**
 * recordJSON 
 *
@@ -40,10 +62,16 @@ int CFunctions::addToQueue(record_structure record){
     return 1;
 }
 
+
+/**
+* parseRecordJson
+*
+* Description: 
+*/
 CFunctions::record_structure parseRecordJson(std::string json){
 	CFunctions::record_structure record;
 
-	std::size_t start = line.find("[");
+	std::size_t start = line.find("time\":\"");
         std::size_t end = line.find("]");
         if (start!=std::string::npos && end!=std::string::npos){
             std::string time = line.substr (start + 1, end-start -1);

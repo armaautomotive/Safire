@@ -67,6 +67,8 @@ public:
     };
 
     std::string recordJSON(record_structure record);
+
+    int tokenClose(std::string content, std::string open, std::string close, int start);
     
     int addToQueue(record_structure record);
     std::vector<record_structure> parseQueueRecords();
