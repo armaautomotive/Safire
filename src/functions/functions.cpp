@@ -11,7 +11,6 @@
 {"block":{"number":1","time":"","hash":"","records":{
 {"record":{"time":"1497071981","name:":"","typ":"1","amt":1,"fee":-1.0367648569192718e-155,"sndkey":"","rcvkey":"026321261876CFB360F94A7FDF3F2D4F6F9FC0CEDADF15AC3D30E182A82AF5D81E","sig":"A1BBB5C4B1FD3081EBE276627DE088B76B4932650CF6A3EA9D31EFE5B03F106AD5D8C32A38537F9D09B72220D4FF54106F30BF17C8068995AF221D1FAB5EE183"}}
 }}}
-
 */
 
 /**
@@ -209,6 +208,12 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     return 0;
 }
 
+
+/**
+* parseBlockFile
+*
+* Description: Read the block file into in memory data structure. 
+*/
 int CFunctions::parseBlockFile(){
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
@@ -220,6 +225,8 @@ int CFunctions::parseBlockFile(){
 
     //CFunctions::block_structure block;
 
+    std::string content = "";
+
     std::vector<record_structure> records;
     std::ifstream infile(file_path);
     std::string line;
@@ -228,7 +235,47 @@ int CFunctions::parseBlockFile(){
         std::istringstream iss(line);
         //CFunctions::record_structure record;
 
-	std::cout << "  PARSE BLOCKCHAIN:  " << line << " " << std::endl;
+        content += line;
+
+	//std::cout << "  PARSE BLOCKCHAIN:  " << line << " " << std::endl;
+
+        // Parse content into data structures and strip it from content string as it goes. 
+
+        //size_t n = std::count(s.begin(), s.end(), '_');
+
+	// Read the first block in the file.
+        int parenDepth = 0;
+        std::size_t start_i = content.find("{");
+        if (start_i!=std::string::npos){
+            //std::string section = content.substr (start_i + 1, end_i - start_i -1);
+            //parenDepth = 1; 
+
+            for(int i = 0; i < content.length(); i++){
+                if(content[start_i + i] == '{'){
+                    parenDepth++;
+                    //std::cout << "  +:  " << " " << i << " d: " << parenDepth  << std::endl; 
+                }
+                if(content[start_i + i] == '}'){ 
+                    parenDepth--;
+                    //std::cout << "  -:  " << " " << i << " d: " << parenDepth  << std::endl;  
+                }
+		if( parenDepth == 0){
+                    std::cout << "  Found end of block  " << parenDepth << std::endl; 
+                
+                    std::string section = content.substr(start_i, i + 1);
+                    std::cout << "  ---  block  " << section << std::endl;
+
+                    // Populate block and its records....
+                    // "number":0","time":"","hash":"","records"
+                    // {"record": 
+
+ 
+                    content = content.substr(start_i + i, content.length());
+                }
+            }
+
+        }		
+
 
         std::size_t start = line.find("[");
         std::size_t end = line.find("]");
