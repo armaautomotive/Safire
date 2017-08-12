@@ -221,6 +221,8 @@ int main()
     
     functions.addToBlockFile( block );
 
+    functions.parseBlockFile();
+
     std::thread blockThread (blockBuilderThread);    
 
     CCLI cli;
