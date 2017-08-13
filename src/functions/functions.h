@@ -19,7 +19,7 @@ private:
     //! Whether this private key is valid. We check for correctness when modifying the key
     //! data, so fValid should always correspond to the actual state.
     bool fValid;
-    
+    //CFunctions::block_structure latest_block;    
     
 public:
     //! Construct an invalid private key.
@@ -77,7 +77,11 @@ public:
     int validateRecord(record_structure record);
     int generateBlock( std::vector<CFunctions::record_structure> records, std::string time );
     int addToBlockFile( block_structure block );
+    double parseSection(std::string content, std::string start, std::string end);
     int parseBlockFile();
+
+//private:
+    CFunctions::block_structure latest_block;
 };
 
 

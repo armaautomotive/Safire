@@ -1,17 +1,10 @@
-// Copyright (c) 2016 Jon Taylor
+// Copyright (c) 2016 2017 Jon Taylor
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "functions/functions.h"
 #include <boost/lexical_cast.hpp>
 
-/*
- {"record":{"time":"1497069518","name:":"","typ":"0","amt":0,"fee":0,"sndkey":"026321261876CFB360F94A7FDF3F2D4F6F9FC0CEDADF15AC3D30E182A82AF5D81E","rcvkey":"","sig":"DF9721B14253E380F9E6EF00A5DBF1DB74751BF7F7EBBF104E04FE462CBA27255144B900251E061ED16CAC9B572088B446B42B448E0A6A64D92E697FC5142960"}}
-
-{"block":{"number":1","time":"","hash":"","records":{
-{"record":{"time":"1497071981","name:":"","typ":"1","amt":1,"fee":-1.0367648569192718e-155,"sndkey":"","rcvkey":"026321261876CFB360F94A7FDF3F2D4F6F9FC0CEDADF15AC3D30E182A82AF5D81E","sig":"A1BBB5C4B1FD3081EBE276627DE088B76B4932650CF6A3EA9D31EFE5B03F106AD5D8C32A38537F9D09B72220D4FF54106F30BF17C8068995AF221D1FAB5EE183"}}
-}}}
-*/
 
 /**
 * tokenClose
@@ -208,6 +201,24 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     return 0;
 }
 
+/**
+* parseSection
+*
+* Description: Extract a section from a string and convert it to a double.
+*/
+double CFunctions::parseSection(std::string content, std::string start, std::string end){
+    std::size_t start_i = content.find(start);
+    if (start_i!=std::string::npos){
+	std::size_t end_i = content.find(end, start_i + start.length() + 1);        
+        if(end_i!=std::string::npos){
+             std::string section = content.substr(start_i + start.length(), end_i - (start_i + start.length()) - 0);
+             double value = ::atof(section.c_str());
+             return value;
+        }
+    }
+    return 0;
+}
+
 
 /**
 * parseBlockFile
@@ -248,7 +259,6 @@ int CFunctions::parseBlockFile(){
         std::size_t start_i = content.find("{");
         if (start_i!=std::string::npos){
             //std::string section = content.substr (start_i + 1, end_i - start_i -1);
-            //parenDepth = 1; 
 
             for(int i = 0; i < content.length(); i++){
                 if(content[start_i + i] == '{'){
@@ -260,25 +270,23 @@ int CFunctions::parseBlockFile(){
                     //std::cout << "  -:  " << " " << i << " d: " << parenDepth  << std::endl;  
                 }
 		if( parenDepth == 0){
-                    std::cout << "  Found end of block  " << parenDepth << std::endl; 
+                    //std::cout << "  Found end of block  " << parenDepth << std::endl; 
                 
                     std::string section = content.substr(start_i, i + 1);
-                    std::cout << "  ---  block  " << section << std::endl;
+                    //std::cout << "  ---  block  " << section << std::endl;
 
                     // Populate block and its records....
                     // "number":0","time":"","hash":"","records"
                     // {"record": 
 
+                    latest_block.number = parseSection(section, "\"number\":", "\"");
+                    //std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
  
                     content = content.substr(start_i + i, content.length());
                 }
             }
 
         }		
-
-
-        std::size_t start = line.find("[");
-        std::size_t end = line.find("]");
 
     }
 

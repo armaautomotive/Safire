@@ -30,6 +30,7 @@
 #include "network/server.h"
 #include "cli.h"
 #include <unistd.h>		// sleep
+#include <ctime>
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
@@ -45,6 +46,7 @@ void blockBuilderThread(){
 	CFunctions functions;
 	// Check block chain for latest block information.
 	// TODO...
+    functions.parseBlockFile();
 
 	// Get current user keys
 	std::string privateKey;
@@ -61,7 +63,7 @@ void blockBuilderThread(){
         	//std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
 	}
 
-	int blockNumber = 0;
+	int blockNumber = functions.latest_block.number + 1;
 	while(buildingBlocks){
 		std::cout << ".";
 		
@@ -71,6 +73,8 @@ void blockBuilderThread(){
 
 		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.
 
+                time_t t = time(0); 
+                std::string block_time = std::asctime(std::localtime(&t));
   
 		if(build_block){
 
@@ -103,6 +107,7 @@ void blockBuilderThread(){
 			CFunctions::block_structure block;
 			block.records.push_back(joinRecord);
 			block.number = blockNumber++;
+                        block.time = block_time;
 
 			functions.addToBlockFile( block );
 			
@@ -219,9 +224,9 @@ int main()
     block.records.push_back(joinRecord);
     block.number = 0;
     
-    functions.addToBlockFile( block );
+    //functions.addToBlockFile( block );
 
-    functions.parseBlockFile();
+    //functions.parseBlockFile();
 
     std::thread blockThread (blockBuilderThread);    
 
