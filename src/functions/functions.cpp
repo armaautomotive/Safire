@@ -118,7 +118,7 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
         //int a, b;
         //if (!(iss >> a >> b)) { break; } // error
         
-        std::cout << "  Line:  " << line << " " << std::endl;
+        //std::cout << "  Line:  " << line << " " << std::endl;
         // process pair (a,b)
         
         
@@ -248,13 +248,13 @@ int CFunctions::parseBlockFile(){
 
         content += line;
 
-	//std::cout << "  PARSE BLOCKCHAIN:  " << line << " " << std::endl;
+        //std::cout << "  PARSE BLOCKCHAIN:  " << line << " " << std::endl;
 
         // Parse content into data structures and strip it from content string as it goes. 
 
         //size_t n = std::count(s.begin(), s.end(), '_');
 
-	// Read the first block in the file.
+        // Read the first block in the file.
         int parenDepth = 0;
         std::size_t start_i = content.find("{");
         if (start_i!=std::string::npos){
@@ -269,7 +269,7 @@ int CFunctions::parseBlockFile(){
                     parenDepth--;
                     //std::cout << "  -:  " << " " << i << " d: " << parenDepth  << std::endl;  
                 }
-		if( parenDepth == 0){
+                if( parenDepth == 0){
                     //std::cout << "  Found end of block  " << parenDepth << std::endl; 
                 
                     std::string section = content.substr(start_i, i + 1);

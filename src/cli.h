@@ -18,10 +18,7 @@
 class CCLI
 {
 private:
-    //! Whether this private key is valid. We check for correctness when modifying the key
-    //! data, so fValid should always correspond to the actual state.
-    bool fValid;
-
+    
 
 public:
     //! Construct an invalid private key.
@@ -35,6 +32,7 @@ public:
     }
 
     void printCommands();
+    void printAdvancedCommands();
     void processUserInput();
 };
 

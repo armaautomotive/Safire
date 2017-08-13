@@ -38,7 +38,9 @@ using namespace std;
 volatile bool buildingBlocks = true;
 
 /**
-* 
+* blockBuilderThread
+*
+* Description:
 * std::thread blockThread (blockBuilderThread);
 */
 void blockBuilderThread(){
@@ -65,7 +67,7 @@ void blockBuilderThread(){
 
 	int blockNumber = functions.latest_block.number + 1;
 	while(buildingBlocks){
-		std::cout << ".";
+		//std::cout << ".";
 		
 
 		// is it current users turn to generate a block.
@@ -73,8 +75,8 @@ void blockBuilderThread(){
 
 		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.
 
-                time_t t = time(0); 
-                std::string block_time = std::asctime(std::localtime(&t));
+        time_t t = time(0);
+        std::string block_time = std::asctime(std::localtime(&t));
   
 		if(build_block){
 
@@ -99,15 +101,33 @@ void blockBuilderThread(){
 			std::string message_siganture = "";
 			ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
 			joinRecord.message_signature = message_siganture;
-			//functions.addToQueue(joinRecord);
+			
 
-			// Add records from queue...
-			// 
+            CFunctions::record_structure blockRewardRecord;
+            blockRewardRecord.time = ts;
+            CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
+            blockRewardRecord.transaction_type = transaction_type;
+            blockRewardRecord.amount = 1.0;
+			blockRewardRecord.recipient_public_key = publicKey;
+            std::string reward_message_siganture = "";
+            ecdsa.SignMessage(privateKey, "" + publicKey, reward_message_siganture);
+            joinRecord.message_signature = reward_message_siganture;
 
 			CFunctions::block_structure block;
-			block.records.push_back(joinRecord);
+			//block.records.push_back(joinRecord);
+            block.records.push_back(blockRewardRecord);
+            
 			block.number = blockNumber++;
-                        block.time = block_time;
+            block.time = block_time;
+            
+            
+            // Add records from queue...
+            //
+            std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();
+            for(int i = 0; i < records.size(); i++){
+                //printf(" record n");
+                
+            }
 
 			functions.addToBlockFile( block );
 			
@@ -127,7 +147,10 @@ int main()
 {
     std::cout << "Safire Digital Currency v0.0.1" << std::endl;
 
+    // Start New BlockChain Mode
+    // Read command line arg
     
+    /*
     CFunctions::record_structure record;
     record.time = "2017/06/03";
     CFunctions::transaction_types type = CFunctions::ADD_USER;
@@ -143,24 +166,24 @@ int main()
     for(int i = 0; i < records.size(); i++){
         printf(" record n");
     }
+    */
     
     
-    
-    std::string p;
-    std::string v;
-    std::string u;
+    //std::string p;
+    //std::string v;
+    //std::string u;
     //std::cout << "  " << std::endl;	
     CECDSACrypto ecdsa;
-    int r = ecdsa.GetKeyPair(p, v, u );
+    //int r = ecdsa.GetKeyPair(p, v, u );
     //std::cout << "  private  " << p << "\n  public " << v << "\n  Public compressed: " << u << std::endl; 
-    ecdsa.runTests();
+    //ecdsa.runTests();
 
     std::string privateKey;
     std::string publicKey;
 
     CWallet wallet;
     bool e = wallet.fileExists("wallet.dat");
-    printf(" wallet exists: %d  \n", e);
+    //printf(" wallet exists: %d  \n", e);
     if(e == 0){
         printf("No wallet found. Creating a new one...\n");
         std::string publicKeyUncompressed;
@@ -170,31 +193,35 @@ int main()
     } else {
         // Load wallet
         wallet.read(privateKey, publicKey);
-        std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl; 
     }
+    std::cout <<
+        //"  private  " << privateKey << "\n  " <<
+        " Your public address: " << publicKey << "\n " << std::endl;
+    
 
     // Transactions
+    /*
     CTransaction transaction;
     std::string join = transaction.joinNetwork(publicKey);
     std::cout << " join: " << join << std::endl;	
     std::string sendPayment = transaction.sendPayment( privateKey, publicKey, u, 23.45, 1);
     std::cout << " payment: " << sendPayment << std::endl;
-
+     */
     
     CUserDB userDB;
     //userDB.AddUser("test", "127.0.0.1");
-    userDB.GetUsers(); 
+    //userDB.GetUsers();
 
 
-    CBlockDB blockDB;
+    //CBlockDB blockDB;
     //blockDB.AddBlock("First");
-    blockDB.GetBlocks();
+    //blockDB.GetBlocks();
 
     
     
 
     // Start Networking
-    //std::cout << "Starting networking. " << std::endl;
+    std::cout << "Starting networking. " << std::endl;
     //std::size_t num_threads = 10;
     //http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
 
@@ -203,6 +230,7 @@ int main()
     // std::thread webserver_thread (foo); // void foo()  
     
     // If not allready, send network request to join.
+/*
     CFunctions::record_structure joinRecord;
     time_t  timev;
     time(&timev);
@@ -225,10 +253,10 @@ int main()
     block.number = 0;
     
     //functions.addToBlockFile( block );
-
+*/
     //functions.parseBlockFile();
 
-    std::thread blockThread (blockBuilderThread);    
+    std::thread blockThread(blockBuilderThread);    
 
     CCLI cli;
     cli.processUserInput();    
