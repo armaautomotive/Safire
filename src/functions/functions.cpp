@@ -282,7 +282,11 @@ int CFunctions::parseBlockFile(){
                     latest_block.number = parseSection(section, "\"number\":", "\"");
                     //std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
  
-                    content = content.substr(start_i + i, content.length());
+                    //std::string records_section = parseSection(section, "\"number\":", "\"");
+                    
+                    
+                    
+                    content = content.substr(start_i + i, content.length()); // strip out processed block
                 }
             }
 

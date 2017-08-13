@@ -82,9 +82,12 @@ void blockBuilderThread(){
 
 			// While time remaining in block
 			//int j = 0; 
-			for(int j = 0; j < 10; j++ ){
+			for(int j = 0; j < 15 && buildingBlocks; j++ ){
 				usleep(1000000);
 			}
+            if(!buildingBlocks){
+                return;
+            }
 			
 			CFunctions::record_structure joinRecord;
 			time_t  timev;
@@ -133,7 +136,10 @@ void blockBuilderThread(){
 			
 		}	
 
-		usleep(1000000);
+        if(!buildingBlocks){
+            usleep(1000000);
+        }
+       
 	}	
 }
 
@@ -145,7 +151,7 @@ void stop() {
 
 int main()
 {
-    std::cout << "Safire Digital Currency v0.0.1" << std::endl;
+    std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1" << ANSI_COLOR_RESET << std::endl;
 
     // Start New BlockChain Mode
     // Read command line arg
@@ -261,6 +267,10 @@ int main()
     CCLI cli;
     cli.processUserInput();    
 
-    std::cout << " Done " << std::endl;
+    std::cout << "Shutting down... " << std::endl;
     stop();
+    blockThread.join();
+    //usleep(100000);
+    std::cout << "Done " << std::endl;
+    
 }
