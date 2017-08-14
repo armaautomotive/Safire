@@ -79,6 +79,8 @@ public:
     int addToBlockFile( block_structure block );
     double parseSection(std::string content, std::string start, std::string end);
     int parseBlockFile();
+    
+    std::string parseSectionBlock(std::string content, std::string start, std::string open, std::string close);
 
 //private:
     CFunctions::block_structure latest_block;

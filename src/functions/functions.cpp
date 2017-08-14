@@ -5,27 +5,26 @@
 #include "functions/functions.h"
 #include <boost/lexical_cast.hpp>
 
-
 /**
-* tokenClose
-*
-* Description: Find closing token for a structure in a string.
-*/
+ * tokenClose
+ *
+ * Description: Find closing token for a structure in a string.
+ */
 int CFunctions::tokenClose(std::string content, std::string open, std::string close, int start){
-	std::size_t start_i = content.find(open);
-        std::size_t end_i = content.find(close);
-        if (start_i!=std::string::npos && end_i!=std::string::npos){
-            std::string section = content.substr (start_i + 1, end_i - start_i -1);
-
-	}	
-
-	return 0;
+    std::size_t start_i = content.find(open);
+    std::size_t end_i = content.find(close);
+    if (start_i!=std::string::npos && end_i!=std::string::npos){
+        std::string section = content.substr (start_i + 1, end_i - start_i -1);
+        
+    }
+    return 0;
 }
+
 
 /**
 * recordJSON 
 *
-*
+* Description: generate a json string representation of a record structure.
 */
 std::string CFunctions::recordJSON(record_structure record){
 	std::string json = "{\"record\":{\"time\":\"" + record.time + "\"," +
@@ -220,10 +219,42 @@ double CFunctions::parseSection(std::string content, std::string start, std::str
 }
 
 
+// Find end of block tag position
+
+std::string CFunctions::parseSectionBlock(std::string content, std::string start, std::string open, std::string close){
+    std::string result = "";
+    int blockDepth = 0;
+    bool started = false;
+    
+    std::size_t start_i = content.find(start);
+    if (start_i!=std::string::npos){
+        
+        for(int i = start.length(); i < content.length(); i++){
+            if(content[start_i + i] == '{'){ // open
+                blockDepth++;
+                started = true;
+            }
+            if(content[start_i + i] == '}'){ // close
+                blockDepth--;
+            }
+            if( blockDepth == 0 && started == true){
+                
+                result = content.substr(start_i + start.length() + 1, i - start.length() - 1);
+                //std::cout << "  ---  block  " << section << std::endl;
+                
+                break;
+                //content = content.substr(start_i + i, content.length()); // strip out processed block
+            }
+        }
+    }
+    return result;
+}
+
+
 /**
 * parseBlockFile
 *
-* Description: Read the block file into in memory data structure. 
+* Description: Read the block file into in memory data structure.
 */
 int CFunctions::parseBlockFile(){
     time_t t = time(0);   // get time now
@@ -282,8 +313,12 @@ int CFunctions::parseBlockFile(){
                     latest_block.number = parseSection(section, "\"number\":", "\"");
                     //std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
  
-                    //std::string records_section = parseSection(section, "\"number\":", "\"");
+                    //std::string records_section = parseSection(section, "\"records\"", "}");
+                    std::string records_section = parseSectionBlock(section, "\"records\":", "{", "}");
+                    //std::cout << "  ---  records  " << records_section << std::endl;
                     
+                    //"amt":1
+                    //std::string amount = parseSection(records_section, "\"amt\":", "\"");
                     
                     
                     content = content.substr(start_i + i, content.length()); // strip out processed block
