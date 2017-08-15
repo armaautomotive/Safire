@@ -40,12 +40,12 @@ public:
         CFunctions::transaction_types transaction_type;
         double amount;                      // 0 if type is add_user
         double fee;
-	std::string sender_public_key;
+        std::string sender_public_key;
         std::string recipient_public_key;
         std::string message_signature;		// Hash of time+tran_type+amount+
-	std::string name; 			// Meta (User name or transfer message)      	 
+        std::string name; 			// Meta (User name or transfer message)
 
-	bool internal_validated = false;
+        bool internal_validated = false;
     };
     
     struct block_structure {
@@ -54,16 +54,16 @@ public:
         double file_index;                  // bytes into block file for fast lookup.
         std::string block_hash;             // sha256 hash of all record hashes in this block.
         std::string block_records;          // string value of all records in block.
-	std::string creator_key;
-	std::string creator_signature;
-	std::vector<CFunctions::record_structure> records;
+        std::string creator_key;
+        std::string creator_signature;
+        std::vector<CFunctions::record_structure> records;
 
-	bool internal_validated = false; 
+        bool internal_validated = false;
     };
     
     struct peer_structure {
         std::string ip;
-	bool active = true;
+        bool active = true;
     };
 
     std::string recordJSON(record_structure record);
@@ -80,10 +80,11 @@ public:
     double parseSection(std::string content, std::string start, std::string end);
     int parseBlockFile();
     
-    std::string parseSectionBlock(std::string content, std::string start, std::string open, std::string close);
+    std::string parseSectionBlock(std::string & content, std::string start, std::string open, std::string close);
 
 //private:
     CFunctions::block_structure latest_block;
+    double balance;
 };
 
 

@@ -220,8 +220,8 @@ double CFunctions::parseSection(std::string content, std::string start, std::str
 
 
 // Find end of block tag position
-
-std::string CFunctions::parseSectionBlock(std::string content, std::string start, std::string open, std::string close){
+// digest
+std::string CFunctions::parseSectionBlock(std::string & content, std::string start, std::string open, std::string close){
     std::string result = "";
     int blockDepth = 0;
     bool started = false;
@@ -238,12 +238,11 @@ std::string CFunctions::parseSectionBlock(std::string content, std::string start
                 blockDepth--;
             }
             if( blockDepth == 0 && started == true){
-                
                 result = content.substr(start_i + start.length() + 1, i - start.length() - 1);
                 //std::cout << "  ---  block  " << section << std::endl;
                 
+                content = content.substr(i - start.length(), std::string::npos);
                 break;
-                //content = content.substr(start_i + i, content.length()); // strip out processed block
             }
         }
     }
@@ -310,26 +309,36 @@ int CFunctions::parseBlockFile(){
                     // "number":0","time":"","hash":"","records"
                     // {"record": 
 
+                    latest_block.records.clear();
                     latest_block.number = parseSection(section, "\"number\":", "\"");
                     //std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
  
                     //std::string records_section = parseSection(section, "\"records\"", "}");
                     std::string records_section = parseSectionBlock(section, "\"records\":", "{", "}");
                     //std::cout << "  ---  records  " << records_section << std::endl;
+                    std::string record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
+                    while( record_section.compare("") != 0 ){
+                        CFunctions::record_structure record;
+                        
+                        // "record":{"time":"1502772739","name:":"","typ":"1","amt":1,"fee":0,"sndkey":"","rcvkey":"026321261876CFB360F94A7FDF3F2D4F6F9FC0CEDADF15AC3D30E182A82AF5D81E","sig":""}
+                        //"amt":1
+                        double amount = parseSection(record_section, "\"amt\":", "\"");
+                        //std::cout << "  ---  record amount  " << amount << std::endl;
+                        
+                        // address
+                        std::string to_address = parseSectionBlock(record_section, "rcvkey", "", "" );
+                        
+                        
+                        latest_block.records.push_back(record);
                     
-                    //"amt":1
-                    //std::string amount = parseSection(records_section, "\"amt\":", "\"");
+                        record_section = parseSectionBlock(section, "\"record\":", "{", "}");
+                    }
                     
                     
                     content = content.substr(start_i + i, content.length()); // strip out processed block
                 }
             }
-
-        }		
-
+        }
     }
-
-
-    
     return 0;
 }
