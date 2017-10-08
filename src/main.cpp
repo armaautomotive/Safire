@@ -27,7 +27,7 @@
 
 #include "functions/functions.h"
 
-#include "network/server.h"
+//#include "network/server.h"
 #include "cli.h"
 #include <unistd.h>		// sleep
 #include <ctime>
