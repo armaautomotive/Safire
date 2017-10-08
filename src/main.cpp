@@ -21,7 +21,7 @@
 #include "wallet.h"
 #include "transaction.h"
 
-#include "userdb.h"
+//#include "userdb.h"
 //#include "leveldb/db.h" // TEMP 
 #include "blockdb.h"
 
@@ -214,7 +214,7 @@ int main()
     std::cout << " payment: " << sendPayment << std::endl;
      */
     
-    CUserDB userDB;
+    //CUserDB userDB;
     //userDB.AddUser("test", "127.0.0.1");
     //userDB.GetUsers();
 

@@ -16,22 +16,24 @@ SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 CC_LINUX=g++
 CC=clang++
 
-CFLAGS= -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -I./src/leveldb/include -L/usr/local/opt/openssl/lib -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lleveldb -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w 
+#  gcc -o yourname -Bstatic -L<dir-of-libcrypto.a> -lcrypto . . . yourfile.c
+# MacOS Doesn’t support static linking.
+CFLAGS_MAC= -Bstatic -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -I./src/leveldb/include -Bstatic -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lleveldb -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w 
 # -lsecp256k1
 # -lboost_system -lboost_asio
 # -L./usr/local/Cellar/boost/1.62.0/lib
 
-CFLAGS_LINUX= -I/usr/local/include -I./src/leveldb/include -L/usr/local/lib -lssl -lcrypto -lboost_system -lsecp256k1  -Wdeprecated  -w
+CFLAGS_LINUX= -I/usr/local/include -I./src/leveldb/include -Bstatic -L/usr/local/lib -lssl -lcrypto -lboost_system -lsecp256k1  -Wdeprecated  -w
 # -Weverything  
 # -std=gnu99  
 
 
 all:
 	#mkdir -p ${OUT_PATH}
-	${CC} ${CFLAGS}  -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire	
+	${CC} ${CFLAGS_MAC} -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire	
 
 mac:
-	${CC} ${CFLAGS}  -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire 
+	${CC} ${CFLAGS_MAC} -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire 
 
 linux:
 	${CC_LINUX} ${CFLAGS_LINUX} -std=c++11 -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire	
