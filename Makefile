@@ -3,6 +3,7 @@
 # 
 # 
 SRC_PATH=./src
+SRC_PATH_LINUX=-I./src -I/usr/local/include -I./src/leveldb/include
 OUT_PATH=./bin
 VPATH=${SRC_PATH}
 #FILES= ./src/crypto/aes.cpp ./src/main.cpp 
@@ -11,6 +12,7 @@ VPATH=${SRC_PATH}
 FILES= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp ./src/transaction.cpp ./src/userdb.cpp ./src/blockdb.cpp ./src/networktime.cpp ./src/cli.cpp ./src/network/*.cpp ./src/functions/*.cpp  
 # ./src/util.cpp ./src/rsacrypto.cpp  
 #	./src/wallet/wallet.cpp
+FILES_LINUX= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp ./src/transaction.cpp ./src/networktime.cpp ./src/cli.cpp ./src/network/*.cpp ./src/functions/*.cpp
 SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 
 CC_LINUX=g++
@@ -18,12 +20,14 @@ CC=clang++
 
 #  gcc -o yourname -Bstatic -L<dir-of-libcrypto.a> -lcrypto . . . yourfile.c
 # MacOS Doesn’t support static linking.
-CFLAGS_MAC= -Bstatic -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -I./src/leveldb/include -Bstatic -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lleveldb -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w 
+CFLAGS_MAC= -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -I./src/leveldb/include -Bstatic -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lleveldb -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w 
 # -lsecp256k1
 # -lboost_system -lboost_asio
 # -L./usr/local/Cellar/boost/1.62.0/lib
 
-CFLAGS_LINUX= -I/usr/local/include -I./src/leveldb/include -Bstatic -L/usr/local/lib -lssl -lcrypto -lboost_system -lsecp256k1  -Wdeprecated  -w
+#  /usr/local/lib/libsecp256k1.a
+# -Bstatic
+CFLAGS_LINUX= -L/usr/local/lib/ -L/usr/lib/ -lssl -lcrypto -lboost_filesystem -lboost_system -lsecp256k1 -Wdeprecated -w 
 # -Weverything  
 # -std=gnu99  
 
@@ -36,7 +40,7 @@ mac:
 	${CC} ${CFLAGS_MAC} -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire 
 
 linux:
-	${CC_LINUX} ${CFLAGS_LINUX} -std=c++11 -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire	
+	${CC_LINUX} ${CFLAGS_LINUX} -std=c++11 ${SRC_PATH_LINUX} ${FILES_LINUX} -o ${OUT_PATH}/Safire	
 
 
 # TODO add tests application target to run all unit tests.
