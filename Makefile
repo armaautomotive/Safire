@@ -27,7 +27,8 @@ CFLAGS_MAC= -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/C
 
 #  /usr/local/lib/libsecp256k1.a
 # -Bstatic
-CFLAGS_LINUX= -L/usr/local/lib/ -L/usr/lib/ -lssl -lcrypto -lboost_filesystem -lboost_system -lsecp256k1 -Wdeprecated -w 
+# -lboost_system-mt not found
+CFLAGS_LINUX= -L/usr/local/lib/ -L/usr/lib/   -lboost_system  -lssl -lcrypto -lboost_filesystem -lsecp256k1 -Wdeprecated -w 
 # -Weverything  
 # -std=gnu99  
 
