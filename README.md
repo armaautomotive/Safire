@@ -46,10 +46,11 @@ Mac:
 Linux: 
 
 Linux
-sudo apt-get install openssl
-sudo apt-get install libboost-all-dev
-sudo apt-get install aptitude
-aptitude search boost
+sudo apt-get install openssl <br>
+sudo apt-get install libssl-dev <br>
+sudo apt-get install libboost-all-dev <br>
+sudo apt-get install aptitude <br>
+aptitude search boost <br>
 
 > make linux 
 
