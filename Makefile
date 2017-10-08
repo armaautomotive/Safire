@@ -30,6 +30,8 @@ all:
 	#mkdir -p ${OUT_PATH}
 	${CC} ${CFLAGS}  -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire	
 
+mac:
+	${CC} ${CFLAGS}  -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire 
 
 linux:
 	${CC_LINUX} ${CFLAGS_LINUX} -std=c++11 -I${SRC_PATH} ${FILES} -o ${OUT_PATH}/Safire	
