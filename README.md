@@ -44,8 +44,9 @@ Mac:
 > make
 
 Linux: 
-
-Linux
+<br>
+sudo apt-get install llvm <br>
+sudo apt-get install clang <br>
 sudo apt-get install openssl <br>
 sudo apt-get install libssl-dev <br>
 sudo apt-get install libboost-all-dev <br>
