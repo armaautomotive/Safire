@@ -60,7 +60,7 @@ int CFunctions::addToQueue(record_structure record){
 /**
 * parseRecordJson
 *
-* Description: 
+* Description: DEPRICATE ????? 
 */
 CFunctions::record_structure parseRecordJson(std::string json){
 	CFunctions::record_structure record;
@@ -85,6 +85,7 @@ CFunctions::record_structure parseRecordJson(std::string json){
 
 /**
  * parseQueueRecords
+ *    DEPRICATE ????
  *
  * Description: Read queued records from file into a vector of structures.
  * @return vector or record_structures
@@ -204,6 +205,7 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
 * parseSection
 *
 * Description: Extract a section from a string and convert it to a double.
+* TODO use parseSectionString 
 */
 double CFunctions::parseSection(std::string content, std::string start, std::string end){
     std::size_t start_i = content.find(start);
@@ -218,6 +220,19 @@ double CFunctions::parseSection(std::string content, std::string start, std::str
     return 0;
 }
 
+std::string CFunctions::parseSectionString(std::string content, std::string start, std::string end){
+    std::string result = "";
+    std::size_t start_i = content.find(start);
+    if (start_i!=std::string::npos){
+        std::size_t end_i = content.find(end, start_i + start.length() + 1);
+        if(end_i!=std::string::npos){
+             std::string section = content.substr(start_i + start.length(), end_i - (start_i + start.length()) - 0);
+             //double value = ::atof(section.c_str());
+             return section;
+        }
+    }
+    return "";
+}
 
 // Find end of block tag position
 // digest
@@ -255,7 +270,7 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 *
 * Description: Read the block file into in memory data structure.
 */
-int CFunctions::parseBlockFile(){
+int CFunctions::parseBlockFile( std::string my_public_key ){
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
@@ -277,7 +292,7 @@ int CFunctions::parseBlockFile(){
         //CFunctions::record_structure record;
 
         content += line;
-
+        //std::cout << "line" << std::endl;
         //std::cout << "  PARSE BLOCKCHAIN:  " << line << " " << std::endl;
 
         // Parse content into data structures and strip it from content string as it goes. 
@@ -302,19 +317,22 @@ int CFunctions::parseBlockFile(){
                 if( parenDepth == 0){
                     //std::cout << "  Found end of block  " << parenDepth << std::endl; 
                 
-                    std::string section = content.substr(start_i, i + 1);
+                    std::string block_section = content.substr(start_i, i + 1);
                     //std::cout << "  ---  block  " << section << std::endl;
+			//std::cout << "    - block read " << start_i << std::endl;
 
                     // Populate block and its records....
                     // "number":0","time":"","hash":"","records"
                     // {"record": 
 
                     latest_block.records.clear();
-                    latest_block.number = parseSection(section, "\"number\":", "\"");
+                    latest_block.number = parseSection(block_section, "\"number\":", "\"");
+                    std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                     //std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
- 
+                    //std::cout << "    hash: " << hash << std::endl; 
+
                     //std::string records_section = parseSection(section, "\"records\"", "}");
-                    std::string records_section = parseSectionBlock(section, "\"records\":", "{", "}");
+                    std::string records_section = parseSectionBlock(block_section, "\"records\":", "{", "}");
                     //std::cout << "  ---  records  " << records_section << std::endl;
                     std::string record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
                     while( record_section.compare("") != 0 ){
@@ -328,17 +346,31 @@ int CFunctions::parseBlockFile(){
                         // address
                         std::string to_address = parseSectionBlock(record_section, "rcvkey", "", "" );
                         
+			std::string rcvkey = parseSectionString(record_section, "\"rcvkey\":\"", "\"" );                       
+
+			//std::cout << "        record " << " " << std::endl; 
+
+			if( rcvkey.compare( my_public_key ) == 0 ){
+				balance += amount;
+			}
                         
                         latest_block.records.push_back(record);
                     
-                        record_section = parseSectionBlock(section, "\"record\":", "{", "}");
+                        record_section = parseSectionBlock(block_section, "\"record\":", "{", "}");
                     }
                     
                     
                     content = content.substr(start_i + i, content.length()); // strip out processed block
                 }
-            }
-        }
-    }
+
+
+                //start_i = content.find("{", start_i + 1);
+            } // for char in content
+
+            //start_i = content.find("{", start_i + 1); 
+        } // if { found in line 
+
+    } // end for each file line
+
     return 0;
 }

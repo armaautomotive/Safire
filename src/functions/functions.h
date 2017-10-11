@@ -78,10 +78,11 @@ public:
     int generateBlock( std::vector<CFunctions::record_structure> records, std::string time );
     int addToBlockFile( block_structure block );
     double parseSection(std::string content, std::string start, std::string end);
-    int parseBlockFile();
+    int parseBlockFile( std::string my_public_key );
     
     std::string parseSectionBlock(std::string & content, std::string start, std::string open, std::string close);
 
+    std::string parseSectionString(std::string content, std::string start, std::string end);
 //private:
     CFunctions::block_structure latest_block;
     double balance;

@@ -10,7 +10,7 @@
 #include <fcntl.h> // temp removed util.h
 #include <time.h>
 #include "ecdsacrypto.h"
-
+#include "functions/functions.h"
 
 /**
 * printCommands 
@@ -58,6 +58,9 @@ void CCLI::processUserInput(){
             // Print if pending or allready accepted.
 		} else if ( command.find("balance") != std::string::npos ){
 			
+
+		CFunctions functions;
+
             
             std::cout << "Balance: 0.0 sfr \n" << std::endl;
         } else if ( command.find("sent") != std::string::npos ){

@@ -48,7 +48,6 @@ void blockBuilderThread(){
 	CFunctions functions;
 	// Check block chain for latest block information.
 	// TODO...
-    functions.parseBlockFile();
 
 	// Get current user keys
 	std::string privateKey;
@@ -64,6 +63,10 @@ void blockBuilderThread(){
         	wallet.read(privateKey, publicKey);
         	//std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
 	}
+
+        
+        functions.parseBlockFile( publicKey );
+
 
 	int blockNumber = functions.latest_block.number + 1;
 	while(buildingBlocks){
@@ -155,7 +158,8 @@ int main()
 
     // Start New BlockChain Mode
     // Read command line arg
-    
+
+    CFunctions functions;    
     /*
     CFunctions::record_structure record;
     record.time = "2017/06/03";
@@ -203,7 +207,9 @@ int main()
     std::cout <<
         //"  private  " << privateKey << "\n  " <<
         " Your public address: " << publicKey << "\n " << std::endl;
-    
+
+    functions.parseBlockFile( publicKey );
+    std::cout << " Your balance: " << functions.balance << std::endl; 
 
     // Transactions
     /*
