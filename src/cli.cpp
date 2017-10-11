@@ -11,6 +11,7 @@
 #include <time.h>
 #include "ecdsacrypto.h"
 #include "functions/functions.h"
+#include "wallet.h"
 
 /**
 * printCommands 
@@ -55,16 +56,25 @@ void CCLI::processUserInput(){
 
 		if( command.find("join") != std::string::npos ){
 			std::cout << "Joining... \n" << std::endl;
-            // Print if pending or allready accepted.
+			// Print if pending or allready accepted.
 		} else if ( command.find("balance") != std::string::npos ){
 			
 
-		CFunctions functions;
+			CFunctions functions;
+			std::string privateKey;
+			std::string publicKey;
+			CWallet wallet;
+			bool e = wallet.fileExists("wallet.dat");
+			if(e != 0){
+				// Load wallet
+				wallet.read(privateKey, publicKey);
+    
+				functions.parseBlockFile( publicKey );
+				std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
 
-            
-            std::cout << "Balance: 0.0 sfr \n" << std::endl;
-        } else if ( command.find("sent") != std::string::npos ){
-            std::cout << "This feature is not implemented yet.\n" << std::endl;
+			}
+		} else if ( command.find("sent") != std::string::npos ){
+			std::cout << "This feature is not implemented yet.\n" << std::endl;
             
         } else if ( command.find("receive") != std::string::npos ){
             
@@ -83,7 +93,7 @@ void CCLI::processUserInput(){
             
             std::cout << "This feature is not implemented yet.\n" << std::endl;
             
-		} else if ( command.find("quit") != std::string::npos ){
+	} else if ( command.find("quit") != std::string::npos ){
 			running = false;
             
         } else if ( command.find("advanced") != std::string::npos ){

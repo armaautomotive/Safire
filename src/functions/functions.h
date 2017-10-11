@@ -25,6 +25,8 @@ public:
     //! Construct an invalid private key.
     CFunctions()
     {
+        balance = 0;
+        joined = false;
     }
     
     //! Destructor (again necessary because of memlocking).
@@ -86,6 +88,7 @@ public:
 //private:
     CFunctions::block_structure latest_block;
     double balance;
+    bool joined;
 };
 
 

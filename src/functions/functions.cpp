@@ -280,7 +280,7 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
     std::string file_path = ss.str();
 
     //CFunctions::block_structure block;
-
+    balance = 0;
     std::string content = "";
 
     std::vector<record_structure> records;

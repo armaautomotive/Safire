@@ -155,7 +155,7 @@ void stop() {
 int main()
 {
     std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1" << ANSI_COLOR_RESET << std::endl;
-
+    std::cout << std::endl;
     // Start New BlockChain Mode
     // Read command line arg
 
@@ -206,10 +206,14 @@ int main()
     }
     std::cout <<
         //"  private  " << privateKey << "\n  " <<
-        " Your public address: " << publicKey << "\n " << std::endl;
+        " Your public address: " << publicKey << std::endl;
 
     functions.parseBlockFile( publicKey );
     std::cout << " Your balance: " << functions.balance << std::endl; 
+
+    std::cout << " Joined network: " << functions.joined << std::endl;
+
+    std::cout << std::endl;
 
     // Transactions
     /*
