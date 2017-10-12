@@ -43,7 +43,7 @@ volatile bool buildingBlocks = true;
 * Description:
 * std::thread blockThread (blockBuilderThread);
 */
-void blockBuilderThread(){
+void blockBuilderThread(int argc, char* argv[]){
 	CECDSACrypto ecdsa;
 	CFunctions functions;
 	// Check block chain for latest block information.
@@ -52,7 +52,6 @@ void blockBuilderThread(){
 	// Get current user keys
 	std::string privateKey;
 	std::string publicKey;
-
 	CWallet wallet;
 	bool e = wallet.fileExists("wallet.dat");
 	//printf(" wallet exists: %d  \n", e);
@@ -63,10 +62,9 @@ void blockBuilderThread(){
         	wallet.read(privateKey, publicKey);
         	//std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
 	}
-
-        
         functions.parseBlockFile( publicKey );
 
+	bool genesisCreated = false;
 
 	int blockNumber = functions.latest_block.number + 1;
 	while(buildingBlocks){
@@ -93,6 +91,12 @@ void blockBuilderThread(){
 			}
 		
 			// If genesis block add record (  join current user, currency creation for curr user  )
+			if(argc > 1 && !strcmp(argv[1],"genesis") && !genesisCreated){
+				//std::cout << " GENESIS " << std::endl;
+
+
+				genesisCreated = true;
+			}
 	
 			CFunctions::record_structure joinRecord;
 			time_t  timev;
@@ -101,9 +105,9 @@ void blockBuilderThread(){
 			ss << timev;
 			std::string ts = ss.str();
 			joinRecord.time = ts;
-			CFunctions::transaction_types joinType = CFunctions::ISSUE_CURRENCY;
+			CFunctions::transaction_types joinType = CFunctions::JOIN_NETWORK;
 			joinRecord.transaction_type = joinType;
-			joinRecord.amount = 1.0;
+			joinRecord.amount = 0.0;
 			joinRecord.sender_public_key = "";
 			joinRecord.recipient_public_key = publicKey;
 			std::string message_siganture = "";
@@ -170,7 +174,7 @@ void stop() {
     // Join thread
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1" << ANSI_COLOR_RESET << std::endl;
     std::cout << std::endl;
@@ -181,7 +185,7 @@ int main()
     /*
     CFunctions::record_structure record;
     record.time = "2017/06/03";
-    CFunctions::transaction_types type = CFunctions::ADD_USER;
+    CFunctions::transaction_types type = CFunctions::JOIN_NETWORK;
     record.transaction_type = type;
     record.amount = 0.1;
     record.sender_public_key = "Fsadhjsd6576asdaDGHSjghjasdASD";
@@ -274,7 +278,7 @@ int main()
     ss << timev;
     std::string ts = ss.str();
     joinRecord.time = ts;
-    CFunctions::transaction_types joinType = CFunctions::ADD_USER;
+    CFunctions::transaction_types joinType = CFunctions::JOIN_NETWORK;
     joinRecord.transaction_type = type;
     joinRecord.amount = 0.0;
     joinRecord.sender_public_key = publicKey;
@@ -292,7 +296,7 @@ int main()
 */
     //functions.parseBlockFile();
 
-    std::thread blockThread(blockBuilderThread);    
+    std::thread blockThread(blockBuilderThread, argc, argv);    
 
     CCLI cli;
     cli.processUserInput();    

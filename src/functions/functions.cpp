@@ -220,6 +220,12 @@ double CFunctions::parseSection(std::string content, std::string start, std::str
     return 0;
 }
 
+int CFunctions::parseSectionInt(std::string content, std::string start, std::string end){
+	std::string section = parseSectionString(content, start, end);
+	int result = ::atoi(section.c_str());
+	return result;
+}
+
 std::string CFunctions::parseSectionString(std::string content, std::string start, std::string end){
     std::string result = "";
     std::size_t start_i = content.find(start);
@@ -269,6 +275,9 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 * parseBlockFile
 *
 * Description: Read the block file into in memory data structure.
+*
+* TODO: Keep track of a file pointer index of the last part of the file parsed 
+* 	so that on subsiquent parse operations it only has to read new sections of the file?
 */
 int CFunctions::parseBlockFile( std::string my_public_key ){
     time_t t = time(0);   // get time now
@@ -352,6 +361,11 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
 
 			//std::cout << "        record " << " " << std::endl; 
 
+			int record_type = parseSectionInt(record_section, "\"typ\":\"", "\"" );  
+			if( rcvkey.compare( my_public_key ) == 0 && record_type == CFunctions::JOIN_NETWORK ){
+				joined = true;
+			}
+
 			if( rcvkey.compare( my_public_key ) == 0 ){
 				balance += amount;
 			}
@@ -360,7 +374,9 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
                     
                         record_section = parseSectionBlock(block_section, "\"record\":", "{", "}");
                     }
-                    
+                   	
+			// Is block valid???
+			//  
                     
                     content = content.substr(start_i + i, content.length()); // strip out processed block
                 }

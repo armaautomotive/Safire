@@ -55,7 +55,27 @@ void CCLI::processUserInput(){
 		std::cin >> command;
 
 		if( command.find("join") != std::string::npos ){
-			std::cout << "Joining... \n" << std::endl;
+			
+			CFunctions functions;
+                        std::string privateKey;
+                        std::string publicKey;
+                        CWallet wallet;
+                        bool e = wallet.fileExists("wallet.dat");
+                        if(e != 0){
+                                // Load wallet
+                                wallet.read(privateKey, publicKey);
+                                functions.parseBlockFile( publicKey ); 
+				
+                        }
+
+			if(functions.joined == true){
+				std::cout << "Allready joined network. \n" << std::endl;
+			} else {
+				std::cout << "Joining request sending... \n" << std::endl;
+	
+				// TODO: send request or say allready sent. 	
+			}
+
 			// Print if pending or allready accepted.
 		} else if ( command.find("balance") != std::string::npos ){
 			

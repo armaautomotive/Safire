@@ -34,8 +34,8 @@ public:
     {
     }
    
-    // ? Should these structures go elsewhere? 
-    enum transaction_types { ADD_USER, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD };
+    // ? Should these structures go elsewhere?
+    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD };
     
     struct record_structure {
         std::string time;
@@ -55,6 +55,7 @@ public:
         std::string time;                   // time block created
         double file_index;                  // bytes into block file for fast lookup.
         std::string block_hash;             // sha256 hash of all record hashes in this block.
+        std::string previous_block_hash;    // ???  
         std::string block_records;          // string value of all records in block.
         std::string creator_key;
         std::string creator_signature;
@@ -81,7 +82,8 @@ public:
     int addToBlockFile( block_structure block );
     double parseSection(std::string content, std::string start, std::string end);
     int parseBlockFile( std::string my_public_key );
-    
+
+    int parseSectionInt(std::string content, std::string start, std::string end);    
     std::string parseSectionBlock(std::string & content, std::string start, std::string open, std::string close);
 
     std::string parseSectionString(std::string content, std::string start, std::string end);
