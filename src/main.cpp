@@ -78,8 +78,8 @@ void blockBuilderThread(){
 
 		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.
 
-        time_t t = time(0);
-        std::string block_time = std::asctime(std::localtime(&t));
+		time_t t = time(0);
+		std::string block_time = std::asctime(std::localtime(&t));
   
 		if(build_block){
 
@@ -88,10 +88,12 @@ void blockBuilderThread(){
 			for(int j = 0; j < 15 && buildingBlocks; j++ ){
 				usleep(1000000);
 			}
-            if(!buildingBlocks){
-                return;
-            }
-			
+			if(!buildingBlocks){
+				return;
+			}
+		
+			// If genesis block add record (  join current user, currency creation for curr user  )
+	
 			CFunctions::record_structure joinRecord;
 			time_t  timev;
 			time(&timev);
@@ -109,39 +111,55 @@ void blockBuilderThread(){
 			joinRecord.message_signature = message_siganture;
 			
 
-            CFunctions::record_structure blockRewardRecord;
-            blockRewardRecord.time = ts;
-            CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
-            blockRewardRecord.transaction_type = transaction_type;
-            blockRewardRecord.amount = 1.0;
+			CFunctions::record_structure blockRewardRecord;
+			blockRewardRecord.time = ts;
+			CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
+			blockRewardRecord.transaction_type = transaction_type;
+			blockRewardRecord.amount = 1.0;
 			blockRewardRecord.recipient_public_key = publicKey;
-            std::string reward_message_siganture = "";
-            ecdsa.SignMessage(privateKey, "" + publicKey, reward_message_siganture);
-            joinRecord.message_signature = reward_message_siganture;
+			std::string reward_message_siganture = "";
+			ecdsa.SignMessage(privateKey, "" + publicKey, reward_message_siganture);
+			joinRecord.message_signature = reward_message_siganture;
 
 			CFunctions::block_structure block;
 			//block.records.push_back(joinRecord);
-            block.records.push_back(blockRewardRecord);
+			block.records.push_back(blockRewardRecord);
             
 			block.number = blockNumber++;
-            block.time = block_time;
+			block.time = block_time;
             
             
-            // Add records from queue...
-            //
-            std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();
-            for(int i = 0; i < records.size(); i++){
-                //printf(" record n");
+			// Add records from queue...
+			//
+			std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();
+			for(int i = 0; i < records.size(); i++){
+				//printf(" record n");
                 
-            }
+			}
+
+			// Calculate block hash
+			std::string hash = "xxx";
+			// use functions.latest_block.block_hash 
+			char * c_hash = (char *)malloc( 65 );
+			//char c_rand[65];
+			//c_rand[64] = 0;
+			char *cstr = new char[hash.length() + 1];
+			strcpy(cstr, hash.c_str());
+
+			ecdsa.sha256(cstr, c_hash);
+			hash = std::string(c_hash);
+			delete [] cstr;
+			free(c_hash);
+
+			block.block_hash = hash;
 
 			functions.addToBlockFile( block );
 			
 		}	
 
-        if(!buildingBlocks){
-            usleep(1000000);
-        }
+		if(!buildingBlocks){
+			usleep(1000000);
+		}
        
 	}	
 }
@@ -211,7 +229,7 @@ int main()
     functions.parseBlockFile( publicKey );
     std::cout << " Your balance: " << functions.balance << std::endl; 
 
-    std::cout << " Joined network: " << functions.joined << std::endl;
+    std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
 
     std::cout << std::endl;
 
@@ -233,11 +251,13 @@ int main()
     //blockDB.AddBlock("First");
     //blockDB.GetBlocks();
 
-    
-    
 
     // Start Networking
-    std::cout << "Starting networking. " << std::endl;
+    std::cout << "Starting networking.     [ok] " << std::endl;
+
+    // Validate chain
+    std::cout << "Validating chain.        [ok] " << std::endl;
+
     //std::size_t num_threads = 10;
     //http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
 

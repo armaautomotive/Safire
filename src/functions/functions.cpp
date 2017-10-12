@@ -328,7 +328,9 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
                     latest_block.records.clear();
                     latest_block.number = parseSection(block_section, "\"number\":", "\"");
                     std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
-                    //std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
+                    latest_block.block_hash = hash;
+
+			//std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
                     //std::cout << "    hash: " << hash << std::endl; 
 
                     //std::string records_section = parseSection(section, "\"records\"", "}");
