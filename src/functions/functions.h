@@ -27,6 +27,7 @@ public:
     {
         balance = 0;
         joined = false;
+        currency_circulation = 0;
     }
     
     //! Destructor (again necessary because of memlocking).
@@ -89,8 +90,9 @@ public:
     std::string parseSectionString(std::string content, std::string start, std::string end);
 //private:
     CFunctions::block_structure latest_block;
-    double balance;
+    double balance; // wallet balance
     bool joined;
+    double currency_circulation;
 };
 
 

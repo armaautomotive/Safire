@@ -369,6 +369,11 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
 			if( rcvkey.compare( my_public_key ) == 0 ){
 				balance += amount;
 			}
+			// todo subtract sent payments from balance 
+
+			if( record_type == CFunctions::ISSUE_CURRENCY ){
+				currency_circulation += amount;
+			}
                         
                         latest_block.records.push_back(record);
                     

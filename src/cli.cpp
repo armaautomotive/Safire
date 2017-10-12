@@ -110,8 +110,24 @@ void CCLI::processUserInput(){
             std::cout << "Sending " << amount << " to user: " << destination_address << " \n" << std::endl;
 
         } else if ( command.find("network") != std::string::npos ){
-            
-            std::cout << "This feature is not implemented yet.\n" << std::endl;
+
+		CFunctions functions;
+                        std::string privateKey;
+                        std::string publicKey;
+                        CWallet wallet;
+                        bool e = wallet.fileExists("wallet.dat");
+                        if(e != 0){
+                                // Load wallet
+                                wallet.read(privateKey, publicKey);
+
+                                functions.parseBlockFile( publicKey );
+                                std::cout << " Currency: " << functions.currency_circulation << " sfr" << std::endl;
+
+                        }            
+
+		// Block chain size?
+		// Active connections?
+            //std::cout << "This feature is not implemented yet.\n" << std::endl;
             
 	} else if ( command.find("quit") != std::string::npos ){
 			running = false;
