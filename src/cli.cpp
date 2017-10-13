@@ -27,7 +27,7 @@ void CCLI::printCommands(){
 	" network  - print network stats including currency and volumes.\n" <<
 	" send     - send a payment to another user address.\n" <<
 	" receive  - prints your public key address to have others send you payments.\n" <<
-    " advanced - more commands for admin and testing functions.\n" <<
+	" advanced - more commands for admin and testing functions.\n" <<
 	" quit     - shutdown the application.\n " << std::endl;
     
     
@@ -47,6 +47,18 @@ void CCLI::printAdvancedCommands(){
 */
 void CCLI::processUserInput(){
 	bool running = true;
+	CECDSACrypto ecdsa;
+	CFunctions functions;
+	std::string privateKey;
+	std::string publicKey;
+	CWallet wallet;
+	bool e = wallet.fileExists("wallet.dat");
+	if(e != 0){
+		// Load wallet
+		wallet.read(privateKey, publicKey);
+		functions.parseBlockFile(publicKey);	
+	}
+
 	printCommands();
 	while(running){
 		std::cout << ">";		
@@ -56,22 +68,37 @@ void CCLI::processUserInput(){
 
 		if( command.find("join") != std::string::npos ){
 			
-			CFunctions functions;
-                        std::string privateKey;
-                        std::string publicKey;
-                        CWallet wallet;
-                        bool e = wallet.fileExists("wallet.dat");
-                        if(e != 0){
+			//CFunctions functions;
+                        //std::string privateKey;
+                        //std::string publicKey;
+                        //CWallet wallet;
+                        //bool e = wallet.fileExists("wallet.dat");
+                        //if(e != 0){
                                 // Load wallet
-                                wallet.read(privateKey, publicKey);
+                                //wallet.read(privateKey, publicKey);
                                 functions.parseBlockFile( publicKey ); 
-				
-                        }
+                        //}
 
 			if(functions.joined == true){
 				std::cout << "Allready joined network. \n" << std::endl;
 			} else {
 				std::cout << "Joining request sending... \n" << std::endl;
+
+				CFunctions::record_structure joinRecord;
+				time_t  timev;
+				time(&timev);
+				std::stringstream ss;
+				ss << timev;
+				std::string ts = ss.str();
+				joinRecord.time = ts;
+				joinRecord.transaction_type = CFunctions::JOIN_NETWORK;
+				joinRecord.amount = 0.0;
+				joinRecord.sender_public_key = "";
+				joinRecord.recipient_public_key = publicKey;
+				std::string message_siganture = "";
+				ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
+				joinRecord.message_signature = message_siganture;	
+				functions.addToQueue( joinRecord );
 	
 				// TODO: send request or say allready sent. 	
 			}
@@ -80,19 +107,19 @@ void CCLI::processUserInput(){
 		} else if ( command.find("balance") != std::string::npos ){
 			
 
-			CFunctions functions;
-			std::string privateKey;
-			std::string publicKey;
-			CWallet wallet;
-			bool e = wallet.fileExists("wallet.dat");
-			if(e != 0){
+			//CFunctions functions;
+			//std::string privateKey;
+			//std::string publicKey;
+			//CWallet wallet;
+			//bool e = wallet.fileExists("wallet.dat");
+			//if(e != 0){
 				// Load wallet
-				wallet.read(privateKey, publicKey);
+				//wallet.read(privateKey, publicKey);
     
 				functions.parseBlockFile( publicKey );
 				std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
 
-			}
+			//}
 		} else if ( command.find("sent") != std::string::npos ){
 			std::cout << "This feature is not implemented yet.\n" << std::endl;
             
@@ -108,6 +135,32 @@ void CCLI::processUserInput(){
             std::string amount;
             std::cin >> amount;
             std::cout << "Sending " << amount << " to user: " << destination_address << " \n" << std::endl;
+
+		double d_amount = ::atof(amount.c_str());
+
+		// TODO also check balance adjusted using sent requests in queue....
+		// TODO check destination address is an accepted user
+		if(d_amount > functions.balance ){
+			std::cout << "Insuficient balance. Unable to send transfer request. " << std::endl;
+		} else {
+
+		CFunctions::record_structure sendRecord;
+                                time_t  timev;
+                                time(&timev);
+                                std::stringstream ss;
+                                ss << timev;
+                                std::string ts = ss.str();
+                                sendRecord.time = ts;
+                                sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
+                                sendRecord.amount = d_amount;
+                                sendRecord.sender_public_key = publicKey;
+                                sendRecord.recipient_public_key = publicKey;
+                                std::string message_siganture = destination_address;
+                                ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
+                                sendRecord.message_signature = message_siganture;
+                                functions.addToQueue( sendRecord );	
+			std::cout << "Sent transfer request. " << std::endl;	
+		}
 
         } else if ( command.find("network") != std::string::npos ){
 
@@ -126,6 +179,10 @@ void CCLI::processUserInput(){
                         }            
 
 		// Block chain size?
+	 	std::cout << " Blockchain size: " << " 0MB" << std::endl;
+	
+		std::cout << " Pending transactions: " << " 0" << std::endl;  
+			
 		// Active connections?
             //std::cout << "This feature is not implemented yet.\n" << std::endl;
             
