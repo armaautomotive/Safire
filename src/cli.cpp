@@ -164,19 +164,9 @@ void CCLI::processUserInput(){
 
         } else if ( command.find("network") != std::string::npos ){
 
-		CFunctions functions;
-                        std::string privateKey;
-                        std::string publicKey;
-                        CWallet wallet;
-                        bool e = wallet.fileExists("wallet.dat");
-                        if(e != 0){
-                                // Load wallet
-                                wallet.read(privateKey, publicKey);
-
-                                functions.parseBlockFile( publicKey );
-                                std::cout << " Currency: " << functions.currency_circulation << " sfr" << std::endl;
-
-                        }            
+		functions.parseBlockFile( publicKey );
+                std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
+		std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
 
 		// Block chain size?
 	 	std::cout << " Blockchain size: " << " 0MB" << std::endl;
@@ -184,7 +174,7 @@ void CCLI::processUserInput(){
 		std::cout << " Pending transactions: " << " 0" << std::endl;  
 			
 		// Active connections?
-            //std::cout << "This feature is not implemented yet.\n" << std::endl;
+		//std::cout << "This feature is not implemented yet.\n" << std::endl;
             
 	} else if ( command.find("quit") != std::string::npos ){
 			running = false;
