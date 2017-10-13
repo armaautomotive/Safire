@@ -52,9 +52,9 @@ public:
     };
     
     struct block_structure {
-        double number;                      // sequential block number
+        long number;                      // sequential block number
         std::string time;                   // time block created
-        double file_index;                  // bytes into block file for fast lookup.
+        long file_index;                  // bytes into block file for fast lookup.
         std::string block_hash;             // sha256 hash of all record hashes in this block.
         std::string previous_block_hash;    // ???  
         std::string block_records;          // string value of all records in block.
@@ -81,13 +81,14 @@ public:
     int validateRecord(record_structure record);
     int generateBlock( std::vector<CFunctions::record_structure> records, std::string time );
     int addToBlockFile( block_structure block );
-    double parseSection(std::string content, std::string start, std::string end);
+    double parseSectionDouble(std::string content, std::string start, std::string end);
+    long parseSectionLong(std::string content, std::string start, std::string end);
     int parseBlockFile( std::string my_public_key );
-
     int parseSectionInt(std::string content, std::string start, std::string end);    
     std::string parseSectionBlock(std::string & content, std::string start, std::string open, std::string close);
-
     std::string parseSectionString(std::string content, std::string start, std::string end);
+    std::string getBlockHash(block_structure block);
+
 //private:
     CFunctions::block_structure latest_block;
     double balance; // wallet balance

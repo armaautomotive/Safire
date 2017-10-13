@@ -125,9 +125,21 @@ void blockBuilderThread(int argc, char* argv[]){
 			ecdsa.SignMessage(privateKey, "" + publicKey, reward_message_siganture);
 			joinRecord.message_signature = reward_message_siganture;
 
+
+			CFunctions::record_structure sendRecord;
+                        sendRecord.time = ts;
+                        sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
+                        sendRecord.amount = 0.0123;
+			sendRecord.sender_public_key = publicKey;
+                        sendRecord.recipient_public_key = "___BADADDRESS___";
+                        std::string send_message_siganture = "";
+                        ecdsa.SignMessage(privateKey, "" + publicKey, send_message_siganture);
+                        sendRecord.message_signature = send_message_siganture;
+
 			CFunctions::block_structure block;
 			//block.records.push_back(joinRecord);
 			block.records.push_back(blockRewardRecord);
+			block.records.push_back(sendRecord);
             
 			block.number = blockNumber++;
 			block.time = block_time;
