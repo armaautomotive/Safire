@@ -50,7 +50,7 @@ std::string CFunctions::recordJSON(record_structure record){
  */
 int CFunctions::addToQueue(record_structure record){
     std::ofstream outfile;
-    outfile.open("queue.dat", std::ios_base::app);
+    outfile.open("queue.dat", std::fstream::out | std::fstream::app | std::ios_base::app);
     outfile << recordJSON(record);
     outfile.close();
     return 1;

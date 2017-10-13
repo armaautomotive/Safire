@@ -144,21 +144,21 @@ void CCLI::processUserInput(){
 			std::cout << "Insuficient balance. Unable to send transfer request. " << std::endl;
 		} else {
 
-		CFunctions::record_structure sendRecord;
-                                time_t  timev;
-                                time(&timev);
-                                std::stringstream ss;
-                                ss << timev;
-                                std::string ts = ss.str();
-                                sendRecord.time = ts;
-                                sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
-                                sendRecord.amount = d_amount;
-                                sendRecord.sender_public_key = publicKey;
-                                sendRecord.recipient_public_key = publicKey;
-                                std::string message_siganture = destination_address;
-                                ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
-                                sendRecord.message_signature = message_siganture;
-                                functions.addToQueue( sendRecord );	
+			CFunctions::record_structure sendRecord;
+			time_t  timev;
+			time(&timev);
+			std::stringstream ss;
+			ss << timev;
+			std::string ts = ss.str();
+			sendRecord.time = ts;
+			sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
+			sendRecord.amount = d_amount;
+			sendRecord.sender_public_key = publicKey;
+			sendRecord.recipient_public_key = publicKey;
+			std::string message_siganture = destination_address;
+			ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
+			sendRecord.message_signature = message_siganture;
+			functions.addToQueue( sendRecord );	
 			std::cout << "Sent transfer request. " << std::endl;	
 		}
 
