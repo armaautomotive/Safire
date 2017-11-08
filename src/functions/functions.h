@@ -36,28 +36,28 @@ public:
     }
    
     // ? Should these structures go elsewhere?
-    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD };
+    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, VOTE };
     
     struct record_structure {
         std::string time;
         CFunctions::transaction_types transaction_type;
-        double amount;                      // 0 if type is add_user
-        double fee;
-        std::string sender_public_key;
-        std::string recipient_public_key;
+        double amount;				// Amount to transfer from sender to recipient. 0 if type is add_user or vote
+        double fee;				// transaction fee
+        std::string sender_public_key;		// Sender key
+        std::string recipient_public_key;	// Recipient key
         std::string message_signature;		// Hash of time+tran_type+amount+
         std::string name; 			// Meta (User name or transfer message)
-
-        bool internal_validated = false;
+        std::string value;			// Meta (vote description)
+        bool internal_validated = false;	// local toggle to indicate the record has been internally validated.
     };
     
     struct block_structure {
-        long number;                      // sequential block number
-        std::string time;                   // time block created
-        long file_index;                  // bytes into block file for fast lookup.
-        std::string block_hash;             // sha256 hash of all record hashes in this block.
-        std::string previous_block_hash;    // ???  
-        std::string block_records;          // string value of all records in block.
+        long number;                     	// sequential block number
+        std::string time;              		// time block created
+        long file_index;                 	// bytes into block file for fast lookup.
+        std::string block_hash;            	// sha256 hash of all record hashes in this block.
+        std::string previous_block_hash;   	// ???  
+        std::string block_records;         	// string value of all records in block.
         std::string creator_key;
         std::string creator_signature;
         std::vector<CFunctions::record_structure> records;

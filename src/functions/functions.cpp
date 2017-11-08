@@ -34,6 +34,7 @@ std::string CFunctions::recordJSON(record_structure record){
                 "\"fee\":\"" + boost::lexical_cast<std::string>(record.fee) + "\"," +
                 "\"sndkey\":\"" + record.sender_public_key + "\"," +
                 "\"rcvkey\":\"" + record.recipient_public_key + "\"," +
+		"\"value\":\"" + record.value + "\"," +
                 "\"sig\":\"" + record.message_signature + "\"" +
                 "}}\n";
 	return json;
@@ -369,11 +370,14 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
                         
                         // address
                         //std::string to_address = parseSectionBlock(record_section, "rcvkey", "", "" );
-                        
 			std::string rcvkey = parseSectionString(record_section, "\"rcvkey\":\"", "\"" );                       
 			record.recipient_public_key = rcvkey;
 			std::string sndkey = parseSectionString(record_section, "\"sndkey\":\"", "\"" );
 			record.sender_public_key = sndkey;
+			std::string name = parseSectionString(record_section, "\"name\":\"", "\"");
+			record.name = name;
+			std::string value = parseSectionString(record_structure, "\"value\":\"". "\"");
+			record.value = value;
 
 			//std::cout << "        record send _" <<  sndkey  << "_ recv " << rcvkey <<  " amt " << amount << std::endl; 
 
