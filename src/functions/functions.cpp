@@ -376,7 +376,7 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
 			record.sender_public_key = sndkey;
 			std::string name = parseSectionString(record_section, "\"name\":\"", "\"");
 			record.name = name;
-			std::string value = parseSectionString(record_structure, "\"value\":\"". "\"");
+			std::string value = parseSectionString(record_section, "\"value\":\"", "\"");
 			record.value = value;
 
 			//std::cout << "        record send _" <<  sndkey  << "_ recv " << rcvkey <<  " amt " << amount << std::endl; 

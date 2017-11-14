@@ -136,10 +136,19 @@ void blockBuilderThread(int argc, char* argv[]){
                         ecdsa.SignMessage(privateKey, "" + publicKey, send_message_siganture);
                         sendRecord.message_signature = send_message_siganture;
 
+
+			CFunctions::record_structure periodSummaryRecord;
+			periodSummaryRecord.time = ts;
+			periodSummaryRecord.transaction_type = CFunctions::PERIOD_SUMMARY;
+			periodSummaryRecord.recipient_public_key = "___MINER_ADDRESS___"; // reward for summary inclusion goes to block creator. (Only if record does not exist.)
+			periodSummaryRecord.message_signature = "TO DO";	
+			
+
 			CFunctions::block_structure block;
 			//block.records.push_back(joinRecord);
 			block.records.push_back(blockRewardRecord);
 			block.records.push_back(sendRecord);
+			block.records.push_back(periodSummaryRecord);
             
 			block.number = blockNumber++;
 			block.time = block_time;

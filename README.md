@@ -175,7 +175,7 @@ An option to handle this would be to have users monitor the status of other node
 
 9) A Time attack can occur if a sufficiently large number of users in the network intentionally set the system time to the wrong value. This could be used to alter for each time change who is the block creator. This could be used to artificially set the block creator more frequently to malicious nodes that don't include transactions lowering the capacity of the network.
 
-
+10) Chain splits. An attacker could fabricate a fictional chain history and seed it with any new nodes that connect to it first. If the attacker generated several wallets they control and created a history of many years simply crediting their own addresses this would be unatractive to other users who can choose to switch to the main chain.
 
 
 <b>User Identity</b>

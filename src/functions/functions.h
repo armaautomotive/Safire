@@ -36,7 +36,7 @@ public:
     }
    
     // ? Should these structures go elsewhere?
-    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, VOTE };
+    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE };
     
     struct record_structure {
         std::string time;
