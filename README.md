@@ -24,7 +24,7 @@ Transactions older than two years are accumulated in the current year for each u
 
 
 
-Key Benefits:
+<b>Key Benefits:</b>
 
 1) Send and receive currency with anyone over the internet even if the recipient is not running. 
 
@@ -37,7 +37,7 @@ Key Benefits:
 4) Graceful handling of excess capacity demands on the system. This means demand peaks transactions will take longer to confirm but the throughput of the network increases to compensate and catch up.
 
 
-Build:
+<b>Build:</b>
 
 Mac:
 
@@ -56,7 +56,7 @@ aptitude search boost <br>
 > make linux 
 
 
-Process:
+<b>Process:</b>
 
 A new user installs the software on their computer. 
 
@@ -85,7 +85,7 @@ Users that do not stay up to date and running for a period of years need to have
 
 
 
-Currency Issuance:
+<b>Currency Issuance:</b>
 
 Currency is issued to running nodes in the network for staying up to date as well as creating blocks. The new currency is issued with a variant of a transaction request called issuance. These. These issuance transactions don't have a sender and are validated by the network so that they adhere to rules about who can generate blocks and what is contained in them. Users in the network are chosen by hash function for each five or ten minute time period.
 
@@ -100,7 +100,7 @@ The blocks must be relayed directly from one user to the next to ensure that the
 
 
 
-Transactions
+<b>Transactions</b>
 
 A user can send a portion of their balance to another user on the network by composing a network message and relaying it to other users. Once the message reaches the block creator and is included the transaction is confirmed. 
 
@@ -118,7 +118,7 @@ The calculation to determine which user is responsible for creating blocks in th
 
 
 
-Pruning and Balance forward:
+<b>Pruning and Balance forward:</b>
 
 All accounts transfer their balance from transactions prior to two years into the current year. Balances are calculated by the accumulation of debit and credit from transactions. Balances are carried forward using a variant of the transaction network request called balance carry forward. The client software will automatically make this request to the network. Transaction data older than four years can be deleted.
 
@@ -126,7 +126,16 @@ Balances for users can be validated using transaction history data as well as ca
 
 There could be a bounty for people who identify old balances with no carry forward yet to encourage others to keep everyone up to date and not loose continuity for inactive users. This would allow for people to rely on paper wallets. 
 
-Double Spending Transactions:
+The Period Summary record contains the hash of a set of blocks between the end of the last summary period and a full new set containing a fixed number of transactions. The period summary length is includes about a month worth of transactions. The period summary record is calculated by a block creator and is rewarded with some currency. The period summary records contained within the block chain are kept forever even when block data from years past is deleted. 
+
+The presence of the summary records allows nodes to validate the current chain by processing the hash chain from the very first block. Nodes can decide how many years of past data they want to retain before purging historical data and rely on the integrity of the chain from the past several years to ensure that the summary records are authentic. 
+
+The longest chain is considered to be the true record of history as measured backwards from the current time. 
+
+An attacher could fabricate a fictional history chain that is longer than the network consensus chain and start seeding it to nodes that connect to it. However this alternate chain would not interfere with the main chain because blocks would not be validated between the two. Some nodes that connected to the attacking node would eventually connect to a main network node and download the parallel chain and can decide to join that one instead. 
+
+
+<b>Double Spending Transactions:</b>
 
 The network prevents users from sending a transaction to more than one user because of the following constraints:
 
@@ -137,14 +146,14 @@ The network prevents users from sending a transaction to more than one user beca
 3) Only the designated block creator can create blocks because they have a block_generation_private_key from a previous block they created or from when they signed up.
 
 
-Privacy:
+<b>Privacy:</b>
 
 This system broadcasts transactions with your Keys across the network. You can create multiple account wallets to separate your identity from other wallets. Although your exposed wallet will show trades against anonymous accounts.
 
 Very similar behaviour to Bitcoin. Extra anonymity features are not currently created. The key areas of this system are user choice on network behaviour and high transaction capacity.
 
 
-Attacks and Failure Conditions:
+<b>Attacks and Failure Conditions:</b>
 
 Based on the system design and structure there are particular areas where people could attempt to manipulate the system for their advantage or disadvantage of others. Mapping out some of these areas here is useful for guarding against such attacks.
 
@@ -169,13 +178,13 @@ An option to handle this would be to have users monitor the status of other node
 
 
 
-User Identity
+<b>User Identity</b>
 
 Each user client node has an identity with an address key pairs, block creation key paris and  voting configuration settings. A transaction ledger of transactions between other nodes. The latest transaction and balance between other users.
 
 
 
-Settings and Voting
+<b>Settings and Voting</b>
 
 There is a bell curve of settings used to vote for network settings. Higher and lower on the average are counted less. These settings affect network policy like inflation rate. If a standard deviation of users average an inflation rate of 1% then that is used to pay users in currency for validating transactions over a year. 
 
