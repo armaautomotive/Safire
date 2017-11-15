@@ -52,6 +52,7 @@ sudo apt-get install libssl-dev <br>
 sudo apt-get install libboost-all-dev <br>
 sudo apt-get install aptitude <br>
 aptitude search boost <br>
+apt-get install libnice-dev<br>
 
 > make linux 
 
