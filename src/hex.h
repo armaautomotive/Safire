@@ -26,6 +26,7 @@ public:
     {
     }
 
+    std::string to64(std::string & hex);
     //void printCommands();
     //void printAdvancedCommands();
 };

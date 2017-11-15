@@ -39,7 +39,9 @@ Transactions older than two years are accumulated in the current year for each u
 
 <b>Build:</b>
 
-Mac:
+Mac: <br>
+brew install ruby<br>
+brew install libnice<br>
 
 > make
 

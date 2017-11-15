@@ -1,3 +1,34 @@
+// Copyright (c) 2016 Jon Taylor
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#include "hex.h"
+
+#include <sstream>
+#include <unistd.h>   // open and close
+#include <sys/stat.h> // temp because we removed util
+#include <fcntl.h> // temp removed util.h
+#include <time.h>
+
+/**      
+* RandomPrivateKey
+*        
+* Description: private key.
+*     Generates 128 random ascii characters to feed into a sha256 hash.
+*            
+* @param: std::string output private key.
+* @return int returns 1 is successfull.
+*/  
+std::string CHex::to64(std::string & input){
+	std::string result = "";
+	for( int i = 0; i < input.length; i++ ){
+
+		
+
+	}
+	return result;
+}
+
 
 
 /*
