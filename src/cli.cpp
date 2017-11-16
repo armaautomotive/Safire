@@ -35,7 +35,8 @@ void CCLI::printCommands(){
 
 void CCLI::printAdvancedCommands(){
     std::cout << " Advanced: \n" <<
-    " tests    - Run tests to verify this build is functioning correctly.\n " <<
+    " tests     - Run tests to verify this build is functioning correctly.\n " <<
+    " chain     - Scan the complete blockchain for verification. Reports findings.\n " <<
     std::endl;
 }
 
@@ -125,8 +126,8 @@ void CCLI::processUserInput(){
             
         } else if ( command.find("receive") != std::string::npos ){
             
-            std::cout << "This feature is not implemented yet.\n" << std::endl;
-            
+            std::cout << "Your receiving address is: " << publicKey << "\n" << std::endl;
+ 
         } else if ( command.find("send") != std::string::npos ){
             std::cout << "Enter destination address: \n" << std::endl;
             std::string destination_address;
@@ -184,11 +185,14 @@ void CCLI::processUserInput(){
         } else if ( command.find("tests") != std::string::npos ){
             CECDSACrypto ecdsa;
             ecdsa.runTests();
-		} else {
-			printCommands();	
-		}
 
+	} else if ( command.find("chain") != std::string::npos ){
+           std::cout << " Blockchain state: " << " Not implemented. " << std::endl;
+		
+	} else {
+		printCommands();	
 	}
+    }
 }
 
 
