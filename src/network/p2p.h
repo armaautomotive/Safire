@@ -19,18 +19,19 @@
 
 #include <iostream>
 #include <string>
-#include <stdexcept>
-#include <vector>
+//#include <stdexcept>
+//#include <vector>
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <limits.h>
-#include <string.h>
-#include <assert.h>
+//#include <stdlib.h>
+//#include <stdio.h>
+//#include <limits.h>
+//#include <string.h>
+//#include <assert.h>
 
 #define CHUNK_SIZE 1024
 static const gchar *candidate_type_name[] = {"host", "srflx", "prflx", "relay"};
 static const gchar *state_name[] = {"disconnected", "gathering", "connecting", "connected", "ready", "failed"};
+
 
 class CP2P
 {
@@ -47,7 +48,6 @@ private:
 
 
 public:
-    //! Construct an empty wallet.
     CP2P();
 
     //! Destructor.
