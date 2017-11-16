@@ -6,6 +6,7 @@
 #include <thread>
 #include "utilstrencodings.h"
 
+#include "network/p2p.h"
 //#include "wallet/wallet.h"
 //#include "key.h"
 //#include "pubkey.h"
@@ -279,9 +280,14 @@ int main(int argc, char* argv[])
 
     // Start Networking
     std::cout << "Starting networking.     [ok] " << std::endl;
+    CP2P p2p;
 
     // Validate chain
     std::cout << "Validating chain.        [ok] " << std::endl;
+
+    // Interface type [CLI | GUI]
+    // TODO: detect based on platform if GUI is supported.
+    std::cout << "Interface type.          [cli] " << std::endl; 
 
     //std::size_t num_threads = 10;
     //http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);

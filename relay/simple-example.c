@@ -52,27 +52,16 @@ static guint stream_id;
 
 static const gchar *candidate_type_name[] = {"host", "srflx", "prflx", "relay"};
 
-static const gchar *state_name[] = {"disconnected", "gathering", "connecting",
-                                    "connected", "ready", "failed"};
+static const gchar *state_name[] = {"disconnected", "gathering", "connecting", "connected", "ready", "failed"};
 
-static int print_local_data(NiceAgent *agent, guint stream_id,
-    guint component_id);
-static int parse_remote_data(NiceAgent *agent, guint stream_id,
-    guint component_id, char *line);
-static void cb_candidate_gathering_done(NiceAgent *agent, guint stream_id,
-    gpointer data);
-static void cb_new_selected_pair(NiceAgent *agent, guint stream_id,
-    guint component_id, gchar *lfoundation,
-    gchar *rfoundation, gpointer data);
-static void cb_component_state_changed(NiceAgent *agent, guint stream_id,
-    guint component_id, guint state,
-    gpointer data);
-static void cb_nice_recv(NiceAgent *agent, guint stream_id, guint component_id,
-    guint len, gchar *buf, gpointer data);
-static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond,
-    gpointer data);
-static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond,
-    gpointer data);
+static int print_local_data(NiceAgent *agent, guint stream_id, guint component_id);
+static int parse_remote_data(NiceAgent *agent, guint stream_id, guint component_id, char *line);
+static void cb_candidate_gathering_done(NiceAgent *agent, guint stream_id, gpointer data);
+static void cb_new_selected_pair(NiceAgent *agent, guint stream_id, guint component_id, gchar *lfoundation, gchar *rfoundation, gpointer data);
+static void cb_component_state_changed(NiceAgent *agent, guint stream_id, guint component_id, guint state, gpointer data);
+static void cb_nice_recv(NiceAgent *agent, guint stream_id, guint component_id, guint len, gchar *buf, gpointer data);
+static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data);
+static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data);
 
 int
 main(int argc, char *argv[])
@@ -126,12 +115,9 @@ main(int argc, char *argv[])
   g_object_set(agent, "controlling-mode", controlling, NULL);
 
   // Connect to the signals
-  g_signal_connect(agent, "candidate-gathering-done",
-      G_CALLBACK(cb_candidate_gathering_done), NULL);
-  g_signal_connect(agent, "new-selected-pair",
-      G_CALLBACK(cb_new_selected_pair), NULL);
-  g_signal_connect(agent, "component-state-changed",
-      G_CALLBACK(cb_component_state_changed), NULL);
+  g_signal_connect(agent, "candidate-gathering-done", G_CALLBACK(cb_candidate_gathering_done), NULL);
+  g_signal_connect(agent, "new-selected-pair", G_CALLBACK(cb_new_selected_pair), NULL);
+  g_signal_connect(agent, "component-state-changed", G_CALLBACK(cb_component_state_changed), NULL);
 
   // Create a new stream with one component
   stream_id = nice_agent_add_stream(agent, 1);
@@ -140,8 +126,7 @@ main(int argc, char *argv[])
 
   // Attach to the component to receive the data
   // Without this call, candidates cannot be gathered
-  nice_agent_attach_recv(agent, stream_id, 1,
-      g_main_loop_get_context (gloop), cb_nice_recv, NULL);
+  nice_agent_attach_recv(agent, stream_id, 1, g_main_loop_get_context (gloop), cb_nice_recv, NULL);
 
   // Start gathering local candidates
   if (!nice_agent_gather_candidates(agent, stream_id))
