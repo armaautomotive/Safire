@@ -58,6 +58,11 @@ apt-get install libnice-dev<br>
 
 > make linux 
 
+Windows:<br>
+Install Cygwin from http://www.cygwin.com/install.html<br>
+
+
+
 
 <b>Process:</b>
 

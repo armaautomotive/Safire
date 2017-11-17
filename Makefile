@@ -12,7 +12,8 @@ SRC_PATH_LINUX=-I./src -I/usr/include/openssl -I/usr/local/include -I./src/level
 #FILES= ./src/crypto/aes.cpp ./src/main.cpp 
 #FILES= ./src/main.cpp ./src/crypto/sha256.cpp ./src/crypto/hmac_sha256.cpp ./src/support/cleanse.cpp ./src/support/lockedpool.cpp  ./src/key.cpp ./src/pubkey.cpp ./src/random.cpp ./src/crypto/sha512.cpp ./src/hash.cpp ./src/crypto/ripemd160.cpp ./src/crypto/hmac_sha512.cpp  ./src/ecdsacrypto.cpp 
 
-FILES_MAC= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp ./src/transaction.cpp ./src/userdb.cpp ./src/blockdb.cpp ./src/networktime.cpp ./src/cli.cpp ./src/network/*.cpp ./src/functions/*.cpp 
+FILES_MAC= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp ./src/transaction.cpp ./src/userdb.cpp ./src/blockdb.cpp ./src/networktime.cpp ./src/cli.cpp ./src/network/p2p.cpp ./src/functions/*.cpp 
+# ./src/network/*.cpp 
 # ./src/network/p2p.cpp  
 # ./src/util.cpp ./src/rsacrypto.cpp  
 #	./src/wallet/wallet.cpp
