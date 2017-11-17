@@ -1,0 +1,21 @@
+Nov 17, 2017
+
+Safire Project Vision
+
+The idea for starting Safire was directly inspired by Bitcoin and it's amazing new way of letting anyone use and trade currency anywhere in the world. 
+
+Safire will provide the same currency functions as Bitcoin but do it in a different way. I personally find the design architecture of Safire to be elegant and beautiful and I am working on it for the sole purpose of contributing to a user need. 
+
+I view Safire as an art project as much as a technical one and want to make it function smoothly, reliably and efficiently. There is no ICO or pre-mine for this project and anyone is welcome to start earning the same currency as anyone else one it is ready.
+
+Core elements of the project are:
+
+> No mining, currency distribution and an interpretation of how double spend problem can be solved in a way that uses membership records in the blockchain rather than proof of work calculations. This should reduce the reliance on miners representing a small portion of network operators and incentivize network operation more fairly.   
+
+> Data pruning for long term manageability. This system uses pruning with forward and backward validation of summary records so that in the long run the amount of data required remains manageable and every node can store all of the data they need to verify network transactions. 
+
+> Scalability for number of transactions. Ideas in this area are just in the planning staging but will hopefully allow high network transaction volumes using new methods. For the initial release there won't be any significant restriction on network transaction rates.
+
+> Voting. Integrated into the protocol is a voting system that will allow different characteristics of the network to be shaped by user consensus. This should allow the project to evolve and change over time with a defined and consistent way of gathering consensus and hopefully reduce the number of community forks and splits.
+
+There is a lot of work to do before Safire is ready for testing. The encryption foundation is ready and the peer to peer networking code is in progress and moving well. After these are done there is a lot of work managing data storage, validating chains, tests, user interfaces and much more. After an initial release I have plans for applications that will be bundled into the distribution that will sit on top of the currency. These include a currency exchange, messager application, distributed file storage, reputation system, physical market, and more. This is all a long ways off but being planned now.

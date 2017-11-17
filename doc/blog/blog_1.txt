@@ -1,0 +1,21 @@
+Nov 17, 2017
+
+Safire Currency Policy
+
+Safire is still in the planning and development stage so everything is subject to change going forward but I will outline some of the thinking on monetary policy. 
+
+The front running candidate is a fixed rate issuance of 100 or 10 units per block every thirty seconds. This will result in the creation of 105,120,000 or 10,512,000 new units per year. This will result in an inflation rate of 100% on the second year, 50% on the third year, 25% on the fourth etc. After ten years the inflation rate will be 10% and eventually come close to equilibrium as it replaces lost units. This policy is similar to Ethereum as compared with Bitcoin for example. 
+
+The number issued per block doesn't technically matter as the relative rate will be fixed but it will place Safire higher or lower in terms of value against other currencies. For example with 105 million units per year and given a large market capitalization one dollar would be worth say 10 sfr where one dollar would buy a fraction of Ethereum. It's just a convenience for users to write and speak of when having a lower decimal position.
+
+Some have criticized digital currencies for the lack of a central bank that can change monetary policy depending on economic conditions. There are ways that the rate of currency creation could be altered based on conditions like number of transactions during a given period of time. This could be used to increase currency issuance when transaction rates are high and decrease the rate when transactions are low in an attempt to stabilize exchange price fluctuations. While this sounds like a cool idea i'm not inclined to implement it in Safire for several reasons.
+
+One being I don't think it will make much of a difference. My prediction would be that it would just change the appearance of demand and the true value would emerge naturally after a longer period of time. It's like pushing water upstream or switching gears on a bike, yeah it's easier to pedal now but your going slower. 
+
+Secondly i'm not convinced that market exchange rate volatility is a problem that needs to be solved. I can appreciate the case that a user has an investment in a currency and they suffer a loss from a drop in price as they have to draw down. However one of the most amazing things about digital currencies is 24 hour access to a free market. Everyone is free to make offers to buy and sell without restriction. Users would be better off with a well defined currency issuance policy and personal hedging than a dynamic policy. It would make analyzing the currency simpler.
+
+Finally it would add complexity to the system that is already very complex and where bugs could cause the loss or total destruction of the system.
+
+All that being said I am open to thoughts and suggestions. There will be a bit of time before this has to be finalized. 
+
+

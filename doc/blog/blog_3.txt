@@ -1,0 +1,30 @@
+Nov 17, 2017
+
+The Safire Block Chain
+
+Here is a summary of the Safire block chain data structure. The chain stores transactions made across the network. There are several different types of transactions each having specific data stored to allow the network to function. 
+
+In order for a node to interact with the network it generates a public and private key pair. The public key is sent across the network and included in the blockchain. The private key is always kept secret and used to sign message signatures in the blockchain that validate the message is from that user and not any one else.
+ 
+Transaction record requests are sent across the network and included in blocks every thirty seconds. Only one node in the network can create a block at the same time. 
+
+Records can do the following:
+
+1) Request membership in the network. This includes the users public key. When this record is added to a block this user is now on the network and can earn currency by forming new blocks, send and receive payment transactions and broadcast voting preferences.
+
+2) Issue new currency. Every thirty seconds a new block is created by a user on the network that is determined by a hash function of the current time and the users public key. This effectively iterates through the user base allowing a single designated user for each 30 second period to generate a block, with a reward, that includes pending transactions. The new block will be sent through the network and validated. If a user is not running or up to date on the chain while they are selected they will not be able to receive the reward currency.
+
+3) Send payments to other nodes. A user on the network can send any amount of their balance to another user along with a transaction fee that is paid to the person that includes it in a block. 
+
+4) Carry balance forward from previous years. Transactions are partitioned into individual years so that eventually old records can be deleted to save disk space and network bandwidth. In order for individual nodes to have information about the balances from past transaction a summary or current balance record is broadcast by the owner or any other user with a reward at the start of each year. The carry forward balance is simply the sum of all sent and received transactions or their balance from the previous year. 
+
+5) Vote on a network level setting. Each user in the network can broadcast vote preferences for issues that affect other users. Decisions can then be made based on varying levels of consensus. 
+
+
+Here is an example.
+
+The very first node will launch Safire in genesis mode that will create a new chain by adding a block with a join record that contains their public key and a currency creation transaction that sends 100 sfr to their address. This block is added to the local node file and when new nodes join the network they will connect and download the block chain. Until a new node joins the first node will continue to create blocks every thirty seconds with a reward to themselves. Once there are two nodes in the network on average both nodes will create blocks at an even rate and have the ability to send their balances to each other. After a chain exists no other node will ever run in genesis mode.
+
+Once several nodes join the network it will become more useful for actual transactions. 
+
+
