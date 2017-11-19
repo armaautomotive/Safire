@@ -1,0 +1,174 @@
+<html>
+ <head>
+
+  <style>
+   body {    
+    margin: 0 !important;
+    padding: 0 !important;
+   }
+   .menuitem {
+    border-style: none;
+    border-bottom-style: solid;
+    border-bottom-width: 1;  
+    border-bottom-color: #444;  
+   }
+   .circle {
+	border: 5px solid #FFFFFF;
+	border-radius: 50%;
+	-ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=60)";
+	filter: alpha(opacity=100);
+	opacity: 1.0;
+
+	-webkit-box-shadow: 0 0 1px 0px rgb( 255, 255, 255);
+	box-shadow: 0 0 1px 0px rgb( 255, 255, 255);
+	width: 82px;
+	height: 82px;
+	z-index: 86;
+
+	-webkit-transition: background-color .5s ease-in-out;
+	-moz-transition: background-color .5s ease-in-out;
+	-o-transition: background-color .5s ease-in-out;
+	-ms-transition: background-color .5s ease-in-out;
+	transition: background-color .5s ease-in-out;
+   }
+
+   circle {
+    fill: transparent;
+    stroke: white;
+    stroke-width: 2;
+    stroke-dasharray: 300;   
+    stroke-dashoffset: 2000; 
+    animation: rotate 15s linear infinite;
+   }
+
+   @keyframes rotate {
+    to {
+     stroke-dashoffset: 0;
+   }
+}
+   
+   .diamond-narrow {
+	width: 0;
+	height: 0;
+	border: 5px solid transparent;
+	border-bottom: 50px solid #FFF;
+	position: relative;
+	top: -40px;
+   }
+   .diamond-narrow:after {
+	content: '';
+	position: absolute;
+	left: -0px; top: 70px;
+	width: 0;
+	height: 0;
+	border: 15px solid transparent;
+	border-top: 50px solid #FFF;
+   }  
+  </style>
+ </head>
+<body>
+
+ <table width='100%' height='100%' cellpadding='8' cellspacing='0'>
+  <tr>
+   <td bgcolor='#333333' width='120' valign='top'>
+
+    <table cellpadding='4' >
+     <tr><td height='40' align='center' valign='center'>    
+      <div class='diamond-narrow' style=' width:40px; height:40px; '></div> 
+     </td></tr>
+     <tr><td style='' class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="wallet.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18;' > Wallet </a> </td></tr>
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="payments.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Payments </a> </td></tr>     
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="contracts.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Contracts </a> </td></tr>
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="exchange.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Exchange </a> </td></tr>
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="messenger.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Messenger </a> </td></tr>
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="reputation.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Reputation </a> </td></tr>
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="title.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Title </a> </td></tr>
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="files.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Files </a> </td></tr> 
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="market.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Market </a> </td></tr>
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="news.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> News </a> </td></tr>
+     <tr><td class='menuitem'> 
+      <a href='#' onclick='document.getElementById("app_region").src="settings.html"; return false;' 
+       style='text-decoration: none; color:#EEE; font-family:Verdana; font-size:18; '> Settings </a> </td></tr>
+    </table>
+
+   </td><td bgcolor='#3333FF' style='background: linear-gradient(to bottom right, #7777FF, #5555FF);' width='300' valign='top'>
+   
+
+    <table width='100%'>
+     <tr>
+      <td style='color:#FFF; position: relative; top:20px; ' align='center'> 
+       balance <font size='24'>100000.0000</font> sfr
+      </td>
+     </tr>
+     <tr>
+      <td align='center' style=' position: relative; top:40px;  '>
+ 
+       <div class="circle" style=' width:180px; height:180px; top:10px;  ' >
+        <font color='white' style='font-family:verdana; font-size:16;  position: relative; top:80px;  ' >Connected</font>
+       
+
+       </div>
+
+        <svg height="182" width="182">
+         <circle cx="91" cy="80" r="90" >
+         </circle>
+         <text x="58" y="85" font-family="Verdana" fill="white" font-size="16">
+           0 Nodes 
+         </text>
+
+        </svg>
+
+     </td>
+    </tr>
+    <tr>
+     <td style='position: relative; top:40px; '>
+     
+      <font color='white' style='font-family:verdana; font-size:16;  position: relative; top:30px;  ' >Connections </font> 
+ 
+    </td></tr>
+    <tr><td style='position: relative; top:80px; '>   
+     <font color='white' style='font-family:verdana; font-size:16;  position: relative; top:30px;  ' >Block formation animation </font>
+    
+     
+
+    </td></tr>
+    <tr><td style='position: relative; top:150px; ' >
+      <font color='white' style='font-family:verdana; font-size:10; ' >
+      << Collapse
+      </font>
+    </td></tr>
+
+   </table>
+
+
+   </td>
+    <td bgcolor='#FFFFFF' valign='top'>
+  
+    <iframe id='app_region' src='wallet.html' style='' frameBorder='0' width='100%' height='100%'>
+
+   </td>
+  </tr>
+ </table>
+
+</body>
+</html>
