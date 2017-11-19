@@ -1,0 +1,24 @@
+
+
+Safire Cryptography - Blog Post #4
+
+Safire uses the ECDSA Algorithm for generating public private keys to sign and validate ownership of funds and ensure transactions can only be initiated by the true owner. Safire also uses the Sha256  one way hashing algorithm to form keys and generate unique signatures of records and blocks in order to ensure that they require blocks only connect to the ones they are supposed to.
+
+These are the same algorithms that are used in Bitcoin. Before starting 
+
+Uses OpenSSL and compiles on Mac Win and Linux.
+
+Work to be done. Currently the cryptography setup is functional in a minimally viable form but there are areas where it can be cleaned up before release. The keys are currently hexadecimal and fairly long. When they can be converted to a shorter human readable alpha numeric version and the signature key should also support a short form that will save space. For the time being development and testing can proceed with the current setup.
+
+
+
+
+Safire Peer To Peer Networking - Blog Post #5
+
+A P2P network allows Safire users to transact with each other in a way that can’t be disrupted by a single server becoming unavailable.
+
+Safire uses the libnice library to establish connections between computers directly even when they are behind firewalls and NATs.
+
+
+
+
