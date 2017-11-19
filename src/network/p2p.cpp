@@ -40,7 +40,7 @@ CP2P::CP2P(){
     g_object_set(agent, "controlling-mode", controlling, NULL);
 
     // Connect to the signals
-    //g_signal_connect(agent, "candidate-gathering-done", G_CALLBACK(cb_candidate_gathering_done), NULL);
+    g_signal_connect(agent, "candidate-gathering-done", G_CALLBACK(cb_candidate_gathering_done), NULL);
     //g_signal_connect(agent, "new-selected-pair", G_CALLBACK(cb_new_selected_pair), NULL);
     //g_signal_connect(agent, "component-state-changed", G_CALLBACK(cb_component_state_changed), NULL);
 
@@ -68,9 +68,86 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
   printf("\n");
 
   // Listen on stdin for the remote candidate list
-  printf("Enter remote data (single line, no wrapping):\n");
-  g_io_add_watch(io_stdin, G_IO_IN, stdin_remote_info_cb, agent);
-  printf("> ");
-  fflush (stdout);
+  //printf("Enter remote data (single line, no wrapping):\n");
+  //g_io_add_watch(io_stdin, G_IO_IN, stdin_remote_info_cb, agent);
+  //printf("> ");
+  //fflush (stdout);
 }
+
+static int
+print_local_data (NiceAgent *agent, guint _stream_id, guint component_id)
+{
+  int result = EXIT_FAILURE;
+  gchar *local_ufrag = NULL;
+  gchar *local_password = NULL;
+  gchar ipaddr[INET6_ADDRSTRLEN];
+  GSList *cands = NULL, *item;
+
+  if (!nice_agent_get_local_credentials(agent, _stream_id,
+      &local_ufrag, &local_password))
+    goto end;
+
+  cands = nice_agent_get_local_candidates(agent, _stream_id, component_id);
+  if (cands == NULL)
+    goto end;
+
+  printf("%s %s", local_ufrag, local_password);
+
+  for (item = cands; item; item = item->next) {
+    NiceCandidate *c = (NiceCandidate *)item->data;
+
+    nice_address_to_string(&c->addr, ipaddr);
+
+    // (foundation),(prio),(addr),(port),(type)
+    printf(" %s,%u,%s,%u,%s",
+        c->foundation,
+        c->priority,
+        ipaddr,
+        nice_address_get_port(&c->addr),
+        candidate_type_name[c->type]);
+  }
+  printf("\n");
+  result = EXIT_SUCCESS;
+
+ end:
+  if (local_ufrag)
+    g_free(local_ufrag);
+  if (local_password)
+    g_free(local_password);
+  if (cands)
+    g_slist_free_full(cands, (GDestroyNotify)&nice_candidate_free);
+
+  return result;
+}
+
+/*
+static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data)
+{
+  NiceAgent *agent = data;
+  gchar *line = NULL;
+  int rval;
+  gboolean ret = TRUE;
+
+  if (g_io_channel_read_line (source, &line, NULL, NULL, NULL) ==
+      G_IO_STATUS_NORMAL) {
+
+    // Parse remote candidate list and set it on the agent
+    rval = parse_remote_data(agent, stream_id, 1, line);
+    if (rval == EXIT_SUCCESS) {
+      // Return FALSE so we stop listening to stdin since we parsed the
+      // candidates correctly
+      ret = FALSE;
+      g_debug("waiting for state READY or FAILED signal...");
+    } else {
+      fprintf(stderr, "ERROR: failed to parse remote data\n");
+      printf("Enter remote data (single line, no wrapping):\n");
+      printf("> ");
+      fflush (stdout);
+    }
+    g_free (line);
+  }
+
+  return ret;
+}
+*/
 
