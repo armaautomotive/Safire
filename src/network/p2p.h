@@ -44,6 +44,8 @@ static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpoin
 static GMainLoop *gloop;
 static GIOChannel* io_stdin;
 
+//NiceAgent *agent;
+
 class CP2P
 {
 private:
