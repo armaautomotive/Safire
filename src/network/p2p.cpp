@@ -55,6 +55,11 @@ void CP2P::connect(){
 
 }
 
+void CP2P::cb_candidate_gathering_done_X(NiceAgent *agent, guint _stream_id, gpointer data){
+
+  std::cout << " AHHH " << "\n " << std::endl;
+
+}
 
 static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpointer data)
 {
@@ -152,9 +157,8 @@ static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpo
 */
 
 
-
-static void
-cb_component_state_changed(NiceAgent *agent, guint _stream_id,
+/*
+static void cb_component_state_changed(NiceAgent *agent, guint _stream_id,
     guint component_id, guint state,
     gpointer data)
 {
@@ -186,7 +190,7 @@ cb_component_state_changed(NiceAgent *agent, guint _stream_id,
     g_main_loop_quit (gloop);
   }
 }
-
+*/
 
 /*
 static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data)
@@ -210,6 +214,7 @@ static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpoin
 }
 */
 
+/*
 static void
 cb_new_selected_pair(NiceAgent *agent, guint _stream_id,
     guint component_id, gchar *lfoundation,
@@ -227,7 +232,7 @@ cb_nice_recv(NiceAgent *agent, guint _stream_id, guint component_id,
   printf("%.*s", len, buf);
   fflush(stdout);
 }
-
+*/
 
 
 static NiceCandidate * parse_candidate(char *scand, guint _stream_id)
