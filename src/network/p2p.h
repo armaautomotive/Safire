@@ -16,7 +16,7 @@
 
 #include <gio/gnetworking.h>
 
-
+#include <thread>
 #include <iostream>
 #include <string>
 //#include <stdexcept>
@@ -43,6 +43,7 @@ static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpoin
 
 static GMainLoop *gloop;
 static GIOChannel* io_stdin;
+static guint stream_id;
 
 //NiceAgent *agent;
 
@@ -53,7 +54,7 @@ private:
 
     //static GMainLoop *gloop;
     //static GIOChannel* io_stdin;
-    static guint stream_id;
+    //static guint stream_id;
 
     gchar *stun_addr = NULL;
     guint stun_port = 0; 
@@ -69,7 +70,9 @@ public:
     }
 
     void connect();    
-    void cb_candidate_gathering_done_X(NiceAgent *agent, guint stream_id, gpointer data);
+    //void cb_candidate_gathering_done_X(NiceAgent *agent, guint stream_id, gpointer data);
+    void p2pNetworkThread(int argc, char* argv[]);
+
 };
 
 #endif // P2P_H

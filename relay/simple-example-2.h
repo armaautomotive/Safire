@@ -18,6 +18,10 @@
 static const gchar *candidate_type_name[] = {"host", "srflx", "prflx", "relay"};
 static const gchar *state_name[] = {"disconnected", "gathering", "connecting", "connected", "ready", "failed"};
 
+#ifdef __cplusplus
+extern "C"{
+#endif 
+
 static int print_local_data(NiceAgent *agent, guint stream_id, guint component_id);
 static int parse_remote_data(NiceAgent *agent, guint stream_id, guint component_id, char *line);
 static void cb_candidate_gathering_done(NiceAgent *agent, guint stream_id, gpointer data);
@@ -29,8 +33,13 @@ static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpoin
 
 static GMainLoop *gloop;
 static GIOChannel* io_stdin;
+static guint stream_id;
 
-//NiceAgent *agent;
+#ifdef __cplusplus
+}
+#endif
+
+NiceAgent *agent2;
 
 class CP2P
 {
@@ -39,7 +48,7 @@ private:
 
     //static GMainLoop *gloop;
     //static GIOChannel* io_stdin;
-    static guint stream_id;
+    //static guint stream_id;
 
     gchar *stun_addr = NULL;
     guint stun_port = 0;

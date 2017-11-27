@@ -324,6 +324,7 @@ int main(int argc, char* argv[])
     //functions.parseBlockFile();
 
     std::thread blockThread(blockBuilderThread, argc, argv);    
+    std::thread p2pNetworkThread(&CP2P::p2pNetworkThread, p2p, argc, argv); // TODO: implement a main class to pass into threads instead of 'p2p' instance. For communication.
 
     CCLI cli;
     cli.processUserInput();    
