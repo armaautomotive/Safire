@@ -24,7 +24,7 @@ SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 
 #  gcc -o yourname -Bstatic -L<dir-of-libcrypto.a> -lcrypto . . . yourfile.c
 # MacOS Doesn’t support static linking.
-CFLAGS_MAC= -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lleveldb    -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w    `pkg-config --cflags --libs nice`  
+CFLAGS_MAC= -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lleveldb -lcurl   -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w    `pkg-config --cflags --libs nice`  
 # -lsecp256k1
 # -lboost_system -lboost_asio
 # -L./usr/local/Cellar/boost/1.62.0/lib
@@ -32,7 +32,7 @@ CFLAGS_MAC= -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/level
 #  /usr/local/lib/libsecp256k1.a
 # -Bstatic
 # -lboost_system-mt not found
-CFLAGS_LINUX= -L/usr/local/lib/  -L/usr/lib/x86_64-linux-gnu/ -pthread  -lboost_system  -lssl -lcrypto -lboost_filesystem -Wdeprecated -w  `pkg-config --cflags --libs nice` 
+CFLAGS_LINUX= -L/usr/local/lib/  -L/usr/lib/x86_64-linux-gnu/ -pthread  -lboost_system  -lssl -lcrypto -lboost_filesystem -lcurl  -Wdeprecated -w  `pkg-config --cflags --libs nice` 
 # -L/usr/lib/
 # -lsecp256k1
 # -Weverything  
