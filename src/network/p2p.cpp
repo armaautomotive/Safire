@@ -16,43 +16,21 @@ CP2P::CP2P(){
     stun_port = 3478;
     stun_addr = "$(host -4 -t A stun.stunprotocol.org | awk '{ print $4 }')";
 
-/*
-    g_networking_init(); 
 
-    gloop = g_main_loop_new(NULL, FALSE);
-
-    #ifdef G_OS_WIN32
-    io_stdin = g_io_channel_win32_new_fd(_fileno(stdin));
-    #else
-    io_stdin = g_io_channel_unix_new(fileno(stdin));
-    #endif
-    
-    // Create the nice agent
-    agent = nice_agent_new(g_main_loop_get_context (gloop), NICE_COMPATIBILITY_RFC5245);
-    if (agent == NULL){
-        std::cout << " error " << "\n " << std::endl;
-        g_error("Failed to create agent");
-    }    
-
-    // Set the STUN settings and controlling mode
-    if (stun_addr) {
-         g_object_set(agent, "stun-server", stun_addr, NULL);
-         g_object_set(agent, "stun-server-port", stun_port, NULL);
-    }
-    g_object_set(agent, "controlling-mode", controlling, NULL);
-
-    // Connect to the signals
-    g_signal_connect(agent, "candidate-gathering-done", G_CALLBACK(cb_candidate_gathering_done), NULL);
-    g_signal_connect(agent, "new-selected-pair", G_CALLBACK(cb_new_selected_pair), NULL);
-    g_signal_connect(agent, "component-state-changed", G_CALLBACK(cb_component_state_changed), NULL);
+    CURL* curl; //our curl object
 
 
-*/
-
-    std::cout << " done " << "\n " << std::endl;
-    g_debug("g_debug done\n");
-
+    //std::cout << " done " << "\n " << std::endl;
+    //g_debug("g_debug done\n");
 }
+
+
+std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
+    
+
+    return "";
+}
+
 
 void CP2P::p2pNetworkThread(int argc, char* argv[]){
 
@@ -121,13 +99,16 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
         
         if(running){
             usleep(1000000 * 10); // 1 second
+            
         }
     }    
+    std::cout << " P2P END " << "\n " << std::endl;
 }
 
 void CP2P::exit(){
     running = false;
     g_main_loop_quit (gloop);
+    std::cout << " P2P exit " << "\n " << std::endl; 
 }
 
 void CP2P::connect(){
@@ -139,9 +120,8 @@ void CP2P::connect(){
 //  std::cout << " AHHH " << "\n " << std::endl;
 //}
 
-static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpointer data)
-{
-  std::cout << " AHHH " << "\n " << std::endl;
+static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpointer data){
+  std::cout << " cb_candidate_gathering_done " << "\n " << std::endl;
   g_debug("SIGNAL candidate gathering done\n");
 
   // Candidate gathering is done. Send our local candidates on stdout
@@ -150,6 +130,11 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
   print_local_data(agent, _stream_id, 1);
   printf("\n");
 
+
+  CP2PHandle h = create_cp2p(); 
+  setPeerAddress_cp2p(h, "test"); 
+  free_cp2p(h);
+
   // Listen on stdin for the remote candidate list
   //printf("Enter remote data (single line, no wrapping):\n");
   //g_io_add_watch(io_stdin, G_IO_IN, stdin_remote_info_cb, agent);
@@ -157,9 +142,21 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
   //fflush (stdout);
 }
 
-static int
-print_local_data (NiceAgent *agent, guint _stream_id, guint component_id)
+extern "C"
 {
+    CP2PHandle create_cp2p( ) { return new CP2P( ); }   
+    void free_cp2p(CP2PHandle p) { delete p; }
+    void setPeerAddress_cp2p(CP2PHandle p, std::string address){
+           p->setMyPeerAddress( address );
+    }
+}
+
+void CP2P::setMyPeerAddress(std::string address){
+  std::cout << "  CP2P::setMyPeerAddress('" << address << "'); " << std::endl;
+  myPeerAddress = address; 
+}
+
+static int print_local_data (NiceAgent *agent, guint _stream_id, guint component_id){
   int result = EXIT_FAILURE;
   gchar *local_ufrag = NULL;
   gchar *local_password = NULL;
@@ -203,10 +200,10 @@ print_local_data (NiceAgent *agent, guint _stream_id, guint component_id)
   return result;
 }
 
-/*
+
 static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data)
 {
-  NiceAgent *agent = data;
+  NiceAgent *agent = (NiceAgent *)data;
   gchar *line = NULL;
   int rval;
   gboolean ret = TRUE;
@@ -232,7 +229,7 @@ static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpo
 
   return ret;
 }
-*/
+
 
 
 
@@ -271,13 +268,11 @@ static void cb_component_state_changed(NiceAgent *agent, guint _stream_id,
 
 
 
-static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data)
-{ 
+static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data){ 
   NiceAgent *agent = (NiceAgent *)data;
   gchar *line = NULL;
   
-  if (g_io_channel_read_line (source, &line, NULL, NULL, NULL) ==
-      G_IO_STATUS_NORMAL) {
+  if (g_io_channel_read_line (source, &line, NULL, NULL, NULL) == G_IO_STATUS_NORMAL) {
     nice_agent_send(agent, stream_id, 1, strlen(line), line);
     g_free (line);
     printf("> ");

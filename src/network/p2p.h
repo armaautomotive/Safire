@@ -20,6 +20,8 @@
 #include <iostream>
 #include <string>
 #include <unistd.h>             // sleep
+#include <curl/curl.h> 
+
 //#include <stdexcept>
 //#include <vector>
 
@@ -42,6 +44,8 @@ static void cb_nice_recv(NiceAgent *agent, guint stream_id, guint component_id, 
 static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data);
 static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data);
 
+//extern "C" void MyClass_function(CP2P *obj, int var);
+
 static GMainLoop *gloop;
 static GIOChannel* io_stdin;
 static guint stream_id;
@@ -60,7 +64,7 @@ private:
     gchar *stun_addr = NULL;
     guint stun_port = 0; 
     gboolean controlling;
-
+     std::string myPeerAddress;
 
 public:
     CP2P();
@@ -72,11 +76,31 @@ public:
 
     volatile bool running = true;
 
+    void setMyPeerAddress(std::string address);
+    std::string getNewNetworkPeer(std::string myPeerAddress);
     void connect();    
     void exit();
     //void cb_candidate_gathering_done_X(NiceAgent *agent, guint stream_id, gpointer data);
     void p2pNetworkThread(int argc, char* argv[]);
 
 };
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef CP2P * CP2PHandle;
+CP2PHandle create_cp2p();
+void free_cp2p(CP2PHandle);
+void setPeerAddress_cp2p(CP2PHandle, std::string address);
+
+typedef struct CP2P CP2P; // C reference to Class.
+extern "C" void MyClass_function(CP2P *obj, std::string var);
+//EXPORT_C CP2P_class* CP2P_new(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif // P2P_H
