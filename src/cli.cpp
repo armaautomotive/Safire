@@ -12,6 +12,7 @@
 #include "ecdsacrypto.h"
 #include "functions/functions.h"
 #include "wallet.h"
+#include "network/p2p.h"
 
 /**
 * printCommands 
@@ -176,7 +177,10 @@ void CCLI::processUserInput(){
 			
 		// Active connections?
 		//std::cout << "This feature is not implemented yet.\n" << std::endl;
-            
+           
+		CP2P p2p;
+		std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
+ 
 	} else if ( command.find("quit") != std::string::npos ){
 			running = false;
             

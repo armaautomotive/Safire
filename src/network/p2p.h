@@ -44,8 +44,6 @@ static void cb_nice_recv(NiceAgent *agent, guint stream_id, guint component_id, 
 static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data);
 static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data);
 
-//extern "C" void MyClass_function(CP2P *obj, int var);
-
 static GMainLoop *gloop;
 static GIOChannel* io_stdin;
 static guint stream_id;
@@ -64,9 +62,11 @@ private:
     gchar *stun_addr = NULL;
     guint stun_port = 0; 
     gboolean controlling;
-     std::string myPeerAddress;
+    //static std::string myPeerAddress;
 
 public:
+    static std::string myPeerAddress;
+
     CP2P();
 
     //! Destructor.

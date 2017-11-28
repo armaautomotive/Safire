@@ -7,7 +7,7 @@
 
 #include "p2p.h"
 
-
+std::string CP2P::myPeerAddress;
 
 CP2P::CP2P(){
     std::cout << "P2P " << "\n " << std::endl;    
@@ -153,7 +153,7 @@ extern "C"
 
 void CP2P::setMyPeerAddress(std::string address){
   std::cout << "  CP2P::setMyPeerAddress('" << address << "'); " << std::endl;
-  myPeerAddress = address; 
+  myPeerAddress = address;  
 }
 
 static int print_local_data (NiceAgent *agent, guint _stream_id, guint component_id){
