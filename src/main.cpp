@@ -281,6 +281,7 @@ int main(int argc, char* argv[])
     // Start Networking
     std::cout << "Starting networking.     [ok] " << std::endl;
     CP2P p2p;
+    p2p.getNewNetworkPeer("123"); //TEMP
 
     // Validate chain
     std::cout << "Validating chain.        [ok] " << std::endl;

@@ -17,8 +17,6 @@ CP2P::CP2P(){
     stun_addr = "$(host -4 -t A stun.stunprotocol.org | awk '{ print $4 }')";
 
 
-    CURL* curl; //our curl object
-
 
     //std::cout << " done " << "\n " << std::endl;
     //g_debug("g_debug done\n");
@@ -27,6 +25,12 @@ CP2P::CP2P(){
 
 std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
     
+    CURL * curl;
+    curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
+    curl = curl_easy_init();
+
+    curl_easy_setopt(curl, CURLOPT_URL, "http://173.255.218.54/getnode.php?r=abc");
+
 
     return "";
 }
