@@ -332,7 +332,10 @@ int main(int argc, char* argv[])
     std::cout << "Shutting down... " << std::endl;
     stop();
     blockThread.join();
-    //usleep(100000);
+    p2p.exit();
+    p2pNetworkThread.join();
+ 
+    usleep(100000);
     std::cout << "Done " << std::endl;
     
 }

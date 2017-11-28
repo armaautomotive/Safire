@@ -70,7 +70,10 @@ public:
     {
     }
 
+    volatile bool running = true;
+
     void connect();    
+    void exit();
     //void cb_candidate_gathering_done_X(NiceAgent *agent, guint stream_id, gpointer data);
     void p2pNetworkThread(int argc, char* argv[]);
 
