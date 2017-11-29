@@ -54,15 +54,18 @@ if( sizeof($results) == 0 ){
         $result = $stmt->execute($params);
 }
 
-$sql = "select * from node_list where connection_string != :connection_string order by time desc limit 0, 1;";
+$sql = "select * from node_list where connection_string != :connection_string order by time desc limit 0, 100;";
 $stmt = $pdo->prepare($sql);
 $r = $stmt->execute($params);
 $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 if( sizeof($results) > 0 ){
-        $result = $results[0];
-        $response = array();
-        $response["connection_string"] = $result["connection_string"];
-        echo json_encode($response);
+	$data = array();
+        foreach($results as $result){
+                $data_record = array();
+                $data_record["connection_string"] = $result["connection_string"];
+                array_push($data, $data_record);
+        }
+        echo json_encode($data);
         exit;
 } else {
         // No node is available

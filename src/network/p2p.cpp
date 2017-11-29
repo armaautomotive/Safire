@@ -23,15 +23,31 @@ CP2P::CP2P(){
 }
 
 
+static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
+
 std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
-    
+    std::string readBuffer;
+    CURLcode res;    
     CURL * curl;
     curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
     curl = curl_easy_init();
+    if(curl) {
 
-    curl_easy_setopt(curl, CURLOPT_URL, "http://173.255.218.54/getnode.php?r=abc");
+        std::string url_string = "http://173.255.218.54/getnode.php?r=abc";
 
+        curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
 
+        std::cout << readBuffer << std::endl;
+
+    }
     return "";
 }
 
@@ -157,7 +173,9 @@ extern "C"
 
 void CP2P::setMyPeerAddress(std::string address){
   std::cout << "  CP2P::setMyPeerAddress('" << address << "'); " << std::endl;
-  myPeerAddress = address;  
+  myPeerAddress = address; 
+
+  getNewNetworkPeer(address); 
 }
 
 static int print_local_data (NiceAgent *agent, guint _stream_id, guint component_id){
