@@ -290,6 +290,10 @@ int main(int argc, char* argv[])
     // TODO: detect based on platform if GUI is supported.
     std::cout << "Interface type.          [cli] " << std::endl; 
 
+    #ifdef __APPLE__
+    std::cout << "Platform.                [OSX] " << std::endl;
+    #endif
+
     //std::size_t num_threads = 10;
     //http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
 

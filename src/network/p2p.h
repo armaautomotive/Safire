@@ -74,7 +74,7 @@ public:
     {
     }
 
-    volatile bool running = true;
+    static bool running;
 
     void setMyPeerAddress(std::string address);
     std::string getNewNetworkPeer(std::string myPeerAddress);
