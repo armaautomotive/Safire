@@ -27,7 +27,7 @@ if($clear == "true"){
         exit;
 }
 
-$requester = $_GET['r'];
+$requester = $_POST['r'] || $_GET['r'];
 if($requester == ''){
         $response = array();
         $response["error"] = "Error: no 'r' parameter provided.";
@@ -37,7 +37,7 @@ if($requester == ''){
 
 $pdo = new PDO('mysql:dbname='.$db_name.';host='.$db_host, $db_user, $db_pass);
 $params = array();
-$params["connection_string"] = $_GET['r'];
+$params["connection_string"] = $_POST['r'] || $_GET['r'];
 $sql = "select * from node_list where connection_string = :connection_string order by time desc limit 0, 1;";
 $stmt = $pdo->prepare($sql);
 $r = $stmt->execute($params);

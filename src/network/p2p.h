@@ -44,6 +44,8 @@ static void cb_nice_recv(NiceAgent *agent, guint stream_id, guint component_id, 
 static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data);
 static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data);
 
+static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint component_id);
+
 static GMainLoop *gloop;
 static GIOChannel* io_stdin;
 static guint stream_id;

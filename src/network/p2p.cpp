@@ -6,22 +6,17 @@
 */
 
 #include "p2p.h"
+#include <sstream>
 
 std::string CP2P::myPeerAddress;
 bool CP2P::running;
 
 CP2P::CP2P(){
-    std::cout << "P2P " << "\n " << std::endl;    
-
+    //std::cout << "P2P " << "\n " << std::endl;    
     running = true; 
     controlling = true;
     stun_port = 3478;
     stun_addr = "$(host -4 -t A stun.stunprotocol.org | awk '{ print $4 }')";
-
-
-
-    //std::cout << " done " << "\n " << std::endl;
-    //g_debug("g_debug done\n");
 }
 
 
@@ -38,10 +33,12 @@ std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
     curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
     curl = curl_easy_init();
     if(curl) {
-
-        std::string url_string = "http://173.255.218.54/getnode.php?r=abc";
+        std::string url_string = "http://173.255.218.54/getnode.php";
+	std::string post_data = "r=";
+        post_data.append(myPeerAddress);
 
         curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
         res = curl_easy_perform(curl);
@@ -49,15 +46,23 @@ std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
 
         std::cout << readBuffer << std::endl;
 
+        // TODO: parse results and write to local peer node file.
+
+
+
     }
     return "";
 }
 
 
+/**
+* p2pNetworkThread
+*
+* Description: Implements P2P networking with other nodes in the network.
+*/
 void CP2P::p2pNetworkThread(int argc, char* argv[]){
 
     while(running){
-        //std::cout << " p2p " << "\n " << std::endl;
 
 	controlling = true;
         stun_port = 3478; 
@@ -124,13 +129,13 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
             
         }
     }    
-    std::cout << " P2P END " << "\n " << std::endl;
+    std::cout << "P2P Network Shutdown." << std::endl;
 }
 
 void CP2P::exit(){
     running = false;
     g_main_loop_quit (gloop);
-    std::cout << " P2P exit " << "\n " << std::endl; 
+    //std::cout << " P2P exit " << "\n " << std::endl; 
 }
 
 void CP2P::connect(){
@@ -138,23 +143,21 @@ void CP2P::connect(){
 }
 
 
-//void CP2P::cb_candidate_gathering_done_X(NiceAgent *agent, guint _stream_id, gpointer data){
-//  std::cout << " AHHH " << "\n " << std::endl;
-//}
-
 static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpointer data){
-  std::cout << " cb_candidate_gathering_done " << "\n " << std::endl;
-  g_debug("SIGNAL candidate gathering done\n");
+  //std::cout << " cb_candidate_gathering_done " << "\n " << std::endl;
+  //g_debug("SIGNAL candidate gathering done\n");
 
   // Candidate gathering is done. Send our local candidates on stdout
-  printf("Copy this line to remote client:\n");
-  printf("\n  ");
-  print_local_data(agent, _stream_id, 1);
-  printf("\n");
+  //printf("Copy this line to remote client:\n");
+  //printf("\n  ");
+  //print_local_data(agent, _stream_id, 1);
+  //printf("\n");
 
+  std::string local_addr = get_local_data (agent, _stream_id, 1);
+  //std::cout << " local_addr " << local_addr << " " << std::endl;
 
   CP2PHandle h = create_cp2p(); 
-  setPeerAddress_cp2p(h, "test"); 
+  setPeerAddress_cp2p(h, local_addr); 
   free_cp2p(h);
 
   // Listen on stdin for the remote candidate list
@@ -174,12 +177,13 @@ extern "C"
 }
 
 void CP2P::setMyPeerAddress(std::string address){
-  std::cout << "  CP2P::setMyPeerAddress('" << address << "'); " << std::endl;
+  //std::cout << "  CP2P::setMyPeerAddress('" << address << "'); " << std::endl;
   myPeerAddress = address; 
 
   getNewNetworkPeer(address); 
 }
 
+// depricate
 static int print_local_data (NiceAgent *agent, guint _stream_id, guint component_id){
   int result = EXIT_FAILURE;
   gchar *local_ufrag = NULL;
@@ -223,6 +227,69 @@ static int print_local_data (NiceAgent *agent, guint _stream_id, guint component
 
   return result;
 }
+
+static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint component_id){
+  std::string result = ""; 
+  gchar *local_ufrag = NULL;
+  gchar *local_password = NULL;
+  gchar ipaddr[INET6_ADDRSTRLEN];
+  GSList *cands = NULL, *item;
+
+  if (!nice_agent_get_local_credentials(agent, _stream_id,
+      &local_ufrag, &local_password))
+    goto end;
+
+  cands = nice_agent_get_local_candidates(agent, _stream_id, component_id);
+  if (cands == NULL)
+    goto end;
+
+  //printf("%s %s", local_ufrag, local_password);
+  result.append(local_ufrag);
+  result.append(" ");
+  result.append(local_password);
+
+  for (item = cands; item; item = item->next) {
+    NiceCandidate *c = (NiceCandidate *)item->data;
+
+    nice_address_to_string(&c->addr, ipaddr);
+
+    // (foundation),(prio),(addr),(port),(type)
+    //printf(" %s,%u,%s,%u,%s",
+    //    c->foundation,
+    //    c->priority,
+    //    ipaddr,
+    //    nice_address_get_port(&c->addr),
+    //    candidate_type_name[c->type]);
+    result.append(" ");
+    result.append(c->foundation);
+    result.append(","); 
+    
+    std::ostringstream priority_stream;
+    priority_stream << c->priority;   
+    result.append(priority_stream.str());  
+    result.append(",");
+    result.append(ipaddr);
+    result.append(",");
+    std::ostringstream address_stream;
+    address_stream << nice_address_get_port(&c->addr); 
+    result.append(address_stream.str());
+    result.append(",");
+    result.append(candidate_type_name[c->type]);   
+  }
+
+ end:
+  if (local_ufrag)
+    g_free(local_ufrag);
+  if (local_password)
+    g_free(local_password);
+  if (cands)
+    g_slist_free_full(cands, (GDestroyNotify)&nice_candidate_free);
+
+  return result;
+}
+
+
+
 
 
 static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data)
