@@ -6,6 +6,7 @@
 */
 
 #include "p2p.h"
+#include "wallet.h"
 #include <sstream>
 
 std::string CP2P::myPeerAddress;
@@ -33,9 +34,17 @@ std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
     curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
     curl = curl_easy_init();
     if(curl) {
+
+        std::string publicKey;
+        std::string privateKey;
+        CWallet wallet;
+        wallet.read(privateKey, publicKey);
+
         std::string url_string = "http://173.255.218.54/getnode.php";
-	std::string post_data = "r=";
+	std::string post_data = "connection_string=";
         post_data.append(myPeerAddress);
+        post_data.append("&public_key=");
+        post_data.append(publicKey);
 
         curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
