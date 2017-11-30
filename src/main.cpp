@@ -293,6 +293,9 @@ int main(int argc, char* argv[])
     #ifdef __APPLE__
     std::cout << "Platform.                [OSX] " << std::endl;
     #endif
+    #ifdef __linux__
+    std::cout << "Platform.                [Linux] " << std::endl;
+    #endif
 
     //std::size_t num_threads = 10;
     //http::server3::server s("0.0.0.0", "80", "/Users/jondtaylor/Dropbox/Currency", num_threads);
