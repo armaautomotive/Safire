@@ -56,7 +56,25 @@ std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
         std::cout << readBuffer << std::endl;
 
         // TODO: parse results and write to local peer node file.
+	// [{"public_key":"03695EB28563D74CCAA17070660767F045DD089C459D0A79865BC2376506B2FD21","connection_string":"2ANg JQyxT3POXQeLTNfsv0y4dA 1,2013266431,2600:3c03::f03c:91ff:fedf:82c9,36826,host 2,2013266431,96.126.105.53,35238,host"}]
 
+        std::size_t open_paren = readBuffer.find("{");       
+        std::size_t close_paren = readBuffer.find("}", open_paren + 1); 	
+        std::string section = readBuffer.substr( open_paren + 1, close_paren - open_paren -1 );
+        //std::cout << ":" << section << std::endl;
+        std::size_t con_start = section.find("connection_string\":\"");
+        std::size_t con_end = section.rfind("\"");
+        std::string con_string = section.substr(con_start + 20, con_end - con_start - 20);
+        //std::cout << "___" << con_string << "___" << std::endl; 
+
+
+        int rval;
+        //rval = parse_remote_data(agent, stream_id, 1, con_string);
+        //if (rval == EXIT_SUCCESS) {
+        //    std::cout << "parsed remote connection string." << std::endl;  
+        //} else {
+        //    std::cout << "error parsing connection string." << std::endl;
+        //}
 
 
     }
@@ -308,8 +326,7 @@ static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpo
   int rval;
   gboolean ret = TRUE;
 
-  if (g_io_channel_read_line (source, &line, NULL, NULL, NULL) ==
-      G_IO_STATUS_NORMAL) {
+  if (g_io_channel_read_line (source, &line, NULL, NULL, NULL) == G_IO_STATUS_NORMAL) {
 
     // Parse remote candidate list and set it on the agent
     rval = parse_remote_data(agent, stream_id, 1, line);
@@ -326,10 +343,10 @@ static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpo
     }
     g_free (line);
   }
-
   return ret;
 }
 
+// implementation given string not stream for source. 
 
 
 
@@ -452,10 +469,7 @@ static NiceCandidate * parse_candidate(char *scand, guint _stream_id)
 
 
 
-static int
-parse_remote_data(NiceAgent *agent, guint _stream_id,
-    guint component_id, char *line)
-{
+static int parse_remote_data(NiceAgent *agent, guint _stream_id, guint component_id, char *line) {
   GSList *remote_candidates = NULL;
   gchar **line_argv = NULL;
   const gchar *ufrag = NULL;
