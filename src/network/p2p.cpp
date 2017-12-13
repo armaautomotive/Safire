@@ -136,9 +136,10 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
 
 
 
-        gchar *local_ufrag = "h34S";
-        gchar *local_passwd = "Vme8u6iKNXvNsfkExsaHYd"; 
-        gboolean cred_set = nice_agent_set_local_credentials ( agent, stream_id, (gchar **)local_ufrag, (gchar **)local_passwd ); // Hard code ICE  user and password.
+        const gchar *local_ufrag = "h34S";
+        const gchar *local_passwd = "Vme8u6iKNXvNsfkExsaHYd"; 
+        // const gchar *ufrag 
+        gboolean cred_set = nice_agent_set_local_credentials ( agent, stream_id, local_ufrag, local_passwd ); // Hard code ICE  user and password.
 
         // Attach to the component to receive the data
         // Without this call, candidates cannot be gathered
