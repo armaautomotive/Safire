@@ -102,8 +102,7 @@ main(int argc, char *argv[])
 #endif
 
   // Create the nice agent
-  agent = nice_agent_new(g_main_loop_get_context (gloop),
-      NICE_COMPATIBILITY_RFC5245);
+  agent = nice_agent_new(g_main_loop_get_context (gloop), NICE_COMPATIBILITY_RFC5245);
   if (agent == NULL)
     g_error("Failed to create agent");
 
@@ -123,6 +122,14 @@ main(int argc, char *argv[])
   stream_id = nice_agent_add_stream(agent, 1);
   if (stream_id == 0)
     g_error("Failed to add stream");
+
+ 
+  gboolean cred_set = nice_agent_set_local_credentials ( agent, stream_id, "h34S", "Vme8u6iKNXvNsfkExsaHYd" ); // Hard code ICE  user and password.
+  if(cred_set){
+  g_debug(" cred set ");
+  } else {
+    g_debug(" cred not set "); 
+  }
 
   // Attach to the component to receive the data
   // Without this call, candidates cannot be gathered

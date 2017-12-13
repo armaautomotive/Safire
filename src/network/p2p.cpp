@@ -130,6 +130,7 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
         if (stream_id == 0)
             g_error("Failed to add stream");
 
+        gboolean cred_set = nice_agent_set_local_credentials ( agent, stream_id, "h34S", "Vme8u6iKNXvNsfkExsaHYd" ); // Hard code ICE  user and password.
 
         // Attach to the component to receive the data
         // Without this call, candidates cannot be gathered
@@ -226,7 +227,7 @@ static int print_local_data (NiceAgent *agent, guint _stream_id, guint component
   if (cands == NULL)
     goto end;
 
-  printf("%s %s", local_ufrag, local_password);
+  //printf("%s %s", local_ufrag, local_password);
 
   for (item = cands; item; item = item->next) {
     NiceCandidate *c = (NiceCandidate *)item->data;
@@ -262,8 +263,7 @@ static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint com
   gchar ipaddr[INET6_ADDRSTRLEN];
   GSList *cands = NULL, *item;
 
-  if (!nice_agent_get_local_credentials(agent, _stream_id,
-      &local_ufrag, &local_password))
+  if (!nice_agent_get_local_credentials(agent, _stream_id, &local_ufrag, &local_password))
     goto end;
 
   cands = nice_agent_get_local_candidates(agent, _stream_id, component_id);
@@ -271,9 +271,9 @@ static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint com
     goto end;
 
   //printf("%s %s", local_ufrag, local_password);
-  result.append(local_ufrag);
-  result.append(" ");
-  result.append(local_password);
+  //result.append(local_ufrag);
+  //result.append(" ");
+  //result.append(local_password);
 
   for (item = cands; item; item = item->next) {
     NiceCandidate *c = (NiceCandidate *)item->data;
@@ -477,17 +477,21 @@ static int parse_remote_data(NiceAgent *agent, guint _stream_id, guint component
   int result = EXIT_FAILURE;
   int i;
 
+  ufrag = "h34S";
+  passwd = "Vme8u6iKNXvNsfkExsaHYd";
+
   line_argv = g_strsplit_set (line, " \t\n", 0);
   for (i = 0; line_argv && line_argv[i]; i++) {
     if (strlen (line_argv[i]) == 0)
       continue;
 
     // first two args are remote ufrag and password
-    if (!ufrag) {
-      ufrag = line_argv[i];
-    } else if (!passwd) {
-      passwd = line_argv[i];
-    } else {
+    //if (!ufrag) {
+    //  ufrag = line_argv[i];
+    //} else if (!passwd) {
+    //  passwd = line_argv[i];
+    //} else {
+      
       // Remaining args are serialized canidates (at least one is required)
       NiceCandidate *c = parse_candidate(line_argv[i], _stream_id);
 
@@ -496,7 +500,7 @@ static int parse_remote_data(NiceAgent *agent, guint _stream_id, guint component
         goto end;
       }
       remote_candidates = g_slist_prepend(remote_candidates, c);
-    }
+    //}
   }
   if (ufrag == NULL || passwd == NULL || remote_candidates == NULL) {
     g_message("line must have at least ufrag, password, and one candidate");
