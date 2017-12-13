@@ -47,6 +47,9 @@ brew install libnice<br>
 
 Linux: 
 <br>
+Safire requires the libnice-dev package 0.1.11. You can check your version with (dpkg -l | grep libnice).
+
+<br>
 sudo apt-get install llvm <br>
 sudo apt-get install clang <br>
 sudo apt-get install openssl <br>

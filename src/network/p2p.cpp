@@ -9,6 +9,10 @@
 #include "wallet.h"
 #include <sstream>
 
+//#include "nice/candidate.h" // nice_agent_set_local_credentials
+//#include "candidate.h"
+//#include "libnice/agent/agent.h"
+
 std::string CP2P::myPeerAddress;
 bool CP2P::running;
 
