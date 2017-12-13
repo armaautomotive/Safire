@@ -39,17 +39,18 @@ Transactions older than two years are accumulated in the current year for each u
 
 <b>Build:</b>
 
-Mac: <br>
+<b>Mac:</b> <br>
 brew install ruby<br>
 brew install libnice<br>
 
 > make
 
-Linux: 
+<b>Linux: </b>
 <br>
-Safire requires the libnice-dev package 0.1.11. You can check your version with (dpkg -l | grep libnice).
+These build instructions were tested on Ubuntu 16.04.2 LTS. <br>
 
 <br>
+git checkout https://github.com/jon34560/Safire.git
 sudo apt-get install llvm <br>
 sudo apt-get install clang <br>
 sudo apt-get install openssl <br>
@@ -58,10 +59,17 @@ sudo apt-get install libboost-all-dev <br>
 sudo apt-get install aptitude <br>
 aptitude search boost <br>
 apt-get install libnice-dev<br>
+> Check that the libnice version is greater than 0.1.11 (dpkg -l | grep libnice)<br>
 
-> make linux 
+sudo apt-get install libcurl4-gnutls-dev <br>
 
-Windows:<br>
+make linux<br> 
+
+./bin/Safire<br>
+
+<b>Windows:</b><br>
+Instructions for building on windows will be comming later.<br> 
+
 Install Cygwin from http://www.cygwin.com/install.html<br>
 
 
