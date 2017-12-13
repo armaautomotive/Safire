@@ -1,17 +1,14 @@
 /**
 * CP2P
 *
-* Description: 
+* Description:
+*  CP2P implements Peer to peer networking functions using the libnice library.  
 *  - http://173.255.218.54/getnode.php?r=abc
 */
 
 #include "p2p.h"
 #include "wallet.h"
 #include <sstream>
-
-//#include "nice/candidate.h" // nice_agent_set_local_credentials
-//#include "candidate.h"
-//#include "libnice/agent/agent.h"
 
 std::string CP2P::myPeerAddress;
 bool CP2P::running;
@@ -31,6 +28,12 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
     return size * nmemb;
 }
 
+
+/**
+* getNetworkPeer
+*
+* Description: requests a new peer node connection from a: the current network or b: a connection server.  
+*/
 std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
     std::string readBuffer;
     CURLcode res;    
@@ -134,11 +137,8 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
         if (stream_id == 0)
             g_error("Failed to add stream");
 
-
-
         const gchar *local_ufrag = "h34S";
         const gchar *local_passwd = "Vme8u6iKNXvNsfkExsaHYd"; 
-        // const gchar *ufrag 
         gboolean cred_set = nice_agent_set_local_credentials ( agent, stream_id, local_ufrag, local_passwd ); // Hard code ICE  user and password.
 
         // Attach to the component to receive the data
@@ -155,11 +155,9 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
         // when the candidates are done gathering.
         g_main_loop_run (gloop);
 
-
         g_main_loop_unref(gloop);
         g_object_unref(agent);
         g_io_channel_unref (io_stdin);
-
         
         if(running){
             usleep(1000000 * 10); // 1 second
@@ -265,12 +263,19 @@ static int print_local_data (NiceAgent *agent, guint _stream_id, guint component
   return result;
 }
 
+
+/**
+* get_local_data 
+*
+* Description: returns string with network address for conneting to this node.
+*/
 static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint component_id){
   std::string result = ""; 
   gchar *local_ufrag = NULL;
   gchar *local_password = NULL;
   gchar ipaddr[INET6_ADDRSTRLEN];
   GSList *cands = NULL, *item;
+  bool first = true;
 
   if (!nice_agent_get_local_credentials(agent, _stream_id, &local_ufrag, &local_password))
     goto end;
@@ -296,7 +301,11 @@ static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint com
     //    ipaddr,
     //    nice_address_get_port(&c->addr),
     //    candidate_type_name[c->type]);
-    result.append(" ");
+    if(first == false){
+        result.append(" ");
+    }
+    first = false;
+
     result.append(c->foundation);
     result.append(","); 
     
