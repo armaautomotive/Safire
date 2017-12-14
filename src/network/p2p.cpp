@@ -38,6 +38,10 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 * Description: requests a new peer node connection from a: the current network or b: a connection server.  
 */
 std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
+
+    if(true){
+    return "1,2013266431,fe80::c4f2:8162:91de:a0f9,54804,host 2,1015023871,fe80::c4f2:8162:91de:a0f9,0,host 3,1010829567,fe80::c4f2:8162:91de:a0f9,65470,host 4,2013266430,fd00:1cab:c0ae:fe92:54d5:ba48:b881:3282,54805,host 5,1015022079,fd00:1cab:c0ae:fe92:54d5:ba48:b881:3282,0,host 6,1010827775,fd00:1cab:c0ae:fe92:54d5:ba48:b881:3282,65471,host 7,2013266429,fd00:1cab:c0ae:fe92:10d6:8cfa:e7cd:df63,54806,host 8,1015022335,fd00:1cab:c0ae:fe92:10d6:8cfa:e7cd:df63,0,host 9,1010828031,fd00:1cab:c0ae:fe92:10d6:8cfa:e7cd:df63,65472,host 10,2013266428,192.168.0.17,57933,host 11,1015022591,192.168.0.17,0,host 12,1010828287,192.168.0.17,65473,host 13,2013266427,fe80::14ac:6712:9a93:7887,57934,host 14,1015023870,fe80::14ac:6712:9a93:7887,0,host 15,1010829566,fe80::14ac:6712:9a93:7887,65474,host";
+    }
     std::string readBuffer;
     CURLcode res;    
     CURL * curl;
@@ -362,7 +366,7 @@ static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint com
 
 
 
-
+// depricate
 static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data)
 {
   NiceAgent *agent = (NiceAgent *)data;
@@ -436,7 +440,7 @@ static void cb_component_state_changed(NiceAgent *agent, guint _stream_id,
 }
 
 
-
+// not used
 static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data){ 
   NiceAgent *agent = (NiceAgent *)data;
   gchar *line = NULL;
@@ -466,7 +470,10 @@ static void cb_new_selected_pair(NiceAgent *agent, guint _stream_id,
 
 static void cb_nice_recv(NiceAgent *agent, guint _stream_id, guint component_id,
     guint len, gchar *buf, gpointer data)
-{ 
+{
+  std::cout << "receive" << std::endl;
+
+ 
   if (len == 1 && buf[0] == '\0')
     g_main_loop_quit (gloop);
   printf("%.*s", len, buf);
