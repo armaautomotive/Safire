@@ -66,6 +66,8 @@ static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpoin
 int
 main(int argc, char *argv[])
 {
+  printf("starting...\n");
+
   NiceAgent *agent;
   gchar *stun_addr = NULL;
   guint stun_port = 0;
@@ -127,9 +129,11 @@ main(int argc, char *argv[])
   const gchar *local_passwd = "Vme8u6iKNXvNsfkExsaHYd"; 
   gboolean cred_set = nice_agent_set_local_credentials ( agent, stream_id, local_ufrag, local_passwd ); // Hard code ICE  user and password.
   if(cred_set){
-  g_debug(" cred set ");
+    g_debug(" cred set ");
+    printf(" cred set");
   } else {
     g_debug(" cred not set "); 
+    printf("cred not set");
   }
 
   // Attach to the component to receive the data
@@ -184,7 +188,9 @@ stdin_remote_info_cb (GIOChannel *source, GIOCondition cond,
 
   if (g_io_channel_read_line (source, &line, NULL, NULL, NULL) ==
       G_IO_STATUS_NORMAL) {
-
+    
+    printf("a \n");
+ 
     // Parse remote candidate list and set it on the agent
     rval = parse_remote_data(agent, stream_id, 1, line);
     if (rval == EXIT_SUCCESS) {
@@ -200,6 +206,8 @@ stdin_remote_info_cb (GIOChannel *source, GIOCondition cond,
     }
     g_free (line);
   }
+
+  printf("z \n");
 
   return ret;
 }
@@ -384,17 +392,20 @@ parse_remote_data(NiceAgent *agent, guint _stream_id,
   int result = EXIT_FAILURE;
   int i;
 
+  g_message("1");
+  printf(" heyt \n");
+
   line_argv = g_strsplit_set (line, " \t\n", 0);
   for (i = 0; line_argv && line_argv[i]; i++) {
     if (strlen (line_argv[i]) == 0)
       continue;
 
     // first two args are remote ufrag and password
-    //if (!ufrag) {
+    if (!ufrag) {
     //  ufrag = line_argv[i];
-    //} else if (!passwd) {
+    } else if (!passwd) {
     //  passwd = line_argv[i];
-    //} else {
+    } else {
       // Remaining args are serialized canidates (at least one is required)
       NiceCandidate *c = parse_candidate(line_argv[i], _stream_id);
 
@@ -403,7 +414,7 @@ parse_remote_data(NiceAgent *agent, guint _stream_id,
         goto end;
       }
       remote_candidates = g_slist_prepend(remote_candidates, c);
-    //}
+    }
   }
   if (ufrag == NULL || passwd == NULL || remote_candidates == NULL) {
     g_message("line must have at least ufrag, password, and one candidate");
@@ -421,6 +432,8 @@ parse_remote_data(NiceAgent *agent, guint _stream_id,
     g_message("failed to set remote candidates");
     goto end;
   }
+
+  g_message("ok");
 
   result = EXIT_SUCCESS;
 
