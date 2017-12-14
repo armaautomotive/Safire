@@ -123,8 +123,9 @@ main(int argc, char *argv[])
   if (stream_id == 0)
     g_error("Failed to add stream");
 
- 
-  gboolean cred_set = nice_agent_set_local_credentials ( agent, stream_id, "h34S", "Vme8u6iKNXvNsfkExsaHYd" ); // Hard code ICE  user and password.
+  const gchar *local_ufrag = "h34S";
+  const gchar *local_passwd = "Vme8u6iKNXvNsfkExsaHYd"; 
+  gboolean cred_set = nice_agent_set_local_credentials ( agent, stream_id, local_ufrag, local_passwd ); // Hard code ICE  user and password.
   if(cred_set){
   g_debug(" cred set ");
   } else {
@@ -340,7 +341,7 @@ print_local_data (NiceAgent *agent, guint _stream_id, guint component_id)
   if (cands == NULL)
     goto end;
 
-  printf("%s %s", local_ufrag, local_password);
+  //printf("%s %s", local_ufrag, local_password);
 
   for (item = cands; item; item = item->next) {
     NiceCandidate *c = (NiceCandidate *)item->data;
@@ -376,8 +377,10 @@ parse_remote_data(NiceAgent *agent, guint _stream_id,
 {
   GSList *remote_candidates = NULL;
   gchar **line_argv = NULL;
-  const gchar *ufrag = NULL;
-  const gchar *passwd = NULL;
+  //const gchar *ufrag = NULL;
+  //const gchar *passwd = NULL;
+  const gchar *ufrag = "h34S";
+  const gchar *passwd = "Vme8u6iKNXvNsfkExsaHYd";
   int result = EXIT_FAILURE;
   int i;
 
@@ -387,11 +390,11 @@ parse_remote_data(NiceAgent *agent, guint _stream_id,
       continue;
 
     // first two args are remote ufrag and password
-    if (!ufrag) {
-      ufrag = line_argv[i];
-    } else if (!passwd) {
-      passwd = line_argv[i];
-    } else {
+    //if (!ufrag) {
+    //  ufrag = line_argv[i];
+    //} else if (!passwd) {
+    //  passwd = line_argv[i];
+    //} else {
       // Remaining args are serialized canidates (at least one is required)
       NiceCandidate *c = parse_candidate(line_argv[i], _stream_id);
 
@@ -400,7 +403,7 @@ parse_remote_data(NiceAgent *agent, guint _stream_id,
         goto end;
       }
       remote_candidates = g_slist_prepend(remote_candidates, c);
-    }
+    //}
   }
   if (ufrag == NULL || passwd == NULL || remote_candidates == NULL) {
     g_message("line must have at least ufrag, password, and one candidate");
