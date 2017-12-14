@@ -209,7 +209,6 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
 
   gchar *line = "test data xxx 123 data data xxx 123";
   nice_agent_send(agent, stream_id, 1, strlen(line), line);
-  g_free (line); 
 
 }
 
