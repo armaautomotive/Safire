@@ -45,6 +45,7 @@ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/
 brew install ruby<br>
 brew install libnice<br>
 brew install boost<br>
+brew install leveldb<br>
 
 make mac<br>
 
