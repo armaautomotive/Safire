@@ -64,10 +64,8 @@ private:
     gchar *stun_addr = NULL;
     guint stun_port = 0; 
     gboolean controlling;
-    //static std::string myPeerAddress;
 
 public:
-    static std::string myPeerAddress;
 
     CP2P();
 
@@ -79,6 +77,9 @@ public:
     static bool running;
     static bool connected;
 
+    static std::string myPeerAddress;
+    static std::string remotePeerAddress;
+    
     void setMyPeerAddress(std::string address);
     std::string getNewNetworkPeer(std::string myPeerAddress);
     void connect();    
@@ -100,6 +101,9 @@ void setPeerAddress_cp2p(CP2PHandle, std::string address);
 typedef struct CP2P CP2P; // C reference to Class.
 extern "C" void MyClass_function(CP2P *obj, std::string var);
 //EXPORT_C CP2P_class* CP2P_new(void);
+
+std::string getNewNetworkPeer_cp2p(CP2PHandle, std::string myPeerAddress);
+
 
 #ifdef __cplusplus
 }

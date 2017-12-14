@@ -13,6 +13,7 @@
 std::string CP2P::myPeerAddress;
 bool CP2P::running;
 bool CP2P::connected;
+std::string CP2P::remotePeerAddress;
 
 CP2P::CP2P(){
     //std::cout << "P2P " << "\n " << std::endl;    
@@ -62,7 +63,7 @@ std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
 
-        std::cout << readBuffer << std::endl;
+        //std::cout << readBuffer << std::endl;
 
         // TODO: parse results and write to local peer node file.
 	// [{"public_key":"03695EB28563D74CCAA17070660767F045DD089C459D0A79865BC2376506B2FD21","connection_string":"2ANg JQyxT3POXQeLTNfsv0y4dA 1,2013266431,2600:3c03::f03c:91ff:fedf:82c9,36826,host 2,2013266431,96.126.105.53,35238,host"}]
@@ -77,7 +78,7 @@ std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
         //std::cout << "___" << con_string << "___" << std::endl; 
 
 
-        int rval;
+        //int rval;
         //rval = parse_remote_data(agent, stream_id, 1, con_string);
         //if (rval == EXIT_SUCCESS) {
         //    std::cout << "parsed remote connection string." << std::endl;  
@@ -85,7 +86,7 @@ std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
         //    std::cout << "error parsing connection string." << std::endl;
         //}
 
-
+        return con_string;
     }
     return "";
 }
@@ -103,6 +104,8 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
 	controlling = true;
         stun_port = 3478; 
         stun_addr = "$(host -4 -t A stun.stunprotocol.org | awk '{ print $4 }')";
+
+        
 
         g_networking_init();
 
@@ -195,7 +198,6 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
 
   CP2PHandle h = create_cp2p(); 
   setPeerAddress_cp2p(h, local_addr); 
-  free_cp2p(h);
 
   //CP2P::connected = true;
 
@@ -204,12 +206,27 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
   //g_io_add_watch(io_stdin, G_IO_IN, stdin_remote_info_cb, agent);
   //printf("> ");
   //fflush (stdout);
+ 
+  // set remote connection here? 
+  std::cout << " CP2P::myPeerAddress _" << CP2P::myPeerAddress << "_ " << std::endl;   
+  std::string remotePeerAddress = getNewNetworkPeer_cp2p(h, CP2P::myPeerAddress); // TODO: Load from peers db stored locally
   
+  gchar *line = (gchar *)remotePeerAddress.c_str();
+  int rval = parse_remote_data(agent, stream_id, 1, line);
+  if (rval == EXIT_SUCCESS) {
+    std::cout << " remote parse success " << std::endl;
+  } else {
+    std::cout << " remote parse failure " << std::endl; 
+  }
+
+ 
   // send test
 
-  gchar *line = "test data xxx 123 data data xxx 123";
-  nice_agent_send(agent, stream_id, 1, strlen(line), line);
+  gchar *data_line = "test data xxx 123 data data xxx 123";
+  nice_agent_send(agent, stream_id, 1, strlen(line), data_line);
 
+
+  free_cp2p(h);
 }
 
 extern "C"
@@ -219,13 +236,16 @@ extern "C"
     void setPeerAddress_cp2p(CP2PHandle p, std::string address){
            p->setMyPeerAddress( address );
     }
+    std::string getNewNetworkPeer_cp2p(CP2PHandle p, std::string myPeerAddress){
+           return p->getNewNetworkPeer(myPeerAddress);
+    }
 }
 
 void CP2P::setMyPeerAddress(std::string address){
   //std::cout << "  CP2P::setMyPeerAddress('" << address << "'); " << std::endl;
   myPeerAddress = address; 
 
-  getNewNetworkPeer(address); 
+  //getNewNetworkPeer(address); 
 }
 
 // depricate
