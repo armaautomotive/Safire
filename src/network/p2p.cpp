@@ -418,12 +418,20 @@ static void cb_component_state_changed(NiceAgent *agent, guint _stream_id,
     }
     
     // Listen to stdin and send data written to it
-    printf("\nSend lines to remote (Ctrl-D to quit):\n"); 
-    g_io_add_watch(io_stdin, G_IO_IN, stdin_send_data_cb, agent);
-    printf("> ");
-    fflush (stdout);
+    //printf("\nSend lines to remote (Ctrl-D to quit):\n"); 
+    //g_io_add_watch(io_stdin, G_IO_IN, stdin_send_data_cb, agent);
+    //printf("> ");
+    //fflush (stdout);
+     
+    // send data
+    gchar *line = "123445 \0";
+    nice_agent_send(agent, stream_id, 1, strlen(line), line);
+    g_free (line);
+ 
+
   } else if (state == NICE_COMPONENT_STATE_FAILED) {
-    g_main_loop_quit (gloop);
+    //g_main_loop_quit (gloop);
+    CP2P::connected = false;
   }
 }
 
