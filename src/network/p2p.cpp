@@ -39,9 +39,6 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 */
 std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
 
-    if(true){
-    return "1,2013266431,fe80::c4f2:8162:91de:a0f9,54804,host 2,1015023871,fe80::c4f2:8162:91de:a0f9,0,host 3,1010829567,fe80::c4f2:8162:91de:a0f9,65470,host 4,2013266430,fd00:1cab:c0ae:fe92:54d5:ba48:b881:3282,54805,host 5,1015022079,fd00:1cab:c0ae:fe92:54d5:ba48:b881:3282,0,host 6,1010827775,fd00:1cab:c0ae:fe92:54d5:ba48:b881:3282,65471,host 7,2013266429,fd00:1cab:c0ae:fe92:10d6:8cfa:e7cd:df63,54806,host 8,1015022335,fd00:1cab:c0ae:fe92:10d6:8cfa:e7cd:df63,0,host 9,1010828031,fd00:1cab:c0ae:fe92:10d6:8cfa:e7cd:df63,65472,host 10,2013266428,192.168.0.17,57933,host 11,1015022591,192.168.0.17,0,host 12,1010828287,192.168.0.17,65473,host 13,2013266427,fe80::14ac:6712:9a93:7887,57934,host 14,1015023870,fe80::14ac:6712:9a93:7887,0,host 15,1010829566,fe80::14ac:6712:9a93:7887,65474,host";
-    }
     std::string readBuffer;
     CURLcode res;    
     CURL * curl;
@@ -157,6 +154,8 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
         g_object_unref(agent);
         g_io_channel_unref (io_stdin);
         
+        std::cout << " p2p x " << std::endl;
+ 
         if(running){
             usleep(1000000 * 10); // 1 second
             
@@ -209,7 +208,7 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
   // set remote connection here? 
   std::cout << " CP2P::myPeerAddress _" << CP2P::myPeerAddress << "_ " << std::endl;   
   std::string remotePeerAddress = getNewNetworkPeer_cp2p(h, CP2P::myPeerAddress); // TODO: Load from peers db stored locally
-  std::cout << " remote peer " << remotePeerAddress << std::endl;
+  std::cout << " remote peer: " << remotePeerAddress << std::endl;
  
   gchar *line = (gchar *)remotePeerAddress.c_str();
   int rval = parse_remote_data(agent, stream_id, 1, line);
@@ -531,13 +530,10 @@ static NiceCandidate * parse_candidate(char *scand, guint _stream_id)
 static int parse_remote_data(NiceAgent *agent, guint _stream_id, guint component_id, char *line) {
   GSList *remote_candidates = NULL;
   gchar **line_argv = NULL;
-  const gchar *ufrag = NULL;
-  const gchar *passwd = NULL;
+  const gchar *ufrag = "h34S";
+  const gchar *passwd = "Vme8u6iKNXvNsfkExsaHYd";
   int result = EXIT_FAILURE;
   int i;
-
-  ufrag = "h34S";
-  passwd = "Vme8u6iKNXvNsfkExsaHYd";
 
   line_argv = g_strsplit_set (line, " \t\n", 0);
   for (i = 0; line_argv && line_argv[i]; i++) {
@@ -577,6 +573,8 @@ static int parse_remote_data(NiceAgent *agent, guint _stream_id, guint component
     g_message("failed to set remote candidates");
     goto end;
   }
+
+  std::cout << "remote parsed " << std::endl;
 
   result = EXIT_SUCCESS;
   end:
