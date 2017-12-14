@@ -40,10 +40,15 @@ Transactions older than two years are accumulated in the current year for each u
 <b>Build:</b>
 
 <b>Mac:</b> <br>
+git checkout https://github.com/jon34560/Safire.git<br>
+ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"<br>
 brew install ruby<br>
 brew install libnice<br>
+brew install boost<br>
 
-> make
+make mac<br>
+
+./bin/Safire<br>
 
 <b>Linux: </b>
 <br>
