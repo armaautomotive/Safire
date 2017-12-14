@@ -16,6 +16,7 @@ bool CP2P::running;
 CP2P::CP2P(){
     //std::cout << "P2P " << "\n " << std::endl;    
     running = true; 
+    connected = false;
     controlling = true;
     stun_port = 3478;
     stun_addr = "$(host -4 -t A stun.stunprotocol.org | awk '{ print $4 }')";
@@ -189,17 +190,26 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
   //printf("\n");
 
   std::string local_addr = get_local_data (agent, _stream_id, 1);
-  //std::cout << " local_addr " << local_addr << " " << std::endl;
+  //std::cout << " local_addr _" << local_addr << "_ " << std::endl;
 
   CP2PHandle h = create_cp2p(); 
   setPeerAddress_cp2p(h, local_addr); 
   free_cp2p(h);
+
+  connected = true;
 
   // Listen on stdin for the remote candidate list
   //printf("Enter remote data (single line, no wrapping):\n");
   //g_io_add_watch(io_stdin, G_IO_IN, stdin_remote_info_cb, agent);
   //printf("> ");
   //fflush (stdout);
+  
+  // send test
+
+  gchar *line = "test data xxx 123 data data xxx 123";
+  nice_agent_send(agent, stream_id, 1, strlen(line), line);
+  g_free (line); 
+
 }
 
 extern "C"

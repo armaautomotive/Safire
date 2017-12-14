@@ -77,6 +77,7 @@ public:
     }
 
     static bool running;
+    static bool connected;
 
     void setMyPeerAddress(std::string address);
     std::string getNewNetworkPeer(std::string myPeerAddress);
