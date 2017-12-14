@@ -12,6 +12,7 @@
 
 std::string CP2P::myPeerAddress;
 bool CP2P::running;
+bool CP2P::connected;
 
 CP2P::CP2P(){
     //std::cout << "P2P " << "\n " << std::endl;    
@@ -196,7 +197,7 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
   setPeerAddress_cp2p(h, local_addr); 
   free_cp2p(h);
 
-  connected = true;
+  //CP2P::connected = true;
 
   // Listen on stdin for the remote candidate list
   //printf("Enter remote data (single line, no wrapping):\n");
