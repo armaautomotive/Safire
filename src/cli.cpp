@@ -180,6 +180,9 @@ void CCLI::processUserInput(){
            
 		CP2P p2p;
 		std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
+                
+                p2p.sendData("DATA DATA DATA 123 \0");
+
  
 	} else if ( command.find("quit") != std::string::npos ){
 			running = false;

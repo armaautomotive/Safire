@@ -77,15 +77,6 @@ std::string CP2P::getNewNetworkPeer(std::string myPeerAddress){
         std::string con_string = section.substr(con_start + 20, con_end - con_start - 20);
         //std::cout << "___" << con_string << "___" << std::endl; 
 
-
-        //int rval;
-        //rval = parse_remote_data(agent, stream_id, 1, con_string);
-        //if (rval == EXIT_SUCCESS) {
-        //    std::cout << "parsed remote connection string." << std::endl;  
-        //} else {
-        //    std::cout << "error parsing connection string." << std::endl;
-        //}
-
         return con_string;
     }
     return "";
@@ -104,8 +95,6 @@ void CP2P::p2pNetworkThread(int argc, char* argv[]){
 	controlling = true;
         stun_port = 3478; 
         stun_addr = "$(host -4 -t A stun.stunprotocol.org | awk '{ print $4 }')";
-
-        
 
         g_networking_init();
 
@@ -182,6 +171,12 @@ void CP2P::connect(){
 
 }
 
+void CP2P::sendData(std::string data){
+   if(connected){
+       gchar *line = (gchar *)data.c_str(); 
+       nice_agent_send(agent, stream_id, 1, strlen(line), line); 
+   } 
+}
 
 static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpointer data){
   //std::cout << " cb_candidate_gathering_done " << "\n " << std::endl;
@@ -210,7 +205,8 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
   // set remote connection here? 
   std::cout << " CP2P::myPeerAddress _" << CP2P::myPeerAddress << "_ " << std::endl;   
   std::string remotePeerAddress = getNewNetworkPeer_cp2p(h, CP2P::myPeerAddress); // TODO: Load from peers db stored locally
-  
+  std::cout << " remote peer " << remotePeerAddress << std::endl;
+ 
   gchar *line = (gchar *)remotePeerAddress.c_str();
   int rval = parse_remote_data(agent, stream_id, 1, line);
   if (rval == EXIT_SUCCESS) {
@@ -221,9 +217,9 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint _stream_id, gpoi
 
  
   // send test
-
+  std::cout << " sending data " << std::endl; 
   gchar *data_line = "test data xxx 123 data data xxx 123";
-  nice_agent_send(agent, stream_id, 1, strlen(line), data_line);
+  nice_agent_send(agent, stream_id, 1, strlen(data_line), data_line);
 
 
   free_cp2p(h);
