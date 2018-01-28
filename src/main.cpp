@@ -6,6 +6,7 @@
 #include <thread>
 #include "utilstrencodings.h"
 
+#include "network/relayclient.h"
 #include "network/p2p.h"
 //#include "wallet/wallet.h"
 //#include "key.h"
@@ -282,6 +283,7 @@ int main(int argc, char* argv[])
     std::cout << "Starting networking.     [ok] " << std::endl;
     CP2P p2p;
     //p2p.getNewNetworkPeer("123"); //TEMP
+    CRelayClient relayClient;
 
     // Validate chain
     std::cout << "Validating chain.        [ok] " << std::endl;
@@ -335,7 +337,8 @@ int main(int argc, char* argv[])
     //functions.parseBlockFile();
 
     std::thread blockThread(blockBuilderThread, argc, argv);    
-    std::thread p2pNetworkThread(&CP2P::p2pNetworkThread, p2p, argc, argv); // TODO: implement a main class to pass into threads instead of 'p2p' instance. For communication.
+    //std::thread p2pNetworkThread(&CP2P::p2pNetworkThread, p2p, argc, argv); // TODO: implement a main class to pass into threads instead of 'p2p' instance. For communication.
+    std::thread relayNetworkThread(&CRelayClient::relayNetworkThread, relayClient, argc, argv); 
 
     CCLI cli;
     cli.processUserInput();    
@@ -344,7 +347,9 @@ int main(int argc, char* argv[])
     stop();
     blockThread.join();
     p2p.exit();
-    p2pNetworkThread.join();
+    relayClient.exit();
+    //p2pNetworkThread.join();
+    relayNetworkThread.join();
  
     usleep(100000);
     std::cout << "Done " << std::endl;
