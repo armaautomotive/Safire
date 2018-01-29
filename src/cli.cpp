@@ -21,7 +21,7 @@
 */
 void CCLI::printCommands(){
 	std::cout << "Commands:\n" <<
-	" join     - request membership in the network.\n" <<
+	" join [network name]    - request membership in the network. The default network is 'main'.\n" <<
 	" balance  - print balance and transaction summary.\n" <<
 	" sent     - print sent transaction list details.\n" <<
 	" received - print received transaction list details.\n" <<
@@ -81,12 +81,20 @@ void CCLI::processUserInput(){
                                 functions.parseBlockFile( publicKey ); 
                         //}
 
-			if(functions.joined == true){
+			std::cout << "Enter network name to join (blank for default): \n" << std::endl;
+			std::string networkName;
+			std::cin >> networkName;
+			if(networkName.compare("") == 0 ){
+				networkName = "main";
+			}
+
+			if(functions.joined == true){ // TODO this needs to track different networks.
 				std::cout << "Allready joined network. \n" << std::endl;
 			} else {
 				std::cout << "Joining request sending... \n" << std::endl;
 
 				CFunctions::record_structure joinRecord;
+				joinRecord.network = networkName;
 				time_t  timev;
 				time(&timev);
 				std::stringstream ss;

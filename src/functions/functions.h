@@ -37,6 +37,17 @@ public:
    
     // ? Should these structures go elsewhere?
     enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE };
+
+    // work in progress
+    long last_parsed_block;
+
+    struct chain_state_structure {
+       std::string network_name;
+       double balance;
+       long users;
+       long currency_supply; 
+    };
+    std::vector<CFunctions::chain_state_structure> chain_state; 
     
     struct record_structure {
         std::string network;                    // name of network this record belongs to
