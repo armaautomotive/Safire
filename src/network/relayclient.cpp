@@ -4,7 +4,12 @@
 * Description:
 *  CRelayClient implements an interface to a relay server that routs network
 *  traffic when CP2P peers are not available.
-*  - http://173.255.218.54/relay.php?r=abc
+*
+*   http://173.255.218.54/relay.php?action=getnodes&sender_key=109
+*   http://173.255.218.54/relay.php?action=getnodes&sender_key=110
+*   http://173.255.218.54/relay.php?action=sendmessage&sender_key=109&receiver_key=110&message=jsondata
+*   http://173.255.218.54/relay.php?action=getmessages&sender_key=xxx&receiver_key=110
+*
 */
 
 #include "relayclient.h"
