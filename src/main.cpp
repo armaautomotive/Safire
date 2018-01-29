@@ -66,15 +66,83 @@ void blockBuilderThread(int argc, char* argv[]){
 	}
         functions.parseBlockFile( publicKey );
 
-	bool genesisCreated = false;
+	bool networkGenesis = false;
+        std::string networkName = "main";
+        if(argc >= 3){
+            	networkGenesis = true;
+		networkName = argv[2];
+		//std::cout << " 1 " << argv[1] << " " << argv[2] ;
+        }
+
+	if(networkGenesis){
+		std::cout << "Creating genesis block for a new network named " << networkName << std::endl;	
+
+		CFunctions::record_structure joinRecord;
+		joinRecord.network = networkName;
+                time_t  timev;
+                time(&timev);
+                std::stringstream ss;
+                ss << timev;
+                std::string ts = ss.str();
+                joinRecord.time = ts;
+                CFunctions::transaction_types joinType = CFunctions::JOIN_NETWORK;
+                joinRecord.transaction_type = joinType;
+                joinRecord.amount = 0.0;
+                joinRecord.sender_public_key = "";
+                joinRecord.recipient_public_key = publicKey;
+                std::string message_siganture = "";
+                ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
+                joinRecord.message_signature = message_siganture;
+
+                CFunctions::record_structure blockRewardRecord;
+                blockRewardRecord.network = networkName;
+		blockRewardRecord.time = ts;
+                CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
+                blockRewardRecord.transaction_type = transaction_type;
+                blockRewardRecord.amount = 1.0;
+                blockRewardRecord.recipient_public_key = publicKey;
+                std::string reward_message_siganture = "";
+                ecdsa.SignMessage(privateKey, "" + publicKey, reward_message_siganture);
+                joinRecord.message_signature = reward_message_siganture;
+
+		CFunctions::block_structure block;
+		block.network = networkName;
+                block.records.push_back(joinRecord);
+                block.records.push_back(blockRewardRecord);
+
+		time_t t = time(0);
+                std::string block_time = std::asctime(std::localtime(&t));
+		block.number = 0;
+                block.time = block_time;
+
+                // Calculate block hash
+                std::string hash = "xxx";
+                // use functions.latest_block.block_hash
+                char * c_hash = (char *)malloc( 65 );
+                //char c_rand[65];
+                //c_rand[64] = 0;
+                char *cstr = new char[hash.length() + 1];
+                strcpy(cstr, hash.c_str());
+                ecdsa.sha256(cstr, c_hash);
+                hash = std::string(c_hash);
+                delete [] cstr;
+                free(c_hash);
+                block.block_hash = hash;
+
+                functions.addToBlockFile( block );
+	}
+
+	// Does a blockfile exist? if networkGenesis==false and there is no block file we wait until the network syncs before wrting to the blockfile. 
 
 	int blockNumber = functions.latest_block.number + 1;
 	while(buildingBlocks){
-		//std::cout << ".";
 		
 
 		// is it current users turn to generate a block.
 		bool build_block = true;
+
+		std::cout << " Number of users on network " <<  std::endl;
+
 
 		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.
 
@@ -93,19 +161,21 @@ void blockBuilderThread(int argc, char* argv[]){
 			}
 		
 			// If genesis block add record (  join current user, currency creation for curr user  )
-			if(argc > 1 && !strcmp(argv[1],"genesis") && !genesisCreated){
+			//if(argc > 1 && !strcmp(argv[1],"genesis") && !genesisCreated){
 				//std::cout << " GENESIS " << std::endl;
 
 
-				genesisCreated = true;
-			}
-	
-			CFunctions::record_structure joinRecord;
+				//genesisCreated = true;
+			//}
+
 			time_t  timev;
-			time(&timev);
-			std::stringstream ss;
-			ss << timev;
-			std::string ts = ss.str();
+                        time(&timev);
+                        std::stringstream ss;
+                        ss << timev;
+                        std::string ts = ss.str();
+
+			/*	
+			CFunctions::record_structure joinRecord;
 			joinRecord.time = ts;
 			CFunctions::transaction_types joinType = CFunctions::JOIN_NETWORK;
 			joinRecord.transaction_type = joinType;
@@ -126,7 +196,7 @@ void blockBuilderThread(int argc, char* argv[]){
 			std::string reward_message_siganture = "";
 			ecdsa.SignMessage(privateKey, "" + publicKey, reward_message_siganture);
 			joinRecord.message_signature = reward_message_siganture;
-
+			*/ 
 
 			CFunctions::record_structure sendRecord;
                         sendRecord.time = ts;
@@ -148,7 +218,7 @@ void blockBuilderThread(int argc, char* argv[]){
 
 			CFunctions::block_structure block;
 			//block.records.push_back(joinRecord);
-			block.records.push_back(blockRewardRecord);
+			//block.records.push_back(blockRewardRecord);
 			block.records.push_back(sendRecord);
 			block.records.push_back(periodSummaryRecord);
             

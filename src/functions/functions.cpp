@@ -27,7 +27,8 @@ int CFunctions::tokenClose(std::string content, std::string open, std::string cl
 * Description: generate a json string representation of a record structure.
 */
 std::string CFunctions::recordJSON(record_structure record){
-	std::string json = "{\"record\":{\"time\":\"" + record.time + "\"," +
+	std::string json = "{\"record\":{ \"network\":\"" + record.network + "\","+
+                "\"time\":\"" + record.time + "\"," +
                 "\"name:\":\"" + record.name + "\"," +
                 "\"typ\":\"" + boost::lexical_cast<std::string>(record.transaction_type) + "\"," +
                 "\"amt\":\"" + boost::lexical_cast<std::string>(record.amount) + "\"," +
@@ -65,7 +66,6 @@ int CFunctions::addToQueue(record_structure record){
 */
 CFunctions::record_structure parseRecordJson(std::string json){
 	CFunctions::record_structure record;
-
 	std::size_t start = json.find("time\":\"");
         std::size_t end = json.find("]");
         if (start!=std::string::npos && end!=std::string::npos){
@@ -78,9 +78,7 @@ CFunctions::record_structure parseRecordJson(std::string json){
             std::string type = json.substr (start + 1, end-start - 1);
             std::cout << "  type:  " << type << " " << std::endl;
 
-
         }
-
 	return record;
 }
 
@@ -100,7 +98,6 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
         std::istringstream iss(line);
         CFunctions::record_structure record;
         
-        
         std::size_t start = line.find("[");
         std::size_t end = line.find("]");
         if (start!=std::string::npos && end!=std::string::npos){
@@ -112,8 +109,6 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
             end = line.find("]", end + 1);
             std::string type = line.substr (start + 1, end-start - 1);
             std::cout << "  type:  " << type << " " << std::endl;
-
-            
         }
             
         //int a, b;
@@ -122,27 +117,31 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
         //std::cout << "  Line:  " << line << " " << std::endl;
         // process pair (a,b)
         
-        
         //record.time = "2017/06/02";
         
-        
         records.push_back (record);
-        
-        
     }
-    
-    
     return records;
 }
 
+
+/**
+* existsInQueue
+*
+* Description: Check if a given record allready exists in the queue file.
+*/
 int CFunctions::existsInQueue(record_structure record){
-    
     
     
     return 0;
 }
 
 
+/**
+* getRecordsInQueue
+*
+* Description: Get a list 
+*/
 int CFunctions::getRecordsInQueue( int limit ){
     
     
@@ -183,6 +182,7 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     std::ofstream outfile;
     outfile.open(file_path, std::ios_base::app);
     outfile << "{\"block\":{" <<
+        "\"network\":\"" << block.network << "\"," <<
 	"\"number\":\"" << block.number << "\"," <<
 	"\"time\":\"" << block.time << "\"," << 
 	"\"hash\":\"" << block.block_hash << "\"," <<

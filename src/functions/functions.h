@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef MAGNITE_FUNCTIONS_H
-#define MAGNITE_FUNCTIONS_H
+#ifndef SAFIRE_FUNCTIONS_H
+#define SAFIRE_FUNCTIONS_H
 
 #include <fstream>
 #include <iostream>
@@ -39,6 +39,7 @@ public:
     enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE };
     
     struct record_structure {
+        std::string network;                    // name of network this record belongs to
         std::string time;
         CFunctions::transaction_types transaction_type;
         double amount;				// Amount to transfer from sender to recipient. 0 if type is add_user or vote
@@ -52,6 +53,7 @@ public:
     };
     
     struct block_structure {
+        std::string network;                    // name of network block belongs to.
         long number;                     	// sequential block number
         std::string time;              		// time block created
         long file_index;                 	// bytes into block file for fast lookup.
@@ -99,4 +101,4 @@ public:
 
 
 
-#endif // MAGNITE_FUNCTIONS_H
+#endif // SAFIRE_FUNCTIONS_H
