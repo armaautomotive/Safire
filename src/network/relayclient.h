@@ -6,7 +6,6 @@
 #ifndef RELAY_CLIENT_H
 #define RELAY_CLIENT_H
 
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,14 +22,12 @@
 #include <curl/curl.h>
 
 //#include <stdexcept>
-//#include <vector>
-
+#include <vector>
 //#include <stdlib.h>
 //#include <stdio.h>
 //#include <limits.h>
 //#include <string.h>
 //#include <assert.h>
-
 //static const gchar *candidate_type_name[] = {"host", "srflx", "prflx", "relay"};
 //static const gchar *state_name[] = {"disconnected", "gathering", "connecting", "connected", "ready", "failed"};
 
@@ -42,23 +39,16 @@ static void cb_component_state_changed(NiceAgent *agent, guint stream_id, guint 
 static void cb_nice_recv(NiceAgent *agent, guint stream_id, guint component_id, guint len, gchar *buf, gpointer data);
 static gboolean stdin_remote_info_cb (GIOChannel *source, GIOCondition cond, gpointer data);
 static gboolean stdin_send_data_cb (GIOChannel *source, GIOCondition cond, gpointer data);
-
 static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint component_id);
-
-//static GMainLoop *gloop;
-//static GIOChannel* io_stdin;
-//static guint stream_id;
-
-
 
 class CRelayClient
 {
 private:
-    NiceAgent *agent;
-    
-    //static GMainLoop *gloop;
-    //static GIOChannel* io_stdin;
-    //static guint stream_id;
+    struct node_status { 
+        std::string public_key;
+        bool active = true;
+    };
+    static std::vector< CRelayClient::node_status > node_statuses; 
     
     gchar *stun_addr = NULL;
     guint stun_port = 0; 

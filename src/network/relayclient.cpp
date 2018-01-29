@@ -21,6 +21,9 @@ bool CRelayClient::running;
 bool CRelayClient::connected;
 std::string CRelayClient::remotePeerAddress;
 
+std::vector< CRelayClient::node_status > CRelayClient::node_statuses;
+
+
 CRelayClient::CRelayClient(){
     //std::cout << "CPeerClient " << "\n " << std::endl;
     running = true;
