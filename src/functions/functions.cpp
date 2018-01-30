@@ -548,3 +548,19 @@ std::string CFunctions::getRecordHash(record_structure record){
 }
 
 
+/**
+* getRecordSignature
+*
+* Description: 
+*/
+std::string CFunctions::getRecordSignature(record_structure record){
+    std::string signature;
+
+    return signature;
+}
+
+std::string CFunctions::getBlockSignature(block_structure block){
+
+	return "";
+}
+

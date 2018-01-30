@@ -103,6 +103,8 @@ public:
     std::string parseSectionString(std::string content, std::string start, std::string end);
     std::string getBlockHash(block_structure block);
     std::string getRecordHash(record_structure record);
+    std::string getRecordSignature(record_structure record);
+    std::string getBlockSignature(block_structure block);
 
 //private:
     CFunctions::block_structure latest_block;
