@@ -64,7 +64,7 @@ void blockBuilderThread(int argc, char* argv[]){
         	wallet.read(privateKey, publicKey);
         	//std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
 	}
-        functions.parseBlockFile( publicKey );
+        functions.parseBlockFile( publicKey, false );
 
 	bool networkGenesis = false;
         std::string networkName = "main";
@@ -90,7 +90,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 joinRecord.amount = 0.0;
                 joinRecord.sender_public_key = "";
                 joinRecord.recipient_public_key = publicKey;
-                joinRecord.hash = functions.GetRecordHash(joinRecord);
+                joinRecord.hash = functions.getRecordHash(joinRecord);
 		std::string signature = "";
                 ecdsa.SignMessage(privateKey, joinRecord.hash, signature);
 		joinRecord.signature = signature;   
@@ -102,7 +102,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 blockRewardRecord.transaction_type = transaction_type;
                 blockRewardRecord.amount = 1.0;
                 blockRewardRecord.recipient_public_key = publicKey;
-		blockRewardRecord.hash = functions.GetRecordHash(blockRewardRecord); 
+		blockRewardRecord.hash = functions.getRecordHash(blockRewardRecord); 
                 ecdsa.SignMessage(privateKey, blockRewardRecord.hash, signature);
                 blockRewardRecord.signature = signature;
 
@@ -116,21 +116,11 @@ void blockBuilderThread(int argc, char* argv[]){
 		block.number = 0;
                 block.time = block_time;
 
-                // Calculate block hash
-                std::string hash = "xxx";
-                // use functions.latest_block.block_hash
-                char * c_hash = (char *)malloc( 65 );
-                //char c_rand[65];
-                //c_rand[64] = 0;
-                char *cstr = new char[hash.length() + 1];
-                strcpy(cstr, hash.c_str());
-                ecdsa.sha256(cstr, c_hash);
-                hash = std::string(c_hash);
-                delete [] cstr;
-                free(c_hash);
-                block.block_hash = hash; // functions.GetRecordHash();
+                block.hash = functions.getBlockHash(block);
+                ecdsa.SignMessage(privateKey, block.hash, signature);
+                block.signature = signature; 
 
-                functions.addToBlockFile( block );
+                functions.addToBlockFile(block);
 	}
 
 	// Does a blockfile exist? if networkGenesis==false and there is no block file we wait until the network syncs before wrting to the blockfile. 
@@ -142,7 +132,7 @@ void blockBuilderThread(int argc, char* argv[]){
 		// is it current users turn to generate a block.
 		bool build_block = true;
 
-		std::cout << " Number of users on network " <<  std::endl;
+		//std::cout << " Number of users on network " <<  std::endl;
 
 
 		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.
@@ -175,40 +165,32 @@ void blockBuilderThread(int argc, char* argv[]){
                         ss << timev;
                         std::string ts = ss.str();
 
-			/*	
-			CFunctions::record_structure joinRecord;
-			joinRecord.time = ts;
-			CFunctions::transaction_types joinType = CFunctions::JOIN_NETWORK;
-			joinRecord.transaction_type = joinType;
-			joinRecord.amount = 0.0;
-			joinRecord.sender_public_key = "";
-			joinRecord.recipient_public_key = publicKey;
-			std::string message_siganture = "";
-			ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
-			joinRecord.message_signature = message_siganture;
-			
 
-			CFunctions::record_structure blockRewardRecord;
-			blockRewardRecord.time = ts;
-			CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
-			blockRewardRecord.transaction_type = transaction_type;
-			blockRewardRecord.amount = 1.0;
-			blockRewardRecord.recipient_public_key = publicKey;
-			std::string reward_message_siganture = "";
-			ecdsa.SignMessage(privateKey, "" + publicKey, reward_message_siganture);
-			joinRecord.message_signature = reward_message_siganture;
-			*/ 
+                        CFunctions::record_structure blockRewardRecord;
+                        blockRewardRecord.network = networkName;
+                        blockRewardRecord.time = ts;
+                        CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
+                        blockRewardRecord.transaction_type = transaction_type;
+                        blockRewardRecord.amount = 1.0;
+                        blockRewardRecord.recipient_public_key = publicKey;
+                        blockRewardRecord.hash = functions.getRecordHash(blockRewardRecord);
+                        std::string signature = "";
+                        ecdsa.SignMessage(privateKey, blockRewardRecord.hash, signature);
+                        blockRewardRecord.signature = signature;
 
+
+                        // ***
+                        // Example transaction from transaction queue file.
+                        // ***
 			CFunctions::record_structure sendRecord;
                         sendRecord.time = ts;
                         sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
                         sendRecord.amount = 0.0123;
 			sendRecord.sender_public_key = publicKey;
                         sendRecord.recipient_public_key = "___BADADDRESS___";
-			sendRecord.hash = functions.GetRecordHash(sendRecord);
-			std::string send_message_siganture = "";
-                        ecdsa.SignMessage(privateKey, sendRecord.hash, send_message_siganture);
-                        sendRecord.signature = send_message_siganture;
+		        sendRecord.hash = functions.getRecordHash(sendRecord);	
+                        ecdsa.SignMessage(privateKey, sendRecord.hash, signature);
+                        sendRecord.signature = signature;
 
 
 			// TODO: review this
@@ -217,11 +199,13 @@ void blockBuilderThread(int argc, char* argv[]){
 			periodSummaryRecord.transaction_type = CFunctions::PERIOD_SUMMARY;
 			periodSummaryRecord.recipient_public_key = "___MINER_ADDRESS___"; // reward for summary inclusion goes to block creator. (Only if record does not exist.)
 			periodSummaryRecord.signature = "TO DO";	
-			
+		        periodSummaryRecord.hash = functions.getRecordHash(periodSummaryRecord);              
+                        ecdsa.SignMessage(privateKey, periodSummaryRecord.hash, signature);
+                        periodSummaryRecord.signature = signature;
+	
 
 			CFunctions::block_structure block;
-			//block.records.push_back(joinRecord);
-			//block.records.push_back(blockRewardRecord);
+			block.records.push_back(blockRewardRecord);
 			block.records.push_back(sendRecord);
 			block.records.push_back(periodSummaryRecord);
             
@@ -237,24 +221,12 @@ void blockBuilderThread(int argc, char* argv[]){
                 
 			}
 
-			// Calculate block hash
-			std::string hash = "xxx";
-			// use functions.latest_block.block_hash 
-			char * c_hash = (char *)malloc( 65 );
-			//char c_rand[65];
-			//c_rand[64] = 0;
-			char *cstr = new char[hash.length() + 1];
-			strcpy(cstr, hash.c_str());
 
-			ecdsa.sha256(cstr, c_hash);
-			hash = std::string(c_hash);
-			delete [] cstr;
-			free(c_hash);
+                        block.hash = functions.getBlockHash(block);
+                        ecdsa.SignMessage(privateKey, block.hash, signature);
+                        block.signature = signature;
 
-			block.block_hash = hash;
-
-			functions.addToBlockFile( block );
-			
+			functions.addToBlockFile(block);
 		}	
 
 		if(!buildingBlocks){
@@ -326,8 +298,8 @@ int main(int argc, char* argv[])
         //"  private  " << privateKey << "\n  " <<
         " Your public address: " << publicKey << std::endl;
 
-    functions.parseBlockFile( publicKey );
-    std::cout << " Your balance: " << functions.balance << std::endl; 
+    functions.parseBlockFile( publicKey, false );
+    std::cout << " Your balance: " << functions.balance << " sfr" << std::endl; 
 
     std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
 
@@ -353,26 +325,26 @@ int main(int argc, char* argv[])
 
 
     // Start Networking
-    std::cout << "Starting networking.     [ok] " << std::endl;
-    CP2P p2p;
+    std::cout << " Starting networking.    " << ANSI_COLOR_GREEN << "[ok] " << ANSI_COLOR_RESET << std::endl;
+    //CP2P p2p;
     //p2p.getNewNetworkPeer("123"); //TEMP
     CRelayClient relayClient;
 
     // Validate chain
-    std::cout << "Validating chain.        [ok] " << std::endl;
+    std::cout << " Validating chain.       " << ANSI_COLOR_GREEN << "[ok] " << ANSI_COLOR_RESET << std::endl;
 
     // Interface type [CLI | GUI]
     // TODO: detect based on platform if GUI is supported.
-    std::cout << "Interface type.          [cli] " << std::endl; 
+    std::cout << " Interface type.         [cli] " << std::endl; 
 
     #ifdef __APPLE__
-    std::cout << "Platform.                [OSX] " << std::endl;
+    std::cout << " Platform.               [OSX] " << std::endl;
     #endif
     #ifdef __linux__
-    std::cout << "Platform.                [Linux] " << std::endl;
+    std::cout << " Platform.               [Linux] " << std::endl;
     #endif
     #ifdef _WIN32
-    std::cout << "Platform.                [Windows] " << std::endl;
+    std::cout << " Platform.               [Windows] " << std::endl;
     #endif
 
     //std::size_t num_threads = 10;
@@ -414,12 +386,13 @@ int main(int argc, char* argv[])
     std::thread relayNetworkThread(&CRelayClient::relayNetworkThread, relayClient, argc, argv); 
 
     CCLI cli;
+    std::cout << std::endl; // Line break
     cli.processUserInput();    
 
     std::cout << "Shutting down... " << std::endl;
     stop();
     blockThread.join();
-    p2p.exit();
+    //p2p.exit();
     relayClient.exit();
     //p2pNetworkThread.join();
     relayNetworkThread.join();

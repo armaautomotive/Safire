@@ -21,23 +21,23 @@
 */
 void CCLI::printCommands(){
 	std::cout << "Commands:\n" <<
-	" join [network name]    - request membership in the network. The default network is 'main'.\n" <<
-	" balance  - print balance and transaction summary.\n" <<
-	" sent     - print sent transaction list details.\n" <<
-	" received - print received transaction list details.\n" <<
-	" network  - print network stats including currency and volumes.\n" <<
-	" send     - send a payment to another user address.\n" <<
-	" receive  - prints your public key address to have others send you payments.\n" <<
-	" advanced - more commands for admin and testing functions.\n" <<
-	" quit     - shutdown the application.\n " << std::endl;
-    
-    
+	" join [network name]     - request membership in the network. The default network is 'main'.\n" <<
+	" balance                 - print balance and transaction summary.\n" <<
+	" sent                    - print sent transaction list details.\n" <<
+	" received                - print received transaction list details.\n" <<
+	" network                 - print network stats including currency and volumes.\n" <<
+	" send                    - send a payment to another user address.\n" <<
+	" receive                 - prints your public key address to have others send you payments.\n" <<
+	" advanced                - more commands for admin and testing functions.\n" <<
+	" quit                    - shutdown the application.\n " << std::endl;
 }
+
 
 void CCLI::printAdvancedCommands(){
     std::cout << " Advanced: \n" <<
-    " tests     - Run tests to verify this build is functioning correctly.\n " <<
-    " chain     - Scan the complete blockchain for verification. Reports findings.\n " <<
+    " tests                  - Run tests to verify this build is functioning correctly.\n " <<
+    " chain                  - Scan the complete blockchain for verification. Reports findings.\n " <<
+    " printchain             - Print the blockchain summary and validation.\n " <<
     std::endl;
 }
 
@@ -58,7 +58,7 @@ void CCLI::processUserInput(){
 	if(e != 0){
 		// Load wallet
 		wallet.read(privateKey, publicKey);
-		functions.parseBlockFile(publicKey);	
+		functions.parseBlockFile(publicKey, false);	
 	}
 
 	printCommands();
@@ -78,7 +78,7 @@ void CCLI::processUserInput(){
                         //if(e != 0){
                                 // Load wallet
                                 //wallet.read(privateKey, publicKey);
-                                functions.parseBlockFile( publicKey ); 
+                                functions.parseBlockFile(publicKey, false); 
                         //}
 
 			std::cout << "Enter network name to join (blank for default): \n" << std::endl;
@@ -105,8 +105,9 @@ void CCLI::processUserInput(){
 				joinRecord.amount = 0.0;
 				joinRecord.sender_public_key = "";
 				joinRecord.recipient_public_key = publicKey;
-				std::string message_siganture = "";
-				ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
+				joinRecord.hash = functions.getRecordHash(joinRecord);
+                                std::string message_siganture = "";
+				ecdsa.SignMessage(privateKey, joinRecord.hash, message_siganture);
 				joinRecord.signature = message_siganture;	
 				functions.addToQueue( joinRecord );
 	
@@ -126,7 +127,7 @@ void CCLI::processUserInput(){
 				// Load wallet
 				//wallet.read(privateKey, publicKey);
     
-				functions.parseBlockFile( publicKey );
+				functions.parseBlockFile(publicKey, false);
 				std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
 
 			//}
@@ -174,7 +175,7 @@ void CCLI::processUserInput(){
 
         } else if ( command.find("network") != std::string::npos ){
 
-		functions.parseBlockFile( publicKey );
+		functions.parseBlockFile(publicKey, false);
                 std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
 		std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
 
@@ -203,7 +204,12 @@ void CCLI::processUserInput(){
 
 	} else if ( command.find("chain") != std::string::npos ){
            std::cout << " Blockchain state: " << " Not implemented. " << std::endl;
-		
+	
+        } else if ( command.find("printchain") != std::string::npos ){
+           std::cout << " Blockchain detail: " << std::endl; 
+
+           functions.parseBlockFile(publicKey, true);
+	
 	} else {
 		printCommands();	
 	}

@@ -5,6 +5,7 @@
 #include "functions/functions.h"
 #include <boost/lexical_cast.hpp>
 #include "ecdsacrypto.h"
+#include <sstream>
 
 /**
  * tokenClose
@@ -187,7 +188,7 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
         "\"network\":\"" << block.network << "\"," <<
 	"\"number\":\"" << block.number << "\"," <<
 	"\"time\":\"" << block.time << "\"," << 
-	"\"hash\":\"" << block.block_hash << "\"," <<
+	"\"hash\":\"" << block.hash << "\"," <<
 	//"[" << block.transaction_type << "]" << 
 	"\"records\":{\n";
 
@@ -292,7 +293,7 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 * TODO: Keep track of a file pointer index of the last part of the file parsed 
 * 	so that on subsiquent parse operations it only has to read new sections of the file?
 */
-int CFunctions::parseBlockFile( std::string my_public_key ){
+int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
@@ -350,7 +351,7 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
                     latest_block.records.clear();
                     latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
                     std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
-                    latest_block.block_hash = hash;
+                    latest_block.hash = hash;
 
 			//std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
                     //std::cout << "    hash: " << hash << std::endl; 
@@ -429,34 +430,48 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
 /**
 * getBlockHash
 *
-* Description: Calculate  
+* Description: Calculate a sha256 hash of the content of a block and it's records.
+*
+* @param block - record struct.
+* @return string - sha256 hash value. 
 */
 std::string CFunctions::getBlockHash(block_structure block){
-	CECDSACrypto ecdsa;
-
-	std::string hash = "";
-
-	char * c_hash = (char *)malloc( 65 );
-
-	char *cstr = new char[block.network.length() + 1];
-	strcpy(cstr, block.network.c_str());
-	ecdsa.sha256(cstr, c_hash);
-	hash = std::string(c_hash);
-	delete [] cstr;
-        free(c_hash);
-
-	std::vector<CFunctions::record_structure> records = block.records;
-
-
-	return hash;
+    CECDSACrypto ecdsa;
+    std::string block_content = block.network + 
+        boost::lexical_cast<std::string>(block.number) +
+        block.time +
+        block.previous_block_hash +
+        block.creator_key;
+    std::vector<CFunctions::record_structure> records = block.records;
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        if(record.hash.compare("") == 0){
+            record.hash = getRecordHash(record);
+        }
+        std::stringstream ss;
+        ss << block_content << record.hash;
+        block_content = ss.str();
+    } 
+    std::string hash = "";
+    char * c_hash = (char *)malloc( 65 );
+    char *cstr = new char[block_content.length() + 1];
+    strcpy(cstr, block_content.c_str());
+    ecdsa.sha256(cstr, c_hash);
+    hash = std::string(c_hash);
+    delete [] cstr;
+    free(c_hash);
+    return hash;
 }
 
 /**
 * GetRecordHash
 *
 * Description: Generate the record hash from its element values.
+*
+* @param: record_structure - data structure to 
+* @return string - sha256 hash value 64 characters long.
 */
-std::string CFunctions::GetRecordHash(record_structure record){
+std::string CFunctions::getRecordHash(record_structure record){
     CECDSACrypto ecdsa;
     std::string record_content = record.network + 
         record.time + 
@@ -465,7 +480,6 @@ std::string CFunctions::GetRecordHash(record_structure record){
         boost::lexical_cast<std::string>(record.fee) +
         record.sender_public_key +
         record.recipient_public_key;
-    
     std::string hash = "";
     char * c_hash = (char *)malloc( 65 );
     char *cstr = new char[record_content.length() + 1];
@@ -474,7 +488,6 @@ std::string CFunctions::GetRecordHash(record_structure record){
     hash = std::string(c_hash);
     delete [] cstr;
     free(c_hash);
-
     return hash;
 }
 

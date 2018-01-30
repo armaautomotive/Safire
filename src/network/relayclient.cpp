@@ -111,7 +111,7 @@ void CRelayClient::relayNetworkThread(int argc, char* argv[]){
         std::string response = getNewNetworkPeer(publicKey);
 
        
-        std::cout << " relay client  " << response << std::endl;
+        //std::cout << " relay client  " << response << std::endl;
 
         if(running){
             usleep(1000000 * 10); // 1 second
