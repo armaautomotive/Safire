@@ -107,7 +107,7 @@ void CCLI::processUserInput(){
 				joinRecord.recipient_public_key = publicKey;
 				std::string message_siganture = "";
 				ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
-				joinRecord.message_signature = message_siganture;	
+				joinRecord.signature = message_siganture;	
 				functions.addToQueue( joinRecord );
 	
 				// TODO: send request or say allready sent. 	
@@ -167,7 +167,7 @@ void CCLI::processUserInput(){
 			sendRecord.recipient_public_key = publicKey;
 			std::string message_siganture = destination_address;
 			ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
-			sendRecord.message_signature = message_siganture;
+			sendRecord.signature = message_siganture;
 			functions.addToQueue( sendRecord );	
 			std::cout << "Sent transfer request. " << std::endl;	
 		}

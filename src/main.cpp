@@ -90,9 +90,10 @@ void blockBuilderThread(int argc, char* argv[]){
                 joinRecord.amount = 0.0;
                 joinRecord.sender_public_key = "";
                 joinRecord.recipient_public_key = publicKey;
-                std::string message_siganture = "";
-                ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
-                joinRecord.message_signature = message_siganture;
+                joinRecord.hash = functions.GetRecordHash(joinRecord);
+		std::string signature = "";
+                ecdsa.SignMessage(privateKey, joinRecord.hash, signature);
+		joinRecord.signature = signature;   
 
                 CFunctions::record_structure blockRewardRecord;
                 blockRewardRecord.network = networkName;
@@ -101,9 +102,9 @@ void blockBuilderThread(int argc, char* argv[]){
                 blockRewardRecord.transaction_type = transaction_type;
                 blockRewardRecord.amount = 1.0;
                 blockRewardRecord.recipient_public_key = publicKey;
-                std::string reward_message_siganture = "";
-                ecdsa.SignMessage(privateKey, "" + publicKey, reward_message_siganture);
-                joinRecord.message_signature = reward_message_siganture;
+		blockRewardRecord.hash = functions.GetRecordHash(blockRewardRecord); 
+                ecdsa.SignMessage(privateKey, blockRewardRecord.hash, signature);
+                blockRewardRecord.signature = signature;
 
 		CFunctions::block_structure block;
 		block.network = networkName;
@@ -127,7 +128,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 hash = std::string(c_hash);
                 delete [] cstr;
                 free(c_hash);
-                block.block_hash = hash;
+                block.block_hash = hash; // functions.GetRecordHash();
 
                 functions.addToBlockFile( block );
 	}
@@ -204,16 +205,18 @@ void blockBuilderThread(int argc, char* argv[]){
                         sendRecord.amount = 0.0123;
 			sendRecord.sender_public_key = publicKey;
                         sendRecord.recipient_public_key = "___BADADDRESS___";
-                        std::string send_message_siganture = "";
-                        ecdsa.SignMessage(privateKey, "" + publicKey, send_message_siganture);
-                        sendRecord.message_signature = send_message_siganture;
+			sendRecord.hash = functions.GetRecordHash(sendRecord);
+			std::string send_message_siganture = "";
+                        ecdsa.SignMessage(privateKey, sendRecord.hash, send_message_siganture);
+                        sendRecord.signature = send_message_siganture;
 
 
+			// TODO: review this
 			CFunctions::record_structure periodSummaryRecord;
 			periodSummaryRecord.time = ts;
 			periodSummaryRecord.transaction_type = CFunctions::PERIOD_SUMMARY;
 			periodSummaryRecord.recipient_public_key = "___MINER_ADDRESS___"; // reward for summary inclusion goes to block creator. (Only if record does not exist.)
-			periodSummaryRecord.message_signature = "TO DO";	
+			periodSummaryRecord.signature = "TO DO";	
 			
 
 			CFunctions::block_structure block;

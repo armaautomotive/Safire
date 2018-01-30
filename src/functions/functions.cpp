@@ -4,6 +4,7 @@
 
 #include "functions/functions.h"
 #include <boost/lexical_cast.hpp>
+#include "ecdsacrypto.h"
 
 /**
  * tokenClose
@@ -36,7 +37,8 @@ std::string CFunctions::recordJSON(record_structure record){
                 "\"sndkey\":\"" + record.sender_public_key + "\"," +
                 "\"rcvkey\":\"" + record.recipient_public_key + "\"," +
 		"\"value\":\"" + record.value + "\"," +
-                "\"sig\":\"" + record.message_signature + "\"" +
+                "\"hash\":\"" + record.hash + "\"," +
+                "\"sig\":\"" + record.signature + "\"" +
                 "}}\n";
 	return json;
 }
@@ -424,7 +426,56 @@ int CFunctions::parseBlockFile( std::string my_public_key ){
     return 0;
 }
 
+/**
+* getBlockHash
+*
+* Description: Calculate  
+*/
 std::string CFunctions::getBlockHash(block_structure block){
-	return "";
+	CECDSACrypto ecdsa;
+
+	std::string hash = "";
+
+	char * c_hash = (char *)malloc( 65 );
+
+	char *cstr = new char[block.network.length() + 1];
+	strcpy(cstr, block.network.c_str());
+	ecdsa.sha256(cstr, c_hash);
+	hash = std::string(c_hash);
+	delete [] cstr;
+        free(c_hash);
+
+	std::vector<CFunctions::record_structure> records = block.records;
+
+
+	return hash;
 }
+
+/**
+* GetRecordHash
+*
+* Description: Generate the record hash from its element values.
+*/
+std::string CFunctions::GetRecordHash(record_structure record){
+    CECDSACrypto ecdsa;
+    std::string record_content = record.network + 
+        record.time + 
+        boost::lexical_cast<std::string>(record.transaction_type) + 
+        boost::lexical_cast<std::string>(record.amount) +
+        boost::lexical_cast<std::string>(record.fee) +
+        record.sender_public_key +
+        record.recipient_public_key;
+    
+    std::string hash = "";
+    char * c_hash = (char *)malloc( 65 );
+    char *cstr = new char[record_content.length() + 1];
+    strcpy(cstr, record_content.c_str());
+    ecdsa.sha256(cstr, c_hash);
+    hash = std::string(c_hash);
+    delete [] cstr;
+    free(c_hash);
+
+    return hash;
+}
+
 

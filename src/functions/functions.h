@@ -57,7 +57,8 @@ public:
         double fee;				// transaction fee
         std::string sender_public_key;		// Sender key
         std::string recipient_public_key;	// Recipient key
-        std::string message_signature;		// Hash of time+tran_type+amount+
+        std::string hash;                       // hash of values. 
+        std::string signature;			// signature of hash with sender private key.
         std::string name; 			// Meta (User name or transfer message)
         std::string value;			// Meta (vote description)
         bool internal_validated = false;	// local toggle to indicate the record has been internally validated.
@@ -71,10 +72,10 @@ public:
         std::string block_hash;            	// sha256 hash of all record hashes in this block.
         std::string previous_block_hash;   	// ???  
         std::string block_records;         	// string value of all records in block.
-        std::string creator_key;
-        std::string creator_signature;
+        std::string creator_key;                // public key of user that creates the block.
+        std::string hash;                       // hash of block content. 
+        std::string signature;          // signature of block hash with block creator
         std::vector<CFunctions::record_structure> records;
-
         bool internal_validated = false;
     };
     
@@ -101,6 +102,7 @@ public:
     std::string parseSectionBlock(std::string & content, std::string start, std::string open, std::string close);
     std::string parseSectionString(std::string content, std::string start, std::string end);
     std::string getBlockHash(block_structure block);
+    std::string GetRecordHash(record_structure record);
 
 //private:
     CFunctions::block_structure latest_block;
