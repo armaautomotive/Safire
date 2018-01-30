@@ -353,7 +353,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                     std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                     latest_block.hash = hash;
 
-			//std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
+		    //std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl; 
                     //std::cout << "    hash: " << hash << std::endl; 
 
                     //std::string records_section = parseSection(section, "\"records\"", "}");
@@ -362,11 +362,17 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                     std::string record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
 		    //std::cout << "  ---  record  " << record_section << "\n" << std::endl;	
 
+                    if(debug){
+                        std::cout << "  Block " << latest_block.number << std::endl;
+
+                    }
+
                     while( record_section.compare("") != 0 ){
                         CFunctions::record_structure record;
                         
                         // "record":{"time":"1502772739","name:":"","typ":"1","amt":1,"fee":0,"sndkey":"","rcvkey":"026321261876CFB360F94A7FDF3F2D4F6F9FC0CEDADF15AC3D30E182A82AF5D81E","sig":""}
                         //"amt":1
+                        record.time = parseSectionString(record_section, "\"time\":\"", "\"");
                         double amount = parseSectionDouble(record_section, "\"amt\":\"", "\"");
 			record.amount = amount;
                         //std::cout << "  ---  record amount  " << amount << std::endl;
@@ -381,6 +387,10 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 			record.name = name;
 			std::string value = parseSectionString(record_section, "\"value\":\"", "\"");
 			record.value = value;
+                       
+                        std::string hash = parseSectionString(record_section, "\"hash\":\"", "\"");
+                        record.hash = hash; 
+                        record.network = parseSectionString(record_section, "\"network\":\"", "\""); 
 
 			//std::cout << "        record send _" <<  sndkey  << "_ recv " << rcvkey <<  " amt " << amount << std::endl; 
 
@@ -403,14 +413,60 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 			}
                         
                         latest_block.records.push_back(record);
-                   
+                        if(debug){
+                            std::string sender = record.sender_public_key;
+                            std::string recipient = record.recipient_public_key;
+                            if(sender.length() > 8){
+                                sender = sender.erase(8);
+                            }
+                            if(recipient.length() > 8){
+                                recipient = recipient.erase(8);
+                            } 
+                            std::cout << "    ";
+                            if(record_type == CFunctions::ISSUE_CURRENCY){ 
+                                std::cout << "ISSUE   ";
+                            }
+                            if(record_type == CFunctions::JOIN_NETWORK){ 
+                                std::cout << "JOIN_NET";
+                            }
+                            if(record_type == CFunctions::TRANSFER_CURRENCY){   
+                                std::cout << "TRANSFER";
+                            }
+                            if(record_type == CFunctions::CARRY_FORWARD){
+                                std::cout << "CARRY_F ";
+                            }
+                            if(record_type == CFunctions::PERIOD_SUMMARY){
+                                std::cout << "SUMMARY ";
+                            } 
+                            if(record_type == CFunctions::VOTE){
+                                std::cout << "VOTE    ";
+                            }
+                            std::cout << "  " << sender << " -> " << recipient << " amt: " << record.amount;
+                            std::cout << " time: " << record.time << " n: " << record.network ;
+
+                            std::string validate_record_hash = getRecordHash(record);
+                            if(validate_record_hash.compare(record.hash) == 0){
+                                std::cout << " [HASH_OK]"; 
+                            } else {
+                                std::cout << std::endl << "        [HASH_ERROR] " << validate_record_hash  << " == " << record.hash;
+                            }
+                            // print signature validation ... TODO 
+
+                            std::cout << std::endl;
+                        } 
 
 			// record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");  
                         record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
                     }
                    	
 			// Is block valid???
-			//  
+			//
+                    if(debug){
+                        std::cout << "  Validation [n/a] " << std::endl;
+                        // latest_block.hash
+                        std::cout << " Hash " << latest_block.hash << " " << std::endl;
+ 
+                    }  
                     
                     content = content.substr(start_i + i, content.length()); // strip out processed block
                 }

@@ -202,10 +202,12 @@ void CCLI::processUserInput(){
             CECDSACrypto ecdsa;
             ecdsa.runTests();
 
-	} else if ( command.find("chain") != std::string::npos ){
+
+
+	} else if ( command.compare("chain") == 0){
            std::cout << " Blockchain state: " << " Not implemented. " << std::endl;
 	
-        } else if ( command.find("printchain") != std::string::npos ){
+        } else if ( command.compare("printchain") == 0){
            std::cout << " Blockchain detail: " << std::endl; 
 
            functions.parseBlockFile(publicKey, true);
