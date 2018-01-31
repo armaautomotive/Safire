@@ -5,7 +5,7 @@
 #include <string>
 #include <thread>
 #include "utilstrencodings.h"
-
+#include "global.h"
 #include "network/relayclient.h"
 #include "network/p2p.h"
 //#include "wallet/wallet.h"
@@ -88,8 +88,8 @@ void blockBuilderThread(int argc, char* argv[]){
                 CFunctions::transaction_types joinType = CFunctions::JOIN_NETWORK;
                 joinRecord.transaction_type = joinType;
                 joinRecord.amount = 0.0;
-                joinRecord.sender_public_key = "";
-                joinRecord.recipient_public_key = publicKey;
+                joinRecord.sender_public_key = publicKey;
+                joinRecord.recipient_public_key = "";
                 joinRecord.hash = functions.getRecordHash(joinRecord);
 		std::string signature = "";
                 ecdsa.SignMessage(privateKey, joinRecord.hash, signature);
@@ -101,6 +101,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
                 blockRewardRecord.transaction_type = transaction_type;
                 blockRewardRecord.amount = 1.0;
+                blockRewardRecord.sender_public_key = publicKey; 
                 blockRewardRecord.recipient_public_key = publicKey;
 		blockRewardRecord.hash = functions.getRecordHash(blockRewardRecord); 
                 ecdsa.SignMessage(privateKey, blockRewardRecord.hash, signature);
@@ -172,6 +173,7 @@ void blockBuilderThread(int argc, char* argv[]){
                         CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
                         blockRewardRecord.transaction_type = transaction_type;
                         blockRewardRecord.amount = 1.0;
+                        blockRewardRecord.sender_public_key = publicKey;
                         blockRewardRecord.recipient_public_key = publicKey;
                         blockRewardRecord.hash = functions.getRecordHash(blockRewardRecord);
                         std::string signature = "";
@@ -197,6 +199,7 @@ void blockBuilderThread(int argc, char* argv[]){
 			CFunctions::record_structure periodSummaryRecord;
 			periodSummaryRecord.time = ts;
 			periodSummaryRecord.transaction_type = CFunctions::PERIOD_SUMMARY;
+                        periodSummaryRecord.sender_public_key = publicKey;
 			periodSummaryRecord.recipient_public_key = "___MINER_ADDRESS___"; // reward for summary inclusion goes to block creator. (Only if record does not exist.)
 			periodSummaryRecord.signature = "TO DO";	
 		        periodSummaryRecord.hash = functions.getRecordHash(periodSummaryRecord);              

@@ -5,6 +5,7 @@
 #include "functions/functions.h"
 #include <boost/lexical_cast.hpp>
 #include "ecdsacrypto.h"
+#include "global.h"
 #include <sstream>
 
 /**
@@ -294,6 +295,7 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 * 	so that on subsiquent parse operations it only has to read new sections of the file?
 */
 int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
+    CECDSACrypto ecdsa;
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
@@ -372,44 +374,64 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                         
                         // "record":{"time":"1502772739","name:":"","typ":"1","amt":1,"fee":0,"sndkey":"","rcvkey":"026321261876CFB360F94A7FDF3F2D4F6F9FC0CEDADF15AC3D30E182A82AF5D81E","sig":""}
                         //"amt":1
-                        record.time = parseSectionString(record_section, "\"time\":\"", "\"");
-                        double amount = parseSectionDouble(record_section, "\"amt\":\"", "\"");
-			record.amount = amount;
-                        //std::cout << "  ---  record amount  " << amount << std::endl;
                         
+                        record.network = parseSectionString(record_section, "\"network\":\"", "\"");
+                        record.time = parseSectionString(record_section, "\"time\":\"", "\"");
+                        
+                        int transaction_type = parseSectionInt(record_section, "\"typ\":\"", "\"" ); 
+                        // transaction_type_strings JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE
+                        // TODO: there has to be a better way to do this
+                        if(transaction_type == 0){
+                            record.transaction_type = CFunctions::JOIN_NETWORK;
+                        } 
+                        if(transaction_type == 1){
+                            record.transaction_type = CFunctions::ISSUE_CURRENCY;
+                        }
+                        if(transaction_type == 2){
+                            record.transaction_type = CFunctions::TRANSFER_CURRENCY;
+                        }
+                        if(transaction_type == 3){
+                            record.transaction_type = CFunctions::CARRY_FORWARD;
+                        }
+                        if(transaction_type == 4){
+                            record.transaction_type = CFunctions::PERIOD_SUMMARY;
+                        }
+                        if(transaction_type == 5){
+                            record.transaction_type = CFunctions::VOTE;
+                        }
+
                         // address
-                        //std::string to_address = parseSectionBlock(record_section, "rcvkey", "", "" );
-			std::string rcvkey = parseSectionString(record_section, "\"rcvkey\":\"", "\"" );                       
-			record.recipient_public_key = rcvkey;
-			std::string sndkey = parseSectionString(record_section, "\"sndkey\":\"", "\"" );
-			record.sender_public_key = sndkey;
-			std::string name = parseSectionString(record_section, "\"name\":\"", "\"");
-			record.name = name;
-			std::string value = parseSectionString(record_section, "\"value\":\"", "\"");
-			record.value = value;
+			record.recipient_public_key = parseSectionString(record_section, "\"rcvkey\":\"", "\"" );                       
+			
+                        record.sender_public_key = parseSectionString(record_section, "\"sndkey\":\"", "\"" );
+
+                        record.amount = parseSectionDouble(record_section, "\"amt\":\"", "\"");
+                        //std::cout << "  ---  record amount  " << amount << std::endl;
+                        record.fee = parseSectionDouble(record_section, "\"fee\":\"", "\"");
+		
+                        record.name = parseSectionString(record_section, "\"name\":\"", "\"");	
+                        record.value = parseSectionString(record_section, "\"value\":\"", "\"");
                        
-                        std::string hash = parseSectionString(record_section, "\"hash\":\"", "\"");
-                        record.hash = hash; 
-                        record.network = parseSectionString(record_section, "\"network\":\"", "\""); 
+                        record.hash = parseSectionString(record_section, "\"hash\":\"", "\"");
+                        record.signature = parseSectionString(record_section, "\"sig\":\"", "\""); 
 
 			//std::cout << "        record send _" <<  sndkey  << "_ recv " << rcvkey <<  " amt " << amount << std::endl; 
 
-			int record_type = parseSectionInt(record_section, "\"typ\":\"", "\"" );  
-			if( rcvkey.compare( my_public_key ) == 0 && record_type == CFunctions::JOIN_NETWORK ){
+			if( record.recipient_public_key.compare( my_public_key ) == 0 && record.transaction_type == CFunctions::JOIN_NETWORK ){
 				joined = true;
 			}
 
-			if( rcvkey.compare(my_public_key) == 0 ){
-				balance += amount;
+			if( record.recipient_public_key.compare(my_public_key) == 0 ){
+				balance += record.amount;
 			}
 			// todo subtract sent payments from balance 
-			if( sndkey.compare(my_public_key) == 0 && rcvkey.compare( my_public_key ) != 0 ){ // subtract sent from wallet to anyone but self.
-				balance -= amount;
+			if( record.sender_public_key.compare(my_public_key) == 0 && record.recipient_public_key.compare( my_public_key ) != 0 ){ // subtract sent from wallet to anyone but self.
+				balance -= record.amount;
 				//std::cout << " sent " << std::endl;
 			}
 
-			if( record_type == CFunctions::ISSUE_CURRENCY ){
-				currency_circulation += amount;
+			if( record.transaction_type == CFunctions::ISSUE_CURRENCY ){
+				currency_circulation += record.amount;
 			}
                         
                         latest_block.records.push_back(record);
@@ -423,34 +445,45 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                                 recipient = recipient.erase(8);
                             } 
                             std::cout << "    ";
-                            if(record_type == CFunctions::ISSUE_CURRENCY){ 
+                            if(record.transaction_type == CFunctions::ISSUE_CURRENCY){ 
                                 std::cout << "ISSUE   ";
                             }
-                            if(record_type == CFunctions::JOIN_NETWORK){ 
+                            if(record.transaction_type == CFunctions::JOIN_NETWORK){ 
                                 std::cout << "JOIN_NET";
                             }
-                            if(record_type == CFunctions::TRANSFER_CURRENCY){   
+                            if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){   
                                 std::cout << "TRANSFER";
                             }
-                            if(record_type == CFunctions::CARRY_FORWARD){
+                            if(record.transaction_type == CFunctions::CARRY_FORWARD){
                                 std::cout << "CARRY_F ";
                             }
-                            if(record_type == CFunctions::PERIOD_SUMMARY){
+                            if(record.transaction_type == CFunctions::PERIOD_SUMMARY){
                                 std::cout << "SUMMARY ";
                             } 
-                            if(record_type == CFunctions::VOTE){
+                            if(record.transaction_type == CFunctions::VOTE){
                                 std::cout << "VOTE    ";
                             }
-                            std::cout << "  " << sender << " -> " << recipient << " amt: " << record.amount;
-                            std::cout << " time: " << record.time << " n: " << record.network ;
+                            std::cout << "  sender: " << sender << " -> " << recipient << " amt: " << record.amount;
+                            std::cout << " time: " << record.time << " net: " << record.network ;
+                            std::cout << " typ " << boost::lexical_cast<std::string>(record.transaction_type) << "  ";
+                            std::cout << " fee " << boost::lexical_cast<std::string>(record.fee) << " ";  
 
                             std::string validate_record_hash = getRecordHash(record);
                             if(validate_record_hash.compare(record.hash) == 0){
-                                std::cout << " [HASH_OK]"; 
+                                std::cout << ANSI_COLOR_GREEN <<  " [HASH_OK]" << ANSI_COLOR_RESET; 
                             } else {
-                                std::cout << std::endl << "        [HASH_ERROR] " << validate_record_hash  << " == " << record.hash;
+                                std::cout << std::endl << ANSI_COLOR_RED << "    [HASH_ERROR] " << validate_record_hash  << " == " << record.hash << ANSI_COLOR_RESET;
                             }
                             // print signature validation ... TODO 
+                            // VerifyMessage()
+                            //std::cout << "\n    ***  sig hash  " << record.hash << " sig " << record.signature  <<  " key  "<<  record.sender_public_key << std::endl;
+                            int r = ecdsa.VerifyMessageCompressed(record.hash, record.signature, record.sender_public_key);
+                            if(r){
+                                std::cout << ANSI_COLOR_GREEN << "    [SIG_OK]" << ANSI_COLOR_RESET;
+                            } else {
+                                std::cout << ANSI_COLOR_RED << "    [SIG_ERROR]" << ANSI_COLOR_RESET;
+                            }
+                            
 
                             std::cout << std::endl;
                         } 

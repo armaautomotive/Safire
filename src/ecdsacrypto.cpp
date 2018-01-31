@@ -3,20 +3,12 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "ecdsacrypto.h"
-
 #include <sstream>
 #include <unistd.h>   // open and close
 #include <sys/stat.h> // temp because we removed util
 #include <fcntl.h> // temp removed util.h
 #include <time.h>
-
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN    "\x1b[36m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
+#include "global.h"
 
 /**
 * RandomPrivateKey
@@ -37,7 +29,7 @@ int CECDSACrypto::RandomPrivateKey(std::string & privateKey)
     }
     random[128] = 0;
     //printf("    random seed: %s \n", random);
-    char * privateHex = (char *)malloc( 65 );
+    char * privateHex = (char *)malloc(65);
     char c_rand[65];
     c_rand[64] = 0;
     sha256((char *)random, privateHex); 
@@ -257,12 +249,23 @@ int CECDSACrypto::VerifyMessage(std::string  message, std::string  signature, st
     return 1;
 }
 
+
+/**
+* VerifyMessageCompressed 
+*
+* Description: Verify a message was signed by a private key using the public key.
+*
+* @param message - content 
+* @param signature - signed data
+* @param publicKey - signer public key.
+* @return int - result. 
+*/
 int CECDSACrypto::VerifyMessageCompressed(std::string  message, std::string  signature, std::string  publicKey)
 {
-    printf("VerifyMessageCompressed \n");
-    printf("    Message: %s  \n", std::string(message).c_str() );
-    printf("    Public : %s  \n", std::string(publicKey).c_str() );
-    printf("    Signat : %s  \n", std::string(signature).c_str() );
+    //printf("VerifyMessageCompressed \n");
+    //printf("    Message: %s  \n", std::string(message).c_str() );
+    //printf("    Public : %s  \n", std::string(publicKey).c_str() );
+    //printf("    Signat : %s  \n", std::string(signature).c_str() );
 //    unsigned char c_digest[] = "c7fbca202a95a570285e3d700eb04ca2";
     unsigned char c_digest[33];
     char d[33];
@@ -302,12 +305,12 @@ int CECDSACrypto::VerifyMessageCompressed(std::string  message, std::string  sig
     const int verify_success = 1;
     if (verify_success != verify_status)
     {
-        printf("Failed to verify EC Signature !!! \n");
+        //printf("Failed to verify EC Signature !!! \n");
         return 0;
     }
     else
     {
-        printf("Verifed EC Signature \n");
+        //printf("Verifed EC Signature \n");
     }
     return 1;
 }
