@@ -15,7 +15,8 @@
 class CSelector
 {
 private:
-
+    int secondsPerBlock = 15;
+    long networkTimeOffset = 0;
 public:
     //! Construct
     CSelector()
@@ -27,8 +28,9 @@ public:
     {
     }
 
+    void syncronizeTime();
     bool isSelected(std::string publicKey);
-
+    long getCurrentTimeBlock();
     void addUser(std::string user);
 
     static std::vector< std::string > users;

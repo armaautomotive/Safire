@@ -50,8 +50,13 @@ void blockBuilderThread(int argc, char* argv[]){
 	CECDSACrypto ecdsa;
 	CFunctions functions;
         CSelector selector;
+        selector.syncronizeTime();
 	// Check block chain for latest block information.
 	// TODO...
+
+        // Syncronize local time with server
+        // get local time and server time and calculate difference to add to local time.
+        // ....
 
 	// Get current user keys
 	std::string privateKey;
@@ -75,6 +80,8 @@ void blockBuilderThread(int argc, char* argv[]){
 		networkName = argv[2];
 		//std::cout << " 1 " << argv[1] << " " << argv[2] ;
         }
+
+        long timeBlock = selector.getCurrentTimeBlock();
 
 	if(networkGenesis){
 		std::cout << "Creating genesis block for a new network named " << networkName << std::endl;	
@@ -135,7 +142,8 @@ void blockBuilderThread(int argc, char* argv[]){
 
 		time_t t = time(0);
                 std::string block_time = std::asctime(std::localtime(&t));
-		block.number = 0;
+
+		block.number = selector.getCurrentTimeBlock();
                 block.time = block_time;
 
                 block.hash = functions.getBlockHash(block);
@@ -143,24 +151,30 @@ void blockBuilderThread(int argc, char* argv[]){
                 block.signature = signature; 
 
                 functions.addToBlockFile(block);
+
+                // Wait until the block period is over
+                long currTimeBlock = selector.getCurrentTimeBlock();
+                while( currTimeBlock == timeBlock ){
+                    usleep(1000000);
+                    currTimeBlock = selector.getCurrentTimeBlock();
+                    std::cout << "." << std::endl;
+                }
 	}
 
 	// Does a blockfile exist? if networkGenesis==false and there is no block file we wait until the network syncs before wrting to the blockfile. 
         CFunctions::block_structure previous_block;
  
-
 	int blockNumber = functions.latest_block.number + 1;
+        //long timeBlock = 0; 
 	while(buildingBlocks){
-		
-
+            functions.parseBlockFile(publicKey, false);
+            timeBlock = selector.getCurrentTimeBlock();	
+            //std::cout << "here " << std::endl;
+	
 		// is it current users turn to generate a block.
-		bool build_block = true;
-		//std::cout << " Number of users on network " <<  std::endl;
-                selector.isSelected(publicKey);
-             
+		bool build_block = selector.isSelected(publicKey);
 
-
-		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.
+                //std::cout << "here 2 " << std::endl;
 
 		time_t t = time(0);
 		std::string block_time = std::asctime(std::localtime(&t));
@@ -168,21 +182,9 @@ void blockBuilderThread(int argc, char* argv[]){
 		if(build_block){
 
 			// While time remaining in block
-			//int j = 0; 
-			for(int j = 0; j < 15 && buildingBlocks; j++ ){
-				usleep(1000000);
-			}
 			if(!buildingBlocks){
 				return;
 			}
-		
-			// If genesis block add record (  join current user, currency creation for curr user  )
-			//if(argc > 1 && !strcmp(argv[1],"genesis") && !genesisCreated){
-				//std::cout << " GENESIS " << std::endl;
-
-
-				//genesisCreated = true;
-			//}
 
 			time_t  timev;
                         time(&timev);
@@ -190,13 +192,12 @@ void blockBuilderThread(int argc, char* argv[]){
                         ss << timev;
                         std::string ts = ss.str();
 
-
                         CFunctions::record_structure blockRewardRecord;
                         blockRewardRecord.network = networkName;
                         blockRewardRecord.time = ts;
-                        CFunctions::transaction_types transaction_type = CFunctions::ISSUE_CURRENCY;
-                        blockRewardRecord.transaction_type = transaction_type;
+                        blockRewardRecord.transaction_type = CFunctions::ISSUE_CURRENCY;
                         blockRewardRecord.amount = 1.0;
+                        blockRewardRecord.fee = 0;
                         blockRewardRecord.sender_public_key = publicKey;
                         blockRewardRecord.recipient_public_key = publicKey;
                         blockRewardRecord.hash = functions.getRecordHash(blockRewardRecord);
@@ -212,8 +213,9 @@ void blockBuilderThread(int argc, char* argv[]){
                         sendRecord.time = ts;
                         sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
                         sendRecord.amount = 0.0123;
+                        sendRecord.fee = 0.001;
 			sendRecord.sender_public_key = publicKey;
-                        sendRecord.recipient_public_key = "___BADADDRESS___";
+                        sendRecord.recipient_public_key = "BADADDRESS___";
 		        sendRecord.hash = functions.getRecordHash(sendRecord);	
                         ecdsa.SignMessage(privateKey, sendRecord.hash, signature);
                         sendRecord.signature = signature;
@@ -237,7 +239,7 @@ void blockBuilderThread(int argc, char* argv[]){
 			block.records.push_back(sendRecord);
 			block.records.push_back(periodSummaryRecord);
             
-			block.number = blockNumber++;
+			block.number = selector.getCurrentTimeBlock(); //  blockNumber++;
 			block.time = block_time;
             
             
@@ -246,6 +248,8 @@ void blockBuilderThread(int argc, char* argv[]){
 			for(int i = 0; i < records.size(); i++){
 				//printf(" record n");
                                 block.records.push_back(records[i]);
+
+                                // TODO: watch time so that there is enough to broadcast the block in order to have it accepted.
 			}
 
                         block.previous_block_hash = previous_block.hash;
@@ -254,8 +258,24 @@ void blockBuilderThread(int argc, char* argv[]){
                         block.signature = signature;
 
 			functions.addToBlockFile(block);
-                        //previous_block = block; // temp
-		}	
+
+                        // TODO: Broadcast block to network
+
+                        //previous_block = block; // temp 
+
+			// Wait until the block period is over
+                        long currTimeBlock = selector.getCurrentTimeBlock();
+			while( currTimeBlock == timeBlock ){
+                            usleep(1000000);
+                            currTimeBlock = selector.getCurrentTimeBlock(); 
+                            //std::cout << ".";
+                        }
+                        //std::cout << "block done" << std::endl;
+
+		} else {
+                    usleep(1000000);
+                    //std::cout << "wait" << std::endl;
+                }
 
 		if(!buildingBlocks){
 			usleep(1000000);

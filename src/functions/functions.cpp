@@ -420,16 +420,29 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                             selector.addUser(record.sender_public_key);
                         }
 
-			if( record.recipient_public_key.compare(my_public_key) == 0 ){
+                        // Recipient of transfer
+			if( (record.transaction_type == CFunctions::TRANSFER_CURRENCY || 
+                            record.transaction_type == CFunctions::ISSUE_CURRENCY) &&
+                             record.recipient_public_key.compare(my_public_key) == 0 ){
 				balance += record.amount;
 			}
-			// todo subtract sent payments from balance 
-			if( record.sender_public_key.compare(my_public_key) == 0 && record.recipient_public_key.compare( my_public_key ) != 0 ){ // subtract sent from wallet to anyone but self.
+
+			// subtract sent payments from balance 
+			if(record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+                             record.sender_public_key.compare(my_public_key) == 0 && 
+                             record.recipient_public_key.compare(my_public_key) != 0){ // subtract sent from wallet to anyone but self.
 				balance -= record.amount;
+                                balance -= record.fee;
 				//std::cout << " sent " << std::endl;
 			}
 
-			if( record.transaction_type == CFunctions::ISSUE_CURRENCY ){
+                        // collect fees
+                        if(record.transaction_type == CFunctions::TRANSFER_CURRENCY || record.transaction_type == CFunctions::VOTE){
+                           balance += record.fee;
+                        }
+
+                        // Tally currency supply
+			if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
 				currency_circulation += record.amount;
 			}
                         
