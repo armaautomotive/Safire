@@ -7,6 +7,7 @@
 #include "ecdsacrypto.h"
 #include "global.h"
 #include <sstream>
+#include "functions/selector.h"
 
 /**
  * tokenClose
@@ -295,6 +296,7 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 */
 int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
     CECDSACrypto ecdsa;
+    CSelector selector;
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
@@ -415,6 +417,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 
                         if(record.transaction_type == CFunctions::JOIN_NETWORK){ // And block + previous chain is valid
                             user_count++;
+                            selector.addUser(record.sender_public_key);
                         }
 
 			if( record.recipient_public_key.compare(my_public_key) == 0 ){
@@ -469,17 +472,23 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                                 std::cout << ANSI_COLOR_GREEN <<  " [HASH_OK]" << ANSI_COLOR_RESET; 
                             } else {
                                 std::cout << std::endl << ANSI_COLOR_RED << "        [HASH_ERROR] " << validate_record_hash  << " == " << record.hash << ANSI_COLOR_RESET;
+                            
                             }
                             // print signature validation ... TODO 
                             // VerifyMessage()
                             //std::cout << "\n        ***  sig hash  " << record.hash << " sig " << record.signature  <<  " key  "<<  record.sender_public_key << std::endl;
+                            //std::cout << " ---  " << record.sender_public_key << std::endl;
+                            try { 
                             int r = ecdsa.VerifyMessageCompressed(record.hash, record.signature, record.sender_public_key);
+                            //std::cout << " 3333 ";
                             if(r){
                                 std::cout << ANSI_COLOR_GREEN << "    [SIG_OK]" << ANSI_COLOR_RESET;
                             } else {
                                 std::cout << ANSI_COLOR_RED << "    [SIG_ERROR]" << ANSI_COLOR_RESET;
                             }
-                            
+                            } catch (...){
+                                std::cout << "ERROR" << std::endl;
+                            }
 
                             std::cout << std::endl;
                         } 

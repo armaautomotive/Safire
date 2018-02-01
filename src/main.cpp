@@ -8,6 +8,7 @@
 #include "global.h"
 #include "network/relayclient.h"
 #include "network/p2p.h"
+#include "functions/selector.h"
 //#include "wallet/wallet.h"
 //#include "key.h"
 //#include "pubkey.h"
@@ -48,6 +49,7 @@ volatile bool buildingBlocks = true;
 void blockBuilderThread(int argc, char* argv[]){
 	CECDSACrypto ecdsa;
 	CFunctions functions;
+        CSelector selector;
 	// Check block chain for latest block information.
 	// TODO...
 
@@ -96,15 +98,20 @@ void blockBuilderThread(int argc, char* argv[]){
 		joinRecord.signature = signature;   
 
                 // *** TESTING ONLY ***
+                std::string fictionPrivateKey;
+                std::string fictionPublicKey;
+                std::string uncompressed;
+                int r = ecdsa.RandomPrivateKey(fictionPrivateKey);
+                r = ecdsa.GetPublicKey(fictionPrivateKey, uncompressed, fictionPublicKey);
                 CFunctions::record_structure fictionJoinRecord;
                 fictionJoinRecord.network = networkName; 
                 fictionJoinRecord.time = ts;
                 fictionJoinRecord.transaction_type = joinType;
                 fictionJoinRecord.amount = 0.0;
-                fictionJoinRecord.sender_public_key = publicKey;
+                fictionJoinRecord.sender_public_key = fictionPublicKey;
                 fictionJoinRecord.recipient_public_key = "";
-                fictionJoinRecord.hash = functions.getRecordHash(joinRecord);
-                ecdsa.SignMessage(privateKey, fictionJoinRecord.hash, signature);
+                fictionJoinRecord.hash = functions.getRecordHash(fictionJoinRecord);
+                ecdsa.SignMessage(fictionPrivateKey, fictionJoinRecord.hash, signature);
                 fictionJoinRecord.signature = signature;
 		// *** END TESTING ***
 
@@ -148,8 +155,9 @@ void blockBuilderThread(int argc, char* argv[]){
 
 		// is it current users turn to generate a block.
 		bool build_block = true;
-
 		//std::cout << " Number of users on network " <<  std::endl;
+                selector.isSelected(publicKey);
+             
 
 
 		// Scan most recent block file to set up to date user list in order to calculate which user is the block creator.

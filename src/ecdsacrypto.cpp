@@ -262,6 +262,12 @@ int CECDSACrypto::VerifyMessage(std::string  message, std::string  signature, st
 */
 int CECDSACrypto::VerifyMessageCompressed(std::string  message, std::string  signature, std::string  publicKey)
 {
+    if(signature.length() != 128){
+        return 0;
+    }
+    if(publicKey.length() < 66){
+        return 0;
+    }
     //printf("VerifyMessageCompressed \n");
     //printf("    Message: %s  \n", std::string(message).c_str() );
     //printf("    Public : %s  \n", std::string(publicKey).c_str() );
