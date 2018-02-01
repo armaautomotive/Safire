@@ -28,6 +28,7 @@ public:
         balance = 0;
         joined = false;
         currency_circulation = 0;
+        user_count = 0;
     }
     
     //! Destructor (again necessary because of memlocking).
@@ -106,12 +107,15 @@ public:
     std::string getRecordHash(record_structure record);
     std::string getRecordSignature(record_structure record);
     std::string getBlockSignature(block_structure block);
-
-//private:
+    CFunctions::block_structure getLastBlock(std::string network);
+    CFunctions::record_structure extractOneQueueRecord();
+    CFunctions::record_structure parseRecordJson(std::string record_section);
+ 
     CFunctions::block_structure latest_block;
     double balance; // wallet balance
     bool joined;
     double currency_circulation;
+    double user_count;
 };
 
 

@@ -22,13 +22,16 @@
 void CCLI::printCommands(){
 	std::cout << "Commands:\n" <<
 	" join [network name]     - request membership in the network. The default network is 'main'.\n" <<
+        " switch [network name]   - switch current network. Default is 'main'.\n" <<
+        //" swtch wallet            - change wallet" <<
 	" balance                 - print balance and transaction summary.\n" <<
 	" sent                    - print sent transaction list details.\n" <<
 	" received                - print received transaction list details.\n" <<
 	" network                 - print network stats including currency and volumes.\n" <<
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
-	" advanced                - more commands for admin and testing functions.\n" <<
+	" vote                    - vote on network behaviour and settings.\n" <<
+        " advanced                - more commands for admin and testing functions.\n" <<
 	" quit                    - shutdown the application.\n " << std::endl;
 }
 
@@ -177,7 +180,9 @@ void CCLI::processUserInput(){
 
 		functions.parseBlockFile(publicKey, false);
                 std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
-		std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
+		std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
+                std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
+                std::cout << " User count: " << functions.user_count << std::endl;
 
 		// Block chain size?
 	 	std::cout << " Blockchain size: " << " 0MB" << std::endl;
@@ -187,10 +192,9 @@ void CCLI::processUserInput(){
 		// Active connections?
 		//std::cout << "This feature is not implemented yet.\n" << std::endl;
            
-		CP2P p2p;
-		std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
-                
-                p2p.sendData("DATA DATA DATA 123 \0");
+		//CP2P p2p;
+		//std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
+                //p2p.sendData("DATA DATA DATA 123 \0");
 
  
 	} else if ( command.find("quit") != std::string::npos ){
@@ -211,7 +215,43 @@ void CCLI::processUserInput(){
            std::cout << " Blockchain detail: " << std::endl; 
 
            functions.parseBlockFile(publicKey, true);
+
+        } else if ( command.compare("vote") == 0){ 
+             std::cout << " Block reward (min 0.1 - max 100): " << std::endl;
 	
+             std::string blockReward;
+             std::cin >> blockReward;
+             if(blockReward.compare("") == 0 ){
+                 blockReward = "1";
+             }
+           
+             // TEMP this record would be added to the queue and broadcast but for testing we just add it to the queue file.
+
+             CFunctions::record_structure voteRecord;
+             voteRecord.network = "main"; // networkName;
+             time_t  timev;
+             time(&timev);
+             std::stringstream ss;
+             ss << timev;
+             std::string ts = ss.str();
+             voteRecord.time = ts;
+             CFunctions::transaction_types voteType = CFunctions::VOTE;
+             voteRecord.transaction_type = voteType;
+             voteRecord.name = "blockreward";
+             voteRecord.value = blockReward;
+             voteRecord.amount = 0.0;
+             voteRecord.fee = 0;
+             voteRecord.sender_public_key = publicKey;
+             voteRecord.recipient_public_key = "";
+             
+             voteRecord.hash = functions.getRecordHash(voteRecord);
+             std::string signature = "";
+             ecdsa.SignMessage(privateKey, voteRecord.hash, signature);
+             voteRecord.signature = signature;
+ 
+             functions.addToQueue(voteRecord);
+ 
+
 	} else {
 		printCommands();	
 	}

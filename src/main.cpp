@@ -95,6 +95,19 @@ void blockBuilderThread(int argc, char* argv[]){
                 ecdsa.SignMessage(privateKey, joinRecord.hash, signature);
 		joinRecord.signature = signature;   
 
+                // *** TESTING ONLY ***
+                CFunctions::record_structure fictionJoinRecord;
+                fictionJoinRecord.network = networkName; 
+                fictionJoinRecord.time = ts;
+                fictionJoinRecord.transaction_type = joinType;
+                fictionJoinRecord.amount = 0.0;
+                fictionJoinRecord.sender_public_key = publicKey;
+                fictionJoinRecord.recipient_public_key = "";
+                fictionJoinRecord.hash = functions.getRecordHash(joinRecord);
+                ecdsa.SignMessage(privateKey, fictionJoinRecord.hash, signature);
+                fictionJoinRecord.signature = signature;
+		// *** END TESTING ***
+
                 CFunctions::record_structure blockRewardRecord;
                 blockRewardRecord.network = networkName;
 		blockRewardRecord.time = ts;
@@ -110,6 +123,7 @@ void blockBuilderThread(int argc, char* argv[]){
 		CFunctions::block_structure block;
 		block.network = networkName;
                 block.records.push_back(joinRecord);
+                block.records.push_back(fictionJoinRecord);
                 block.records.push_back(blockRewardRecord);
 
 		time_t t = time(0);
@@ -125,6 +139,8 @@ void blockBuilderThread(int argc, char* argv[]){
 	}
 
 	// Does a blockfile exist? if networkGenesis==false and there is no block file we wait until the network syncs before wrting to the blockfile. 
+        CFunctions::block_structure previous_block;
+ 
 
 	int blockNumber = functions.latest_block.number + 1;
 	while(buildingBlocks){
@@ -206,6 +222,7 @@ void blockBuilderThread(int argc, char* argv[]){
                         ecdsa.SignMessage(privateKey, periodSummaryRecord.hash, signature);
                         periodSummaryRecord.signature = signature;
 	
+                        previous_block = functions.getLastBlock("main");
 
 			CFunctions::block_structure block;
 			block.records.push_back(blockRewardRecord);
@@ -217,19 +234,19 @@ void blockBuilderThread(int argc, char* argv[]){
             
             
 			// Add records from queue...
-			//
 			std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();
 			for(int i = 0; i < records.size(); i++){
 				//printf(" record n");
-                
+                                block.records.push_back(records[i]);
 			}
 
-
+                        block.previous_block_hash = previous_block.hash;
                         block.hash = functions.getBlockHash(block);
                         ecdsa.SignMessage(privateKey, block.hash, signature);
                         block.signature = signature;
 
 			functions.addToBlockFile(block);
+                        //previous_block = block; // temp
 		}	
 
 		if(!buildingBlocks){

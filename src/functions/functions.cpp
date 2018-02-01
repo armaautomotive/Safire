@@ -64,31 +64,7 @@ int CFunctions::addToQueue(record_structure record){
 
 
 /**
-* parseRecordJson
-*
-* Description: DEPRICATE ????? 
-*/
-CFunctions::record_structure parseRecordJson(std::string json){
-	CFunctions::record_structure record;
-	std::size_t start = json.find("time\":\"");
-        std::size_t end = json.find("]");
-        if (start!=std::string::npos && end!=std::string::npos){
-            std::string time = json.substr (start + 1, end-start -1);
-            record.time = time;
-            std::cout << "  Time:  " << time << " " << std::endl;
-
-            start = json.find("[", end);
-            end = json.find("]", end + 1);
-            std::string type = json.substr (start + 1, end-start - 1);
-            std::cout << "  type:  " << type << " " << std::endl;
-
-        }
-	return record;
-}
-
-/**
  * parseQueueRecords
- *    DEPRICATE ????
  *
  * Description: Read queued records from file into a vector of structures.
  * @return vector or record_structures
@@ -101,31 +77,33 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
     {
         std::istringstream iss(line);
         CFunctions::record_structure record;
-        
-        std::size_t start = line.find("[");
-        std::size_t end = line.find("]");
-        if (start!=std::string::npos && end!=std::string::npos){
-            std::string time = line.substr (start + 1, end-start -1);
-            record.time = time;
-            std::cout << "  Time:  " << time << " " << std::endl;
-            
-            start = line.find("[", end);
-            end = line.find("]", end + 1);
-            std::string type = line.substr (start + 1, end-start - 1);
-            std::cout << "  type:  " << type << " " << std::endl;
-        }
-            
-        //int a, b;
-        //if (!(iss >> a >> b)) { break; } // error
-        
-        //std::cout << "  Line:  " << line << " " << std::endl;
-        // process pair (a,b)
-        
-        //record.time = "2017/06/02";
-        
+        record = parseRecordJson(line);
+   
+        // TODO: delete record if it allready exists in the queue???? ***
+     
         records.push_back (record);
     }
+
+    // TEMP: delete queue file.
+    std::ofstream ofs;
+    ofs.open("queue.dat", std::ofstream::out | std::ofstream::trunc);
+    ofs.close();
+
     return records;
+}
+
+
+/**
+* parseOneRecordStructure  - extractOneQueueRecord
+*
+*
+*/
+CFunctions::record_structure CFunctions::extractOneQueueRecord(){
+    CFunctions::record_structure record;
+
+
+
+    return record; 
 }
 
 
@@ -173,8 +151,12 @@ int CFunctions::generateBlock(std::vector<record_structure> records, std::string
 }
 
 
+/**
+* addToBlockFile
+*
+* Description: Add a block to the chain file.
+*/
 int CFunctions::addToBlockFile( CFunctions::block_structure block ){
-    
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
@@ -188,7 +170,8 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     outfile << "{\"block\":{" <<
         "\"network\":\"" << block.network << "\"," <<
 	"\"number\":\"" << block.number << "\"," <<
-	"\"time\":\"" << block.time << "\"," << 
+	"\"time\":\"" << block.time << "\"," <<
+        "\"previous_block_hash\":\"" << block.previous_block_hash << "\"," << 
 	"\"hash\":\"" << block.hash << "\"," <<
 	//"[" << block.transaction_type << "]" << 
 	"\"records\":{\n";
@@ -202,9 +185,25 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     outfile << "}}}\n";
 
     outfile.close();
-    
+
+    latest_block = block; // TEMP this may change     
+ 
     return 0;
 }
+
+/**
+* getLastBlock
+*
+* Description: retrieve the last block from the blockchain file.
+*     Used when generating a new block to add the correct previoud block hash.
+*
+* @param
+* @return 
+*/
+CFunctions::block_structure CFunctions::getLastBlock(std::string network){
+   return latest_block;
+}
+
 
 /**
 * parseSection
@@ -305,8 +304,10 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
     std::string file_path = ss.str();
 
     //CFunctions::block_structure block;
+    currency_circulation = 0;
     balance = 0;
     std::string content = "";
+    user_count = 0;
 
     std::vector<record_structure> records;
     std::ifstream infile(file_path);
@@ -365,19 +366,16 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 		    //std::cout << "  ---  record  " << record_section << "\n" << std::endl;	
 
                     if(debug){
-                        std::cout << "  Block " << latest_block.number << std::endl;
-
+                        std::cout << "    Block " << latest_block.number << std::endl;
                     }
 
                     while( record_section.compare("") != 0 ){
                         CFunctions::record_structure record;
-                        
-                        // "record":{"time":"1502772739","name:":"","typ":"1","amt":1,"fee":0,"sndkey":"","rcvkey":"026321261876CFB360F94A7FDF3F2D4F6F9FC0CEDADF15AC3D30E182A82AF5D81E","sig":""}
-                        //"amt":1
-                        
+
+                        record = parseRecordJson(record_section);
+                        /*
                         record.network = parseSectionString(record_section, "\"network\":\"", "\"");
                         record.time = parseSectionString(record_section, "\"time\":\"", "\"");
-                        
                         int transaction_type = parseSectionInt(record_section, "\"typ\":\"", "\"" ); 
                         // transaction_type_strings JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE
                         // TODO: there has to be a better way to do this
@@ -399,27 +397,25 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                         if(transaction_type == 5){
                             record.transaction_type = CFunctions::VOTE;
                         }
-
                         // address
 			record.recipient_public_key = parseSectionString(record_section, "\"rcvkey\":\"", "\"" );                       
-			
                         record.sender_public_key = parseSectionString(record_section, "\"sndkey\":\"", "\"" );
-
                         record.amount = parseSectionDouble(record_section, "\"amt\":\"", "\"");
-                        //std::cout << "  ---  record amount  " << amount << std::endl;
                         record.fee = parseSectionDouble(record_section, "\"fee\":\"", "\"");
-		
                         record.name = parseSectionString(record_section, "\"name\":\"", "\"");	
                         record.value = parseSectionString(record_section, "\"value\":\"", "\"");
-                       
                         record.hash = parseSectionString(record_section, "\"hash\":\"", "\"");
                         record.signature = parseSectionString(record_section, "\"sig\":\"", "\""); 
+			*/
 
-			//std::cout << "        record send _" <<  sndkey  << "_ recv " << rcvkey <<  " amt " << amount << std::endl; 
 
-			if( record.recipient_public_key.compare( my_public_key ) == 0 && record.transaction_type == CFunctions::JOIN_NETWORK ){
+			if(record.sender_public_key.compare(my_public_key) == 0 && record.transaction_type == CFunctions::JOIN_NETWORK){ // TODO: and network name matches
 				joined = true;
 			}
+
+                        if(record.transaction_type == CFunctions::JOIN_NETWORK){ // And block + previous chain is valid
+                            user_count++;
+                        }
 
 			if( record.recipient_public_key.compare(my_public_key) == 0 ){
 				balance += record.amount;
@@ -444,7 +440,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                             if(recipient.length() > 8){
                                 recipient = recipient.erase(8);
                             } 
-                            std::cout << "    ";
+                            std::cout << "        ";
                             if(record.transaction_type == CFunctions::ISSUE_CURRENCY){ 
                                 std::cout << "ISSUE   ";
                             }
@@ -472,11 +468,11 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                             if(validate_record_hash.compare(record.hash) == 0){
                                 std::cout << ANSI_COLOR_GREEN <<  " [HASH_OK]" << ANSI_COLOR_RESET; 
                             } else {
-                                std::cout << std::endl << ANSI_COLOR_RED << "    [HASH_ERROR] " << validate_record_hash  << " == " << record.hash << ANSI_COLOR_RESET;
+                                std::cout << std::endl << ANSI_COLOR_RED << "        [HASH_ERROR] " << validate_record_hash  << " == " << record.hash << ANSI_COLOR_RESET;
                             }
                             // print signature validation ... TODO 
                             // VerifyMessage()
-                            //std::cout << "\n    ***  sig hash  " << record.hash << " sig " << record.signature  <<  " key  "<<  record.sender_public_key << std::endl;
+                            //std::cout << "\n        ***  sig hash  " << record.hash << " sig " << record.signature  <<  " key  "<<  record.sender_public_key << std::endl;
                             int r = ecdsa.VerifyMessageCompressed(record.hash, record.signature, record.sender_public_key);
                             if(r){
                                 std::cout << ANSI_COLOR_GREEN << "    [SIG_OK]" << ANSI_COLOR_RESET;
@@ -495,9 +491,9 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 			// Is block valid???
 			//
                     if(debug){
-                        std::cout << "  Validation [n/a] " << std::endl;
+                        std::cout << "    Validation [n/a] " << std::endl;
                         // latest_block.hash
-                        std::cout << " Hash " << latest_block.hash << " " << std::endl;
+                        std::cout << "    Hash " << latest_block.hash << " prev " << latest_block.previous_block_hash << std::endl;
  
                     }  
                     
@@ -515,6 +511,57 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 
     return 0;
 }
+
+/**
+* parseRecordJson
+*
+* Description: parse json string into record structure.
+* 
+* @param json string
+* @return record_structure
+*/
+CFunctions::record_structure CFunctions::parseRecordJson(std::string record_section){
+    CFunctions::record_structure record;
+    record.network = parseSectionString(record_section, "\"network\":\"", "\"");
+    record.time = parseSectionString(record_section, "\"time\":\"", "\"");
+    int transaction_type = parseSectionInt(record_section, "\"typ\":\"", "\"" );
+    // transaction_type_strings JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE
+    // TODO: there has to be a better way to do this
+    if(transaction_type == 0){
+        record.transaction_type = CFunctions::JOIN_NETWORK;
+    }
+    if(transaction_type == 1){
+        record.transaction_type = CFunctions::ISSUE_CURRENCY;
+    }
+    if(transaction_type == 2){
+        record.transaction_type = CFunctions::TRANSFER_CURRENCY;
+    }
+    if(transaction_type == 3){
+        record.transaction_type = CFunctions::CARRY_FORWARD;
+    }
+    if(transaction_type == 4){
+        record.transaction_type = CFunctions::PERIOD_SUMMARY;
+    }
+    if(transaction_type == 5){
+        record.transaction_type = CFunctions::VOTE;
+    }
+
+    // address
+    record.recipient_public_key = parseSectionString(record_section, "\"rcvkey\":\"", "\"" );
+    record.sender_public_key = parseSectionString(record_section, "\"sndkey\":\"", "\"" );
+
+    record.amount = parseSectionDouble(record_section, "\"amt\":\"", "\"");
+    record.fee = parseSectionDouble(record_section, "\"fee\":\"", "\"");
+
+    record.name = parseSectionString(record_section, "\"name\":\"", "\"");
+    record.value = parseSectionString(record_section, "\"value\":\"", "\"");
+
+    record.hash = parseSectionString(record_section, "\"hash\":\"", "\"");
+    record.signature = parseSectionString(record_section, "\"sig\":\"", "\"");
+
+    return record;
+}
+
 
 /**
 * getBlockHash
@@ -568,7 +615,9 @@ std::string CFunctions::getRecordHash(record_structure record){
         boost::lexical_cast<std::string>(record.amount) +
         boost::lexical_cast<std::string>(record.fee) +
         record.sender_public_key +
-        record.recipient_public_key;
+        record.recipient_public_key +
+        record.name + 
+        record.value;
     std::string hash = "";
     char * c_hash = (char *)malloc( 65 );
     char *cstr = new char[record_content.length() + 1];
