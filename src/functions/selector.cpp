@@ -13,10 +13,16 @@
 #include "functions/selector.h"
 #include "global.h"
 #include <ctime>
-
+#include <curl/curl.h>
 
 std::vector< std::string > CSelector::users;
 
+
+static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
 
 /**
 * syncronizeTime
@@ -26,10 +32,31 @@ std::vector< std::string > CSelector::users;
 */
 void CSelector::syncronizeTime(){
     // Get time from server
+    std::string readBuffer;
+    CURLcode res;
+    CURL * curl;
+    curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
+    curl = curl_easy_init();
+    if(curl) {
+        std::string url_string = "http://173.255.218.54/time.php";
+        std::string post_data = "";
+        //post_data.append(publicKey);
+        curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+        std::string::size_type sz;
+        long server_long = std::stol (readBuffer,&sz); 
 
-    // get time from local system
+        // get time from local system
+        time_t  timev;
+        time(&timev);
 
-    
+        networkTimeOffset = server_long - timev;
+        //std::cout << "Server syncronization time offset: " << networkTimeOffset << std::endl;   
+    }
 }
 
 long CSelector::getCurrentTimeBlock(){

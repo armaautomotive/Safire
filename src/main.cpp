@@ -157,7 +157,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 while( currTimeBlock == timeBlock ){
                     usleep(1000000);
                     currTimeBlock = selector.getCurrentTimeBlock();
-                    std::cout << "." << std::endl;
+                    //std::cout << "." << std::endl;
                 }
 	}
 
