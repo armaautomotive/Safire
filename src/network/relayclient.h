@@ -44,12 +44,13 @@ static std::string get_local_data (NiceAgent *agent, guint _stream_id, guint com
 
 class CRelayClient
 {
-private:
+public:
     struct node_status { 
         std::string public_key;
         bool active = true;
     };
-    static std::vector< CRelayClient::node_status > node_statuses; 
+private:
+    static std::vector< CRelayClient::node_status > node_statuses; // TODO: rename node_peers 
     
     gchar *stun_addr = NULL;
     guint stun_port = 0; 
@@ -83,6 +84,7 @@ public:
 
     void receiveRecord();
 
+    std::vector<CRelayClient::node_status> getPeers();
 };
 
 #endif 

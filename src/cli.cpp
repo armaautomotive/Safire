@@ -196,7 +196,9 @@ void CCLI::processUserInput(){
 			
 		// Active connections?
 		//std::cout << "This feature is not implemented yet.\n" << std::endl;
-           
+		std::vector<CRelayClient::node_status> peers = relayClient.getPeers();
+		std::cout << " Peers: "; for(int i = 0; i < peers.size(); i++){ std::cout << peers.at(i).public_key << " "; } std::cout << std::endl;         
+ 
 		//CP2P p2p;
 		//std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
                 //p2p.sendData("DATA DATA DATA 123 \0");

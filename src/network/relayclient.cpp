@@ -100,7 +100,9 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
     return "";
 }
 
-
+std::vector<CRelayClient::node_status> CRelayClient::getPeers(){
+	return node_statuses;
+}
 
 
 
@@ -206,11 +208,18 @@ void CRelayClient::receiveRecord(){
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
  
-
         // Write to queue file
-        CFunctions::record_structure record;
-        //parseRecordJson(readBuffer);        
-        //functions.addToQueue(record);        
+        std::stringstream ss;
+        ss << readBuffer;
+        std::string line;
+        while(std::getline(ss,line,'\n')){
+            std::cout << "line " << line << std::endl;
+    
+
+            CFunctions::record_structure record;
+            functions.parseRecordJson(line);        
+            functions.addToQueue(record);        
+        } 
     }
 }
 
@@ -218,4 +227,6 @@ void CRelayClient::receiveRecord(){
 void CRelayClient::sendBlock(CFunctions::block_structure block){
 
 }
+
+
 
