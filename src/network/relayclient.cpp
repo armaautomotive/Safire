@@ -84,7 +84,7 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
 					exists = true;
 				}
 			}
-			if(exists == false){
+			if(exists == false && key_section.length() > 10){
 				CRelayClient::node_status node;
 				node.public_key = key_section;
 				node_statuses.push_back(node);
@@ -111,7 +111,6 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
 * Description: Implements relay networking with other nodes in the network through a server.
 */
 void CRelayClient::relayNetworkThread(int argc, char* argv[]){
-
     std::string publicKey;
     std::string privateKey;
     CWallet wallet;
@@ -141,13 +140,49 @@ void CRelayClient::exit(){
 
 
 /**
-* sendRecord
+* sendRecord - broadcastRecord
 *
-* Description: send a transaction record to another node
+* Description: send a transaction record to another/all connected node
 */
 void CRelayClient::sendRecord(CFunctions::record_structure record){
+    CFunctions functions;
+    std::string publicKey;
+    std::string privateKey;
+    CWallet wallet;
+    wallet.read(privateKey, publicKey);
+    for(int i = 0; i < node_statuses.size(); i++){
+        CRelayClient::node_status node = node_statuses.at(i);
+        std::string readBuffer;
+        CURLcode res;
+        CURL * curl;
+        curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
+        curl = curl_easy_init();
+        if(curl) {
+            // http://173.255.218.54/relay.php?action=sendmessage&type=trans&sender_key=109&receiver_key=110&message=jsondata 
+	    std::string url_string = "http://173.255.218.54/relay.php";
+            std::string post_data = "action=sendmessage&type=trans&sender_key=";
+            post_data.append(record.sender_public_key);
+            post_data.append("&receiver_key=");
+            post_data.append(node.public_key);
+            post_data.append("&message=");
+            post_data.append(functions.recordJSON(record));  
+            curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+            res = curl_easy_perform(curl);
+            curl_easy_cleanup(curl);
+        }
+    }
+}
 
-
+/**
+* receiveRecord
+*
+* Description: read records sent to this node from the server
+*/
+void CRelayClient::receiveRecord(){
+    CFunctions functions;
     std::string readBuffer;
     CURLcode res;
     CURL * curl;
@@ -159,11 +194,10 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
         CWallet wallet;
         wallet.read(privateKey, publicKey);
 
-        // http://173.255.218.54/relay.php?action=sendmessage&type=trans&sender_key=109&receiver_key=110&message=jsondata 
-	std::string url_string = "http://173.255.218.54/relay.php";
-        std::string post_data = "action=sendmessage&type=trans&sender_key=";
-        post_data.append(record.sender_public_key);
-
+        // http://173.255.218.54/relay.php?action=getmessages&type=trans&sender_key=xxx&receiver_key=110
+        std::string url_string = "http://173.255.218.54/relay.php";
+        std::string post_data = "action=getmessages&type=trans&sender_key=&receiver_key=";
+        post_data.append(publicKey);
 
         curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
@@ -171,35 +205,15 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
+ 
 
-        // TODO: parse results and write to local peer node file.
-        std::size_t open = readBuffer.find("\"public_key\":\"");
-        if(open != std::string::npos){
-                std::size_t close = readBuffer.find("\"", open + 15);
-                while(open != std::string::npos && close != std::string::npos){
-                        std::string key_section = readBuffer.substr( open + 15, close - open -15);
-                        //std::cout << "_" << key_section << "_ " << std::endl;
-                        bool exists = false;
-                        for(int i = 0; i < node_statuses.size(); i++){
-                                CRelayClient::node_status node = node_statuses.at(i);
-                                if(node.public_key.compare(key_section) == 0){
-                                        exists = true;
-                                }
-                        }
-                        if(exists == false){
-                                CRelayClient::node_status node;
-                                node.public_key = key_section;
-                                node_statuses.push_back(node);
-                        }
-                        readBuffer = readBuffer.substr( close + 1 );
-                        open = readBuffer.find("\"public_key\":\"");
-                        if(open != std::string::npos){
-                                close = readBuffer.find("\"", open + 15);
-                        }
-                }
-        }
+        // Write to queue file
+        CFunctions::record_structure record;
+        //parseRecordJson(readBuffer);        
+        //functions.addToQueue(record);        
     }
 }
+
 
 void CRelayClient::sendBlock(CFunctions::block_structure block){
 

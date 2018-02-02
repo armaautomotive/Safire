@@ -13,6 +13,7 @@
 #include "functions/functions.h"
 #include "wallet.h"
 #include "network/p2p.h"
+#include "network/relayclient.h"
 
 /**
 * printCommands 
@@ -54,6 +55,7 @@ void CCLI::processUserInput(){
 	bool running = true;
 	CECDSACrypto ecdsa;
 	CFunctions functions;
+        CRelayClient relayClient;
 	std::string privateKey;
 	std::string publicKey;
 	CWallet wallet;
@@ -112,7 +114,9 @@ void CCLI::processUserInput(){
                                 std::string message_siganture = "";
 				ecdsa.SignMessage(privateKey, joinRecord.hash, message_siganture);
 				joinRecord.signature = message_siganture;	
-				functions.addToQueue( joinRecord );
+				
+                                functions.addToQueue( joinRecord );
+                                relayClient.sendRecord(joinRecord);
 	
 				// TODO: send request or say allready sent. 	
 			}
@@ -172,7 +176,8 @@ void CCLI::processUserInput(){
 			std::string message_siganture = destination_address;
 			ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
 			sendRecord.signature = message_siganture;
-			functions.addToQueue( sendRecord );	
+			functions.addToQueue( sendRecord );
+			relayClient.sendRecord(sendRecord);	
 			std::cout << "Sent transfer request. " << std::endl;	
 		}
 
@@ -250,7 +255,9 @@ void CCLI::processUserInput(){
              voteRecord.signature = signature;
  
              functions.addToQueue(voteRecord);
- 
+	     relayClient.sendRecord(voteRecord); 
+
+		std::cout << "Vote sent." << std::endl;
 
 	} else {
 		printCommands();	
