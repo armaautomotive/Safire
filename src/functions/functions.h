@@ -37,8 +37,7 @@ public:
     }
    
     // ? Should these structures go elsewhere?
-    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE };
-    //std::string transaction_type_strings[6] = {"JOIN_NETWORK", "ISSUE_CURRENCY", "TRANSFER_CURRENCY", "CARRY_FORWARD", "PERIOD_SUMMARY", "VOTE"};
+    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE, HEART_BEAT };
 
     // work in progress
     long last_parsed_block;

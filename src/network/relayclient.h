@@ -6,6 +6,7 @@
 #ifndef RELAY_CLIENT_H
 #define RELAY_CLIENT_H
 
+#include "functions/functions.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -76,6 +77,11 @@ public:
     void sendData(std::string data);
     //void cb_candidate_gathering_done_X(NiceAgent *agent, guint stream_id, gpointer data);
     void relayNetworkThread(int argc, char* argv[]);
+
+    void sendRecord(CFunctions::record_structure record);
+    void sendBlock(CFunctions::block_structure block);    
+
+
 
 };
 

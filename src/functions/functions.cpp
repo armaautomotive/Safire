@@ -379,7 +379,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                         record.network = parseSectionString(record_section, "\"network\":\"", "\"");
                         record.time = parseSectionString(record_section, "\"time\":\"", "\"");
                         int transaction_type = parseSectionInt(record_section, "\"typ\":\"", "\"" ); 
-                        // transaction_type_strings JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE
+                        // transaction_type_strings JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE, HEART_BEAT
                         // TODO: there has to be a better way to do this
                         if(transaction_type == 0){
                             record.transaction_type = CFunctions::JOIN_NETWORK;
@@ -399,6 +399,9 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                         if(transaction_type == 5){
                             record.transaction_type = CFunctions::VOTE;
                         }
+                        if(transaction_type == 6){
+                            record.transaction_type = CFunctions::HEART_BEAT;
+                        } 
                         // address
 			record.recipient_public_key = parseSectionString(record_section, "\"rcvkey\":\"", "\"" );                       
                         record.sender_public_key = parseSectionString(record_section, "\"sndkey\":\"", "\"" );
@@ -474,6 +477,9 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                             } 
                             if(record.transaction_type == CFunctions::VOTE){
                                 std::cout << "VOTE    ";
+                            }
+                            if(record.transaction_type == CFunctions::HEART_BEAT){
+                                std::cout << "HEART BT";
                             }
                             std::cout << "  sender: " << sender << " -> " << recipient << " amt: " << record.amount;
                             std::cout << " time: " << record.time << " net: " << record.network ;
@@ -566,6 +572,9 @@ CFunctions::record_structure CFunctions::parseRecordJson(std::string record_sect
     }
     if(transaction_type == 5){
         record.transaction_type = CFunctions::VOTE;
+    }
+    if(transaction_type == 6){
+        record.transaction_type = CFunctions::HEART_BEAT;
     }
 
     // address

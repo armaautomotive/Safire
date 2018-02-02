@@ -377,6 +377,7 @@ int main(int argc, char* argv[])
     //CP2P p2p;
     //p2p.getNewNetworkPeer("123"); //TEMP
     CRelayClient relayClient;
+    relayClient.getNewNetworkPeer(publicKey);
 
     // Validate chain
     std::cout << " Validating chain.       " << ANSI_COLOR_GREEN << "[ok] " << ANSI_COLOR_RESET << std::endl;
