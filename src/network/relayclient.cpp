@@ -71,11 +71,12 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
         curl_easy_cleanup(curl);
 
         // TODO: parse results and write to local peer node file.
-        std::size_t open = readBuffer.find("\"public_key\":\"");
+        std::string openTag = "\"public_key\":\"";
+        std::size_t open = readBuffer.find(openTag);
 	if(open != std::string::npos){
-        	std::size_t close = readBuffer.find("\"", open + 15);
+        	std::size_t close = readBuffer.find("\"", open + openTag.length());
         	while(open != std::string::npos && close != std::string::npos){
-			std::string key_section = readBuffer.substr( open + 15, close - open -15);
+			std::string key_section = readBuffer.substr( open + openTag.length(), close - open - openTag.length());
         		//std::cout << "_" << key_section << "_ " << std::endl;
 			bool exists = false;
 			for(int i = 0; i < node_statuses.size(); i++){
@@ -92,7 +93,7 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
 			readBuffer = readBuffer.substr( close + 1 );	
 			open = readBuffer.find("\"public_key\":\"");
 			if(open != std::string::npos){
-				close = readBuffer.find("\"", open + 15);		
+				close = readBuffer.find("\"", open + openTag.length());		
 			}
 		}
 	}
@@ -123,12 +124,13 @@ void CRelayClient::relayNetworkThread(int argc, char* argv[]){
         //        CRelayClient::node_status node = node_statuses.at(i);
         //	std::cout << " node " << node.public_key << std::endl;                
 	//}
+        receiveRecord(); // receive records
 
         //std::string response = getNewNetworkPeer(publicKey);
         //std::cout << " relay client  " << response << std::endl;
 
         if(running){
-            usleep(1000000 * 10); // 1 second
+            usleep(1000000 * 2); // 1 second
 
         }
     }
