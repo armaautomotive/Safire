@@ -25,7 +25,6 @@ std::vector< CRelayClient::node_status > CRelayClient::node_statuses;
 
 
 CRelayClient::CRelayClient(){
-    //std::cout << "CPeerClient " << "\n " << std::endl;
     running = true;
     connected = false;
     controlling = true;
@@ -215,12 +214,12 @@ void CRelayClient::receiveRecord(){
         ss << readBuffer;
         std::string line;
         while(std::getline(ss,line,'\n')){
-            std::cout << "line " << line << std::endl;
-    
-
+            //std::cout << "line " << line << std::endl;
             CFunctions::record_structure record;
-            functions.parseRecordJson(line);        
-            functions.addToQueue(record);        
+            record = functions.parseRecordJson(line);        
+            if( record.sender_public_key.compare("") != 0 || record.recipient_public_key.compare("") != 0 ){
+                functions.addToQueue(record); 
+            }       
         } 
     }
 }
