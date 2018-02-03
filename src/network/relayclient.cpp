@@ -49,7 +49,7 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
     std::string readBuffer;
     CURLcode res;
     CURL * curl;
-    curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
+    curl_global_init(CURL_GLOBAL_ALL); 
     curl = curl_easy_init();
     if(curl) {
         std::string publicKey;
@@ -117,28 +117,30 @@ void CRelayClient::relayNetworkThread(int argc, char* argv[]){
     std::string privateKey;
     CWallet wallet;
     wallet.read(privateKey, publicKey);
-
     while(running){
-	//for(int i = 0; i < node_statuses.size(); i++){
-        //        CRelayClient::node_status node = node_statuses.at(i);
-        //	std::cout << " node " << node.public_key << std::endl;                
-	//}
-        receiveRecords(); // receive records
+        receiveRecords(); // receive transaction records
+        receiveBlocks();  // receive blocks
+        // TODO: requests for blocks by id
 
+        // If there are no active peers, get a new list.
         //std::string response = getNewNetworkPeer(publicKey);
         //std::cout << " relay client  " << response << std::endl;
 
         if(running){
             usleep(1000000 * 2); // 1 second
-
         }
     }
     std::cout << "Relay Network Shutdown." << std::endl;
 }
 
+
+/**
+* exit
+*
+* Description: shut down thread for exit.
+*/
 void CRelayClient::exit(){
     running = false;
-    //std::cout << " P2P exit " << "\n " << std::endl;
 }
 
 
@@ -158,7 +160,7 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
         std::string readBuffer;
         CURLcode res;
         CURL * curl;
-        curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
+        curl_global_init(CURL_GLOBAL_ALL); 
         curl = curl_easy_init();
         if(curl) {
             // http://173.255.218.54/relay.php?action=sendmessage&type=trans&sender_key=109&receiver_key=110&message=jsondata 
@@ -189,7 +191,7 @@ void CRelayClient::receiveRecords(){
     std::string readBuffer;
     CURLcode res;
     CURL * curl;
-    curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
+    curl_global_init(CURL_GLOBAL_ALL); 
     curl = curl_easy_init();
     if(curl) {
         std::string publicKey;
@@ -225,7 +227,11 @@ void CRelayClient::receiveRecords(){
     }
 }
 
-
+/**
+* sendBlock
+*
+* Description: send a block to each connected peer.
+*/
 void CRelayClient::sendBlock(CFunctions::block_structure block){
     CFunctions functions;
     std::string publicKey;
@@ -258,13 +264,17 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
     }
 }
 
-
+/**
+* receiveBlocks
+*
+* Description: retrieve all blocks sent to this client.
+*/
 void CRelayClient::receiveBlocks(){
     CFunctions functions;
     std::string readBuffer;
     CURLcode res;
     CURL * curl;
-    curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
+    curl_global_init(CURL_GLOBAL_ALL); 
     curl = curl_easy_init();
     if(curl) {
         std::string publicKey;

@@ -49,6 +49,7 @@ volatile bool buildingBlocks = true;
 void blockBuilderThread(int argc, char* argv[]){
 	CECDSACrypto ecdsa;
 	CFunctions functions;
+        CRelayClient relayClient;
         CSelector selector;
         selector.syncronizeTime();
 	// Check block chain for latest block information.
@@ -72,6 +73,7 @@ void blockBuilderThread(int argc, char* argv[]){
         	//std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
 	}
         functions.parseBlockFile( publicKey, false );
+        relayClient.getNewNetworkPeer(publicKey);
 
 	bool networkGenesis = false;
         std::string networkName = "main";
@@ -173,7 +175,9 @@ void blockBuilderThread(int argc, char* argv[]){
 	
 		// is it current users turn to generate a block.
 		bool build_block = selector.isSelected(publicKey);
-
+                if(functions.joined == false){ // Can't build block unless a member of the block.
+                    build_block = false;       
+                }
                 //std::cout << "here 2 " << std::endl;
 
 		time_t t = time(0);
@@ -257,9 +261,9 @@ void blockBuilderThread(int argc, char* argv[]){
                         ecdsa.SignMessage(privateKey, block.hash, signature);
                         block.signature = signature;
 
-			functions.addToBlockFile(block);
-
+			functions.addToBlockFile(block);                          
                         // TODO: Broadcast block to network
+                        relayClient.sendBlock(block);
 
                         //previous_block = block; // temp 
 
