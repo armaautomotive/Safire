@@ -123,7 +123,7 @@ void CRelayClient::relayNetworkThread(int argc, char* argv[]){
         //        CRelayClient::node_status node = node_statuses.at(i);
         //	std::cout << " node " << node.public_key << std::endl;                
 	//}
-        receiveRecord(); // receive records
+        receiveRecords(); // receive records
 
         //std::string response = getNewNetworkPeer(publicKey);
         //std::cout << " relay client  " << response << std::endl;
@@ -164,7 +164,7 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
             // http://173.255.218.54/relay.php?action=sendmessage&type=trans&sender_key=109&receiver_key=110&message=jsondata 
 	    std::string url_string = "http://173.255.218.54/relay.php";
             std::string post_data = "action=sendmessage&type=trans&sender_key=";
-            post_data.append(record.sender_public_key);
+            post_data.append(publicKey); // record.sender_public_key
             post_data.append("&receiver_key=");
             post_data.append(node.public_key);
             post_data.append("&message=");
@@ -180,11 +180,11 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
 }
 
 /**
-* receiveRecord
+* receiveRecords
 *
 * Description: read records sent to this node from the server
 */
-void CRelayClient::receiveRecord(){
+void CRelayClient::receiveRecords(){
     CFunctions functions;
     std::string readBuffer;
     CURLcode res;
@@ -216,9 +216,10 @@ void CRelayClient::receiveRecord(){
         while(std::getline(ss,line,'\n')){
             //std::cout << "line " << line << std::endl;
             CFunctions::record_structure record;
-            record = functions.parseRecordJson(line);        
-            if( record.sender_public_key.compare("") != 0 || record.recipient_public_key.compare("") != 0 ){
+            record = functions.parseRecordJson(line);    
+            if( record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0 ){
                 functions.addToQueue(record); 
+                //std::cout << " *** ";
             }       
         } 
     }
@@ -226,8 +227,79 @@ void CRelayClient::receiveRecord(){
 
 
 void CRelayClient::sendBlock(CFunctions::block_structure block){
-
+    CFunctions functions;
+    std::string publicKey;
+    std::string privateKey;
+    CWallet wallet;
+    wallet.read(privateKey, publicKey);
+    for(int i = 0; i < node_statuses.size(); i++){
+        CRelayClient::node_status node = node_statuses.at(i);
+        std::string readBuffer;
+        CURLcode res;
+        CURL * curl;
+        curl_global_init(CURL_GLOBAL_ALL); 
+        curl = curl_easy_init();
+        if(curl) {
+            // http://173.255.218.54/relay.php?action=sendmessage&type=block&sender_key=109&receiver_key=110&message=jsondata
+            std::string url_string = "http://173.255.218.54/relay.php";
+            std::string post_data = "action=sendmessage&type=block&sender_key=";
+            post_data.append(publicKey);
+            post_data.append("&receiver_key=");
+            post_data.append(node.public_key);
+            post_data.append("&message=");
+            post_data.append(functions.blockJSON(block));
+            curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+            res = curl_easy_perform(curl);
+            curl_easy_cleanup(curl);
+        }
+    }
 }
+
+
+void CRelayClient::receiveBlocks(){
+    CFunctions functions;
+    std::string readBuffer;
+    CURLcode res;
+    CURL * curl;
+    curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
+    curl = curl_easy_init();
+    if(curl) {
+        std::string publicKey;
+        std::string privateKey;
+        CWallet wallet;
+        wallet.read(privateKey, publicKey);
+
+        // http://173.255.218.54/relay.php?action=getmessages&type=block&sender_key=xxx&receiver_key=110
+        std::string url_string = "http://173.255.218.54/relay.php";
+        std::string post_data = "action=getmessages&type=block&sender_key=&receiver_key=";
+        post_data.append(publicKey);
+
+        curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+
+        // Write to queue file
+        std::stringstream ss;
+        ss << readBuffer;
+        std::string line;
+        while(std::getline(ss,line,'\n')){
+            //std::cout << "line " << line << std::endl;
+            //CFunctions::record_structure record;
+            //record = functions.parseRecordJson(line);
+            //if( record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0 ){
+            //    functions.addToQueue(record);
+                //std::cout << " *** ";
+            //}
+        }
+    }    
+}
+
 
 
 

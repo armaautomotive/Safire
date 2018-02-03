@@ -86,6 +86,7 @@ public:
     };
 
     std::string recordJSON(record_structure record);
+    std::string blockJSON( CFunctions::block_structure block); 
 
     int tokenClose(std::string content, std::string open, std::string close, int start);
     
