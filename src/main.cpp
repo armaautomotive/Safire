@@ -139,6 +139,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 blockRewardRecord.signature = signature;
 
 		CFunctions::block_structure block;
+                block.creator_key = publicKey;
 		block.network = networkName;
                 block.records.push_back(joinRecord);
                 block.records.push_back(fictionJoinRecord);
@@ -155,6 +156,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 block.signature = signature; 
 
                 functions.addToBlockFile(block);
+                relayClient.sendBlock(block);
 
                 // Wait until the block period is over
                 long currTimeBlock = selector.getCurrentTimeBlock();
@@ -241,7 +243,8 @@ void blockBuilderThread(int argc, char* argv[]){
                         previous_block = functions.getLastBlock("main");
 
 			CFunctions::block_structure block;
-			block.records.push_back(blockRewardRecord);
+			block.creator_key = publicKey; 
+                        block.records.push_back(blockRewardRecord);
 			block.records.push_back(sendRecord);
 			block.records.push_back(periodSummaryRecord);
             

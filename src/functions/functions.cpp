@@ -405,7 +405,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 		    //std::cout << "  ---  record  " << record_section << "\n" << std::endl;	
 
                     if(debug){
-                        std::cout << "    Block " << latest_block.number << std::endl;
+                        std::cout << "    Block " << latest_block.number << " creator: " << latest_block.creator_key << std::endl;
                     }
 
                     while( record_section.compare("") != 0 ){
