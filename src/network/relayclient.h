@@ -83,7 +83,7 @@ public:
     void sendBlock(CFunctions::block_structure block);    
 
     void receiveRecords();
-    void receiveBlocks();
+    bool receiveBlocks();
 
     std::vector<CRelayClient::node_status> getPeers();
 };

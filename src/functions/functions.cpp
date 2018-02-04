@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "functions/functions.h"
+#include "wallet.h"
 #include <boost/lexical_cast.hpp>
 #include "ecdsacrypto.h"
 #include "global.h"
@@ -328,6 +329,12 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
 
+    std::string publicKey;
+    std::string privateKey;
+    CWallet wallet;
+    wallet.read(privateKey, publicKey);
+    my_public_key = publicKey;
+
     std::stringstream ss;
     ss << "block_" << year << ".dat";
     std::string file_path = ss.str();
@@ -352,6 +359,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 
         // Parse content into data structures and strip it from content string as it goes. 
 
+        // TODO: use parseBlockJson() function here
         // vector blocks = parseBlockJson()
 
         //size_t n = std::count(s.begin(), s.end(), '_');
@@ -576,9 +584,10 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 * Description: parse json into block structures. 
 */
 std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string block_json){
+    std::cout << " parseBlockJson: " << block_json  << std::endl;    
     std::vector<CFunctions::block_structure> blocks;
     CFunctions::block_structure block;
-    std::string content = "";
+    std::string content = block_json;
     int parenDepth = 0;
     std::size_t start_i = content.find("{");
     if(start_i!=std::string::npos){
@@ -593,8 +602,10 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 //std::cout << "  -:  " << " " << i << " d: " << parenDepth  << std::endl;
             }
             if(parenDepth == 0){
-                std::cout << " block section " << content << std::endl;
                 std::string block_section = content.substr(start_i, i + 1);
+
+                //std::cout << " block_section " << block_section << std::endl;                
+
                 latest_block.records.clear();
                 latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
                 std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
@@ -607,11 +618,16 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                     latest_block.records.push_back(record);
                     record_section = parseSectionBlock(records_section, "\"record\":", "{", "}"); 
                 }
-                blocks.push_back(block);
+                if( latest_block.number > 0 && latest_block.hash.length() > 0 ){
+                    blocks.push_back(latest_block);
+                } else {
+                    //std::cout << "  no " << blockJSON(latest_block)  << std::endl;
+                }
                 content = content.substr(start_i + i, content.length()); // strip out processed block
             }
         }
-    }
+    }  
+    //std::cout << blocks.size() << std::endl;
     return blocks;
 }
 

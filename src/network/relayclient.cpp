@@ -113,13 +113,16 @@ std::vector<CRelayClient::node_status> CRelayClient::getPeers(){
 * Description: Implements relay networking with other nodes in the network through a server.
 */
 void CRelayClient::relayNetworkThread(int argc, char* argv[]){
+    CFunctions functions;
     std::string publicKey;
     std::string privateKey;
     CWallet wallet;
     wallet.read(privateKey, publicKey);
     while(running){
         receiveRecords(); // receive transaction records
-        receiveBlocks();  // receive blocks
+        if(receiveBlocks()){  // receive blocks and write to file
+             functions.parseBlockFile("", false); // parse block file changes
+        }
         // TODO: requests for blocks by id
 
         // If there are no active peers, get a new list.
@@ -271,7 +274,8 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
 *
 * Description: retrieve all blocks sent to this client.
 */
-void CRelayClient::receiveBlocks(){
+bool CRelayClient::receiveBlocks(){
+    bool result = false;
     CFunctions functions;
     std::string readBuffer;
     CURLcode res;
@@ -299,9 +303,11 @@ void CRelayClient::receiveBlocks(){
         std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);   
         for(int i = 0; i < blocks.size(); i++){
             CFunctions::block_structure block = blocks.at(i);
-            functions.addToBlockFile(block); 
+            functions.addToBlockFile(block);
+            result = true;
         } 
-    }    
+    }   
+    return result; 
 }
 
 
