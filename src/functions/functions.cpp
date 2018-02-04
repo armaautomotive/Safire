@@ -584,7 +584,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 * Description: parse json into block structures. 
 */
 std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string block_json){
-    std::cout << " parseBlockJson: " << block_json  << std::endl;    
+    //std::cout << " parseBlockJson: " << block_json  << std::endl;    
     std::vector<CFunctions::block_structure> blocks;
     CFunctions::block_structure block;
     std::string content = block_json;
