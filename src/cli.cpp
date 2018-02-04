@@ -110,8 +110,8 @@ void CCLI::processUserInput(){
 				joinRecord.transaction_type = CFunctions::JOIN_NETWORK;
 				joinRecord.amount = 0.0;
                                 joinRecord.fee = 0.0;
-				joinRecord.sender_public_key = "";
-				joinRecord.recipient_public_key = publicKey;
+				joinRecord.sender_public_key = publicKey;
+				joinRecord.recipient_public_key = "";
 				joinRecord.hash = functions.getRecordHash(joinRecord);
                                 std::string message_siganture = "";
 				ecdsa.SignMessage(privateKey, joinRecord.hash, message_siganture);
