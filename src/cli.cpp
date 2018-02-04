@@ -42,6 +42,7 @@ void CCLI::printAdvancedCommands(){
     " tests                  - Run tests to verify this build is functioning correctly.\n " <<
     " chain                  - Scan the complete blockchain for verification. Reports findings.\n " <<
     " printchain             - Print the blockchain summary and validation.\n " <<
+    " printqueue             - Print the record queue.\n " <<
     std::endl;
 }
 
@@ -224,6 +225,10 @@ void CCLI::processUserInput(){
            std::cout << " Blockchain detail: " << std::endl; 
 
            functions.parseBlockFile(publicKey, true);
+
+        } else if( command.compare("printqueue") == 0){
+            std::cout << " Record Queue: " << std::endl;
+            std::cout << "     Not implemented " << std::endl; 
 
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;

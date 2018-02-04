@@ -160,7 +160,8 @@ int CFunctions::generateBlock(std::vector<record_structure> records, std::string
 */
 std::string CFunctions::blockJSON( CFunctions::block_structure block){
     std::stringstream ss;
-    ss << "{\"block\":{" << 
+    ss << "{\"block\":{" <<
+        "\"creator_key\":\"" << block.creator_key << "\","  << 
         "\"network\":\"" << block.network << "\"," <<
         "\"number\":\"" << block.number << "\"," <<
         "\"time\":\"" << block.time << "\"," <<
@@ -391,6 +392,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                     // {"record": 
 
                     latest_block.records.clear();
+                    latest_block.creator_key = parseSectionString(block_section, "\"creator_key\":\"", "\"");
                     latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
                     std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                     latest_block.hash = hash;
@@ -607,6 +609,7 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 //std::cout << " block_section " << block_section << std::endl;                
 
                 latest_block.records.clear();
+                latest_block.creator_key = parseSectionString(block_section, "\"creator_key\":\"", "\""); 
                 latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
                 std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                 latest_block.hash = hash;
