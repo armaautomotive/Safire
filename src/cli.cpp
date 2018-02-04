@@ -117,7 +117,7 @@ void CCLI::processUserInput(){
 				ecdsa.SignMessage(privateKey, joinRecord.hash, message_siganture);
 				joinRecord.signature = message_siganture;	
 				
-                                functions.addToQueue( joinRecord );
+                                //functions.addToQueue( joinRecord );
                                 relayClient.sendRecord(joinRecord);
 	
 				// TODO: send request or say allready sent. 	
@@ -228,7 +228,8 @@ void CCLI::processUserInput(){
 
         } else if( command.compare("printqueue") == 0){
             std::cout << " Record Queue: " << std::endl;
-            std::cout << "     Not implemented " << std::endl; 
+            //std::cout << "     Not implemented " << std::endl; 
+            functions.printQueue();
 
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;

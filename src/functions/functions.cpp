@@ -64,6 +64,13 @@ int CFunctions::addToQueue(record_structure record){
     return 1;
 }
 
+void CFunctions::printQueue(){
+    std::vector<record_structure> records = parseQueueRecords(); 
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        std::cout << recordJSON(record);
+    }
+}
 
 /**
  * parseQueueRecords
