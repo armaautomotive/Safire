@@ -110,6 +110,7 @@ public:
     CFunctions::block_structure getLastBlock(std::string network);
     CFunctions::record_structure extractOneQueueRecord();
     CFunctions::record_structure parseRecordJson(std::string record_section);
+    std::vector<CFunctions::block_structure> parseBlockJson(std::string block_json);
  
     CFunctions::block_structure latest_block;
     double balance; // wallet balance

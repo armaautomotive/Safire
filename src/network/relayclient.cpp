@@ -281,32 +281,21 @@ void CRelayClient::receiveBlocks(){
         std::string privateKey;
         CWallet wallet;
         wallet.read(privateKey, publicKey);
-
         // http://173.255.218.54/relay.php?action=getmessages&type=block&sender_key=xxx&receiver_key=110
         std::string url_string = "http://173.255.218.54/relay.php";
         std::string post_data = "action=getmessages&type=block&sender_key=&receiver_key=";
         post_data.append(publicKey);
-
         curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
-
-        // Write to queue file
-        std::stringstream ss;
-        ss << readBuffer;
-        std::string line;
-        while(std::getline(ss,line,'\n')){
-            //std::cout << "line " << line << std::endl;
-            //CFunctions::record_structure record;
-            //record = functions.parseRecordJson(line);
-            //if( record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0 ){
-            //    functions.addToQueue(record);
-                //std::cout << " *** ";
-            //}
-        }
+        std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);   
+        for(int i = 0; i < blocks.size(); i++){
+            CFunctions::block_structure block = blocks.at(i);
+            functions.addToBlockFile(block); 
+        } 
     }    
 }
 

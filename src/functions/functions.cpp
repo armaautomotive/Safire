@@ -343,7 +343,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
     std::string line;
     while (std::getline(infile, line))
     {
-        std::istringstream iss(line);
+        //std::istringstream iss(line);
         //CFunctions::record_structure record;
 
         content += line;
@@ -351,6 +351,8 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
         //std::cout << "  PARSE BLOCKCHAIN:  " << line << " " << std::endl;
 
         // Parse content into data structures and strip it from content string as it goes. 
+
+        // vector blocks = parseBlockJson()
 
         //size_t n = std::count(s.begin(), s.end(), '_');
 
@@ -566,6 +568,52 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 
     return 0;
 }
+
+
+/**
+* parseBlockJson
+*
+* Description: parse json into block structures. 
+*/
+std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string block_json){
+    std::vector<CFunctions::block_structure> blocks;
+    CFunctions::block_structure block;
+    std::string content = "";
+    int parenDepth = 0;
+    std::size_t start_i = content.find("{");
+    if(start_i!=std::string::npos){
+        CFunctions::block_structure latest_block;
+        for(int i = 0; i < content.length(); i++){
+            if(content[start_i + i] == '{'){
+                parenDepth++;
+                //std::cout << "  +:  " << " " << i << " d: " << parenDepth  << std::endl;
+            }
+            if(content[start_i + i] == '}'){
+                parenDepth--;
+                //std::cout << "  -:  " << " " << i << " d: " << parenDepth  << std::endl;
+            }
+            if(parenDepth == 0){
+                std::string block_section = content.substr(start_i, i + 1);
+                latest_block.records.clear();
+                latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
+                std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
+                latest_block.hash = hash;
+                std::string records_section = parseSectionBlock(block_section, "\"records\":", "{", "}");
+                std::string record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
+                while(record_section.compare("") != 0){
+                    CFunctions::record_structure record;
+                    record = parseRecordJson(record_section);
+                    latest_block.records.push_back(record);
+                    record_section = parseSectionBlock(records_section, "\"record\":", "{", "}"); 
+                }
+                blocks.push_back(block);
+                content = content.substr(start_i + i, content.length()); // strip out processed block
+            }
+        }
+    }
+    return blocks;
+}
+
 
 /**
 * parseRecordJson
