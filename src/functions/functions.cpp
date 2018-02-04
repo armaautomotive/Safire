@@ -593,6 +593,7 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 //std::cout << "  -:  " << " " << i << " d: " << parenDepth  << std::endl;
             }
             if(parenDepth == 0){
+                std::cout << " block section " << content << std::endl;
                 std::string block_section = content.substr(start_i, i + 1);
                 latest_block.records.clear();
                 latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
