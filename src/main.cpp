@@ -99,6 +99,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 CFunctions::transaction_types joinType = CFunctions::JOIN_NETWORK;
                 joinRecord.transaction_type = joinType;
                 joinRecord.amount = 0.0;
+                joinRecord.fee = 0;
                 joinRecord.sender_public_key = publicKey;
                 joinRecord.recipient_public_key = "";
                 joinRecord.hash = functions.getRecordHash(joinRecord);
@@ -117,6 +118,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 fictionJoinRecord.time = ts;
                 fictionJoinRecord.transaction_type = joinType;
                 fictionJoinRecord.amount = 0.0;
+                fictionJoinRecord.fee = 0;
                 fictionJoinRecord.sender_public_key = fictionPublicKey;
                 fictionJoinRecord.recipient_public_key = "";
                 fictionJoinRecord.hash = functions.getRecordHash(fictionJoinRecord);

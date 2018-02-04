@@ -108,6 +108,7 @@ void CCLI::processUserInput(){
 				joinRecord.time = ts;
 				joinRecord.transaction_type = CFunctions::JOIN_NETWORK;
 				joinRecord.amount = 0.0;
+                                joinRecord.fee = 0.0;
 				joinRecord.sender_public_key = "";
 				joinRecord.recipient_public_key = publicKey;
 				joinRecord.hash = functions.getRecordHash(joinRecord);
@@ -171,6 +172,7 @@ void CCLI::processUserInput(){
 			sendRecord.time = ts;
 			sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
 			sendRecord.amount = d_amount;
+                        sendRecord.fee = 0.0;
 			sendRecord.sender_public_key = publicKey;
 			sendRecord.recipient_public_key = publicKey;
 			std::string message_siganture = destination_address;

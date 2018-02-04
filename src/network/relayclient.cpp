@@ -260,6 +260,8 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
             res = curl_easy_perform(curl);
             curl_easy_cleanup(curl);
+
+            std::cout << " SEND BLOCK " << functions.blockJSON(block) << std::endl;
         }
     }
 }
@@ -291,6 +293,9 @@ void CRelayClient::receiveBlocks(){
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
+
+        std::cout << " GETBLOCK " << readBuffer << std::endl;
+
         std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);   
         for(int i = 0; i < blocks.size(); i++){
             CFunctions::block_structure block = blocks.at(i);
