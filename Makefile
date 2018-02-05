@@ -32,7 +32,7 @@ CFLAGS_MAC= -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/level
 #  /usr/local/lib/libsecp256k1.a
 # -Bstatic
 # -lboost_system-mt not found
-CFLAGS_LINUX= -L/usr/local/lib/  -L./src/leveldb  -L/usr/lib/x86_64-linux-gnu/ -pthread  -lboost_system  -lssl -lcrypto -lboost_filesystem   -lleveldb   -lcurl  -Wdeprecated -w  `pkg-config --cflags --libs nice` 
+CFLAGS_LINUX= -L/usr/local/lib/  -L./src/leveldb  -L/usr/lib/x86_64-linux-gnu/ -pthread  -lboost_system  -lssl -lcrypto -lboost_filesystem  -lleveldb   -lcurl  -Wdeprecated -w  `pkg-config --cflags --libs nice` 
 # -L/usr/lib/
 # -lsecp256k1
 # -Weverything  
