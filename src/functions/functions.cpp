@@ -9,6 +9,7 @@
 #include "global.h"
 #include <sstream>
 #include "functions/selector.h"
+//#include "blockdb.h"
 
 /**
  * tokenClose
@@ -192,6 +193,7 @@ std::string CFunctions::blockJSON( CFunctions::block_structure block){
 * Description: Add a block to the chain file.
 */
 int CFunctions::addToBlockFile( CFunctions::block_structure block ){
+    //CBlockDB blockDB;
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
@@ -205,6 +207,7 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     
     std::string json = blockJSON(block);
     outfile << json;
+    //blockDB.AddBlock("x");
     /*
     outfile << "{\"block\":{" <<
         "\"network\":\"" << block.network << "\"," <<

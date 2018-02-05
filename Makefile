@@ -17,7 +17,7 @@ FILES_MAC= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp ./src/transacti
 # ./src/network/p2p.cpp  
 # ./src/util.cpp ./src/rsacrypto.cpp  
 #	./src/wallet/wallet.cpp
-FILES_LINUX= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp ./src/transaction.cpp ./src/networktime.cpp ./src/cli.cpp  ./src/functions/*.cpp  ./src/network/relayclient.cpp ./src/network/p2p.cpp
+FILES_LINUX= ./src/main.cpp ./src/ecdsacrypto.cpp ./src/wallet.cpp ./src/transaction.cpp ./src/blockdb.cpp ./src/networktime.cpp ./src/cli.cpp  ./src/functions/*.cpp  ./src/network/relayclient.cpp ./src/network/p2p.cpp
 #  ./src/network/*.cpp   This fails to link because of boost...
 FILES_LINUX2= ./src/main2.cpp  ./src/ecdsacrypto.cpp   
 SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
