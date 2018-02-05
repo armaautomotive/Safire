@@ -24,6 +24,9 @@ bool CWallet::write(std::string privateKey, std::string publicKey)
     std::string walletContent = "private:" + privateKey + "\n" +
             "public:" + publicKey + "\n";
 
+    //const char *homeDir = getenv("HOME");
+    //std::cout << " dir " << homeDir << "\n";
+
     std::ofstream out("wallet.dat");
     out << walletContent;
     out.close();
@@ -33,6 +36,9 @@ bool CWallet::write(std::string privateKey, std::string publicKey)
 
 bool CWallet::read(std::string & privateKey, std::string & publicKey)
 {
+    //const char *homeDir = getenv("HOME");
+    //std::cout << " dir " << homeDir << "\n";
+
     std::ifstream t("wallet.dat");
     std::string walletContent((std::istreambuf_iterator<char>(t)),
                  std::istreambuf_iterator<char>());
