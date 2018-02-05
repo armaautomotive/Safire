@@ -68,7 +68,9 @@ apt-get install libnice-dev<br>
 > Check that the libnice version is greater than 0.1.11 (dpkg -l | grep libnice)<br>
 
 sudo apt-get install libcurl4-gnutls-dev <br>
-
+cd src/leveldb<br>
+make<br>
+cd ../../<br>
 make linux<br> 
 
 ./bin/Safire<br>
