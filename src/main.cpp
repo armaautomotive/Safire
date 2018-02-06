@@ -9,6 +9,7 @@
 #include "network/relayclient.h"
 #include "network/p2p.h"
 #include "functions/selector.h"
+#include "functions/chain.h"
 //#include "wallet/wallet.h"
 //#include "key.h"
 //#include "pubkey.h"
