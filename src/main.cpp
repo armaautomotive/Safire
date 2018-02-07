@@ -53,6 +53,7 @@ void blockBuilderThread(int argc, char* argv[]){
         CRelayClient relayClient;
         CSelector selector;
         selector.syncronizeTime();
+        CChain chain;
 	// Check block chain for latest block information.
 	// TODO...
 
@@ -156,6 +157,7 @@ void blockBuilderThread(int argc, char* argv[]){
                 ecdsa.SignMessage(privateKey, block.hash, signature);
                 block.signature = signature; 
 
+                chain.setFirstBlock(block);
                 functions.addToBlockFile(block);
                 relayClient.sendBlock(block);
 
@@ -325,7 +327,7 @@ int main(int argc, char* argv[])
         printf(" record n");
     }
     */
-    
+    CChain chain; 
     
     //std::string p;
     //std::string v;
@@ -449,6 +451,7 @@ int main(int argc, char* argv[])
     cli.processUserInput();    
 
     std::cout << "Shutting down... " << std::endl;
+    chain.writeFile();
     stop();
     blockThread.join();
     //p2p.exit();

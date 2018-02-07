@@ -10,6 +10,7 @@
 #include <sstream>
 #include "functions/selector.h"
 #include "blockdb.h"
+#include "functions/chain.h"
 
 /**
  * tokenClose
@@ -336,6 +337,7 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
     CECDSACrypto ecdsa;
     CSelector selector;
+    CChain chain;
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
@@ -572,7 +574,8 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                         // latest_block.hash
                         std::cout << "    Hash " << latest_block.hash << " prev " << latest_block.previous_block_hash << std::endl;
  
-                    }  
+                    }
+                    chain.setLatestBlock(latest_block);  
                     
                     content = content.substr(start_i + i, content.length()); // strip out processed block
                 }

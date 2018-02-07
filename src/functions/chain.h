@@ -17,8 +17,8 @@
 class CChain
 {
 private:
-    long firstBlock;
-    long latestBlock;
+    static long firstBlock;
+    static long latestBlock;
 public:
     CChain();
 

@@ -85,6 +85,9 @@ public:
     void receiveRecords();
     bool receiveBlocks();
 
+    void sendRequestBlocks(long blockNumber);
+    bool receiveRequestBlocks();
+
     std::vector<CRelayClient::node_status> getPeers();
 };
 

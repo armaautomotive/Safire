@@ -8,9 +8,12 @@
 #include "blockdb.h"
 #include <boost/lexical_cast.hpp>
 
+long CChain::firstBlock;
+long CChain::latestBlock;
+
 CChain::CChain(){
-    firstBlock = -1;
-    latestBlock = -1;    
+    CChain::firstBlock = -1;
+    CChain::latestBlock = -1;    
     loadFile();
 }
 
@@ -21,7 +24,8 @@ bool CChain::fileExists(std::string fileName)
 }
 
 void CChain::setFirstBlock(CFunctions::block_structure block){
-    firstBlock = block.number;
+    CChain::firstBlock = block.number;
+    writeFile();
 }    
 
 void CChain::writeFile(){
@@ -37,7 +41,7 @@ void CChain::writeFile(){
 }
     
 long CChain::getFirstBlock(){
-    return firstBlock;
+    return CChain::firstBlock;
 }
 
 void CChain::loadFile(){
@@ -52,19 +56,22 @@ void CChain::loadFile(){
     std::size_t latestBlockEnd    = indexContent.find("\n", latestBlockStart);
     if (firstBlockStart!=std::string::npos) {
         std::string content = indexContent.substr(firstBlockStart + 11, firstBlockEnd - firstBlockStart - 11);
+        //std::cout << content << "_\n"; 
         long result = ::atol(content.c_str());
         firstBlock = result; 
-        content = indexContent.substr(latestBlockStart + 12, latestBlockEnd - latestBlockStart - 7);
+        content = indexContent.substr(latestBlockStart + 12, latestBlockEnd - latestBlockStart - 12);
+        //std::cout << content << "_\n"; 
         result = ::atol(content.c_str());
         latestBlock = result;
     }
 }
     
 void CChain::setLatestBlock(CFunctions::block_structure block){
-    latestBlock = block.number;
+    CChain::latestBlock = block.number;
+    //writeFile();
 }
     
 long CChain::getLatestBlock(){
-    return latestBlock;
+    return CChain::latestBlock;
 }
 

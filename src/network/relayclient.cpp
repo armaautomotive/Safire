@@ -313,3 +313,76 @@ bool CRelayClient::receiveBlocks(){
 
 
 
+// sendrequestblocks
+void CRelayClient::sendRequestBlocks(long blockNumber){
+    CFunctions functions;
+    std::string publicKey;
+    std::string privateKey;
+    CWallet wallet;
+    wallet.read(privateKey, publicKey);
+    for(int i = 0; i < node_statuses.size(); i++){
+        CRelayClient::node_status node = node_statuses.at(i);
+        std::string readBuffer;
+        CURLcode res;
+        CURL * curl;
+        curl_global_init(CURL_GLOBAL_ALL);
+        curl = curl_easy_init();
+        if(curl) {
+            // http://173.255.218.54/relay.php?action=send&type=request&sender_key=109&receiver_key=110&message=jsondata
+            std::string url_string = "http://173.255.218.54/relay.php";
+            std::string post_data = "action=sendrequestblocks&type=request&sender_key=";
+            post_data.append(publicKey);
+            post_data.append("&receiver_key=");
+            post_data.append(node.public_key);
+            post_data.append("&message=");
+            post_data.append("") ; // ******
+            curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+            res = curl_easy_perform(curl);
+            curl_easy_cleanup(curl);
+
+            //std::cout << " SEND BLOCK " << functions.blockJSON(block) << std::endl;
+        }
+    }
+}
+
+
+bool CRelayClient::receiveRequestBlocks(){
+    bool result = false;
+    CFunctions functions;
+    std::string readBuffer;
+    CURLcode res;
+    CURL * curl;
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl = curl_easy_init();
+    if(curl) {
+        std::string publicKey;
+        std::string privateKey;
+        CWallet wallet;
+        wallet.read(privateKey, publicKey);
+        // http://173.255.218.54/relay.php?action=getmessages&type=block&sender_key=xxx&receiver_key=110
+        std::string url_string = "http://173.255.218.54/relay.php";
+        std::string post_data = "action=receiverequestblocks&type=request&sender_key=&receiver_key=";
+        post_data.append(publicKey);
+        curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+        
+        //std::cout << " GETBLOCK " << readBuffer << std::endl;
+        
+        //std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);
+        //for(int i = 0; i < blocks.size(); i++){ 
+        //    CFunctions::block_structure block = blocks.at(i);
+        //    functions.addToBlockFile(block);
+        //    result = true;
+        //}
+    }   
+    return result;
+}
+
+
