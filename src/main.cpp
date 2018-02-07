@@ -79,7 +79,7 @@ void blockBuilderThread(int argc, char* argv[]){
 
 	bool networkGenesis = false;
         std::string networkName = "main";
-        if(argc >= 3){
+        if(argc >= 3 ){ // && argv[1] == "genesis"
             	networkGenesis = true;
 		networkName = argv[2];
 		//std::cout << " 1 " << argv[1] << " " << argv[2] ;
@@ -172,6 +172,32 @@ void blockBuilderThread(int argc, char* argv[]){
 
 	// Does a blockfile exist? if networkGenesis==false and there is no block file we wait until the network syncs before wrting to the blockfile. 
         CFunctions::block_structure previous_block;
+
+        // syncronize chain
+        if(networkGenesis == false && chain.getFirstBlock() == -1 ){
+            // 
+            std::cout << "Syncronizing Blockchain." << std::endl;
+
+            // Expected latest block number.  
+            long currBlock = selector.getCurrentTimeBlock();
+            std::cout << "Current time: " << currBlock << " latest: " << chain.getLatestBlock() << std::endl;
+
+            relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
+            std::cout << "-" << std::endl; 
+            int progressPos = 0;
+            while( chain.getLatestBlock() < currBlock - 1 && buildingBlocks ){
+                if(progressPos == 0){
+                    std::cout << "\rSynchronizing: " << "|" << std::flush; progressPos++; 
+                } else if(progressPos == 1){
+                    std::cout << "\rSynchronizing: " << "/" << std::flush; progressPos++; 
+                } else if(progressPos == 2){
+                    std::cout << "\rSynchronizing: " << "-" << std::flush; progressPos++;
+                } else if(progressPos == 3){
+                    std::cout << "\rSynchronizing: " << "-" << std::flush; progressPos = 0;
+                }
+                usleep(1000000);  
+            }
+        }
  
 	int blockNumber = functions.latest_block.number + 1;
         //long timeBlock = 0; 
