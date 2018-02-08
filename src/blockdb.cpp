@@ -3,6 +3,7 @@
 #include <sstream>
 #include <unistd.h>   // open and close
 #include "leveldb/db.h"
+#include "platform.h"
 
 using namespace std;
 
@@ -17,6 +18,7 @@ using namespace std;
 */
 int CBlockDB::AddBlock(std::string publicKey)
 {
+    CPlatform platform;
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;

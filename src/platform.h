@@ -25,6 +25,7 @@ public:
     {
     }
 
+    inline char separator();
     std::string getSafirePath();
 };
 
