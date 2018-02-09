@@ -95,7 +95,7 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
     {
         cerr << "Unable to open/create test database './blockdb'" << endl;
         cerr << status.ToString() << endl;
-        return;
+        return block;
     }
 
 

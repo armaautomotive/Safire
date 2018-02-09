@@ -411,7 +411,7 @@ bool CRelayClient::receiveRequestBlocks(){
 		}
             }
                      
-            std::cout << "block number to send " << requestedBlock << std:endl;
+            std::cout << "block number to send " << requestedBlock << std::endl;
  
             if(requestedBlock > -1){
                     CFunctions::block_structure block = blockDB.getBlock(requestedBlock);                     
