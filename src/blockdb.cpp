@@ -75,8 +75,20 @@ void CBlockDB::GetBlocks()
         cerr << it->status().ToString() << endl; 
     }
 
-    
-
     // Close the database
     delete db; 
 }
+
+
+/**
+* getBlock
+*
+* Description: Get a block by number 
+*/
+CFunctions::block_structure getBlock(long number){
+    CFunctions::block_structure block;
+
+
+    return block;
+}
+

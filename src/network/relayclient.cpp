@@ -16,6 +16,8 @@
 #include "wallet.h"
 #include <sstream>
 #include <boost/lexical_cast.hpp>
+#include "functions/chain.h"
+#include "blockdb.h"
 
 std::string CRelayClient::myPeerAddress;
 bool CRelayClient::running;
@@ -359,12 +361,15 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
 /**
 * receiveRequestBlocks
 *
-* Description:
+* Description: 
 * 
 */
 bool CRelayClient::receiveRequestBlocks(){
     bool result = false;
     CFunctions functions;
+    CChain chain;
+    CBlockDB blockDB;
+
     std::string readBuffer;
     CURLcode res;
     CURL * curl;
@@ -387,22 +392,50 @@ bool CRelayClient::receiveRequestBlocks(){
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
         
-        std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
+        //std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
         // parse message=
 
         std::string blockRequestString = functions.parseSectionString(readBuffer, "\"message\":\"", "\"");
+        // TODO: we need to know who is requesting the block.
+        std::string sender_key = functions.parseSectionString(readBuffer, "\"sender_key\":\"", "\"");    
+ 
         if(blockRequestString.length() > 0){
-            std::cout << "-" << blockRequestString << std::endl;
+            std::cout << "-" << blockRequestString << " sender_key: " << sender_key << std::endl;
             std::string::size_type sz;
             long requestedBlock = std::stol(blockRequestString, &sz);
             if( requestedBlock == -1 ){ // Request genesis block onward
-
                 // if chain.firstBlock exists and > 0
+		if(chain.getFirstBlock() > -1){
+/*
+                    CFunctions::block_structure block = blockDB.getBlock(chain.getFirstBlock());                     
+                    std::string readBuffer;
+                    CURLcode res;
+                    CURL * curl;
+                    curl_global_init(CURL_GLOBAL_ALL);
+                    curl = curl_easy_init();
+                    if(curl) {
+                        // http://173.255.218.54/relay.php?action=sendmessage&type=block&sender_key=109&receiver_key=110&message=jsondata
+                        std::string url_string = "http://173.255.218.54/relay.php";
+                        std::string post_data = "action=sendmessage&type=block&sender_key=";
+                        post_data.append(publicKey);
+                        post_data.append("&receiver_key=");
+                        post_data.append(sender_key);
+                        post_data.append("&message=");
+                        post_data.append(functions.blockJSON(block));
+                        curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
+                        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
+                        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+                        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+                        res = curl_easy_perform(curl);
+                        curl_easy_cleanup(curl);
+                        //std::cout << " SEND BLOCK " << functions.blockJSON(block) << std::endl;
+                    }
+*/ 
 
-
+                }
             } else {
-
                 // query from blockdb 
+
 
             }      
         }
