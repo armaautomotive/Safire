@@ -313,9 +313,13 @@ bool CRelayClient::receiveBlocks(){
 }
 
 
-
-
-// sendrequestblocks
+/**
+* sendRequestBlocks() 
+*
+* Description: Send a request to connected nodes (through server) asking for blocks starting at a number. 
+* -1 indicates starting from the genesis block.
+*
+*/
 void CRelayClient::sendRequestBlocks(long blockNumber){
     CFunctions functions;
     std::string publicKey;
@@ -330,7 +334,8 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
         curl_global_init(CURL_GLOBAL_ALL);
         curl = curl_easy_init();
         if(curl) {
-            // http://173.255.218.54/relay.php?action=sendmessage&type=request&sender_key=109&receiver_key=110&message=jsondata
+            // http://173.255.218.54/relay.php?action=sendmessage&type=request&sender_key=109&receiver_key=110&message=-1
+            
             std::string url_string = "http://173.255.218.54/relay.php";
             std::string post_data = "action=sendmessage&type=request&sender_key=";
             post_data.append(publicKey);
@@ -351,6 +356,12 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
 }
 
 
+/**
+* receiveRequestBlocks
+*
+* Description:
+* 
+*/
 bool CRelayClient::receiveRequestBlocks(){
     bool result = false;
     CFunctions functions;
@@ -365,6 +376,7 @@ bool CRelayClient::receiveRequestBlocks(){
         CWallet wallet;
         wallet.read(privateKey, publicKey);
         // http://173.255.218.54/relay.php?action=getmessages&type=request&sender_key=xxx&receiver_key=110
+
         std::string url_string = "http://173.255.218.54/relay.php";
         std::string post_data = "action=getmessages&type=request&sender_key=&receiver_key=";
         post_data.append(publicKey);
@@ -375,8 +387,20 @@ bool CRelayClient::receiveRequestBlocks(){
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
         
-        //std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
-       
+        std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
+        // parse message=
+
+/*
+        std::string::size_type sz;
+        long requestedBlock = std::stol (readBuffer, &sz);
+        if( requestedBlock == -1 ){ // Request genesis block onward
+
+
+        } else {
+
+
+        }      
+ */
         // compose 
  
         //std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);

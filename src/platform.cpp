@@ -31,18 +31,12 @@ std::string CPlatform::getSafirePath(){
     std::stringstream ss;
     ss << homeDir << separator() << "safire";
     path = ss.str();
-    //DIR* dir = opendir(path);
-    //if(ENOENT == errno){
-        
-    //}
-
     const char* c_path = path.c_str();
     boost::filesystem::path dir(c_path);
     if(boost::filesystem::create_directory(dir))
     {
         std::cerr<< "Directory Created: "<< path <<std::endl;
     }
-
     return path;
 }
 

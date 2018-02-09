@@ -42,7 +42,7 @@ using namespace std;
 volatile bool buildingBlocks = true;
 
 /**
-* blockBuilderThread
+* blockBuilderThread TODO: Move this to blockbuilder.cpp
 *
 * Description:
 * std::thread blockThread (blockBuilderThread);
@@ -183,7 +183,8 @@ void blockBuilderThread(int argc, char* argv[]){
             std::cout << "Current time: " << currBlock << " latest: " << chain.getLatestBlock() << std::endl;
 
             relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
-            std::cout << "-" << std::endl; 
+
+            //std::cout << "-" << std::endl; 
             int progressPos = 0;
             while( chain.getLatestBlock() < currBlock - 1 && buildingBlocks ){
                 if(progressPos == 0){
@@ -195,6 +196,9 @@ void blockBuilderThread(int argc, char* argv[]){
                 } else if(progressPos == 3){
                     std::cout << "\rSynchronizing: " << "-" << std::flush; progressPos = 0;
                 }
+
+                // if no progress, send request again.
+
                 usleep(1000000);  
             }
         }

@@ -4,6 +4,7 @@
 #include <unistd.h>   // open and close
 #include "leveldb/db.h"
 #include "platform.h"
+#include <boost/lexical_cast.hpp>
 
 using namespace std;
 
@@ -14,11 +15,14 @@ using namespace std;
 *     Generates 128 random ascii characters to feed into a sha256 hash.
 *
 * @param: std::string output private key.
-* @return int returns 1 is successfull.
+* @return bool returns 1 is successfull.
 */
-int CBlockDB::AddBlock(std::string publicKey)
-{
+bool CBlockDB::AddBlock(CFunctions::block_structure block){
     CPlatform platform;
+    CFunctions functions;
+    std::string dbPath = platform.getSafirePath();
+    std::cout << dbPath << std::endl;
+
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;
@@ -34,16 +38,14 @@ int CBlockDB::AddBlock(std::string publicKey)
 
     // Insert
     ostringstream keyStream;
-    keyStream << "Key" << publicKey;
+    keyStream << boost::lexical_cast<std::string>(block.number);
     ostringstream valueStream;
-    valueStream << "Test data value: " << publicKey;
+    valueStream << functions.blockJSON(block);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
-
-    
 
     // Close the database
     delete db;
-    return 1;
+    return true;
 }
 
 

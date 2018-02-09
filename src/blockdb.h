@@ -5,6 +5,7 @@
 #ifndef MAGNITE_BLOCK_DB_H
 #define MAGNITE_BLOCK_DB_H
 
+#include "functions/functions.h"
 #include <iostream>
 #include <string>
 #include <stdexcept>
@@ -32,7 +33,8 @@ public:
     {
     }
 
-    int AddBlock(std::string publicKey);
+    //int AddBlock(std::string publicKey);
+    bool AddBlock(CFunctions::block_structure block);
     void GetBlocks();
 
 };
