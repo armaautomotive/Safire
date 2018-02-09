@@ -385,6 +385,7 @@ bool CRelayClient::receiveRequestBlocks(){
         std::string url_string = "http://173.255.218.54/relay.php";
         std::string post_data = "action=getmessages&type=request&sender_key=&receiver_key=";
         post_data.append(publicKey);
+        post_data.append("&return_request_data=true"); // we need the sender key in order to reply to this request
         curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -392,7 +393,7 @@ bool CRelayClient::receiveRequestBlocks(){
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
         
-        //std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
+        std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
         // parse message=
 
         std::string blockRequestString = functions.parseSectionString(readBuffer, "\"message\":\"", "\"");
@@ -406,8 +407,14 @@ bool CRelayClient::receiveRequestBlocks(){
             if( requestedBlock == -1 ){ // Request genesis block onward
                 // if chain.firstBlock exists and > 0
 		if(chain.getFirstBlock() > -1){
-/*
-                    CFunctions::block_structure block = blockDB.getBlock(chain.getFirstBlock());                     
+                    requestedBlock = chain.getFirstBlock();
+		}
+            }
+                     
+            std::cout << "block number to send " << requestedBlock << std:endl;
+ 
+            if(requestedBlock > -1){
+                    CFunctions::block_structure block = blockDB.getBlock(requestedBlock);                     
                     std::string readBuffer;
                     CURLcode res;
                     CURL * curl;
@@ -430,14 +437,10 @@ bool CRelayClient::receiveRequestBlocks(){
                         curl_easy_cleanup(curl);
                         //std::cout << " SEND BLOCK " << functions.blockJSON(block) << std::endl;
                     }
-*/ 
-
-                }
-            } else {
-                // query from blockdb 
+            }
 
 
-            }      
+ 
         }
  
         // compose 
