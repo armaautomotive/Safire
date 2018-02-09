@@ -85,8 +85,37 @@ void CBlockDB::GetBlocks()
 *
 * Description: Get a block by number 
 */
-CFunctions::block_structure getBlock(long number){
+CFunctions::block_structure CBlockDB::getBlock(long number){
     CFunctions::block_structure block;
+    leveldb::DB* db;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
+    if (false == status.ok())
+    {
+        cerr << "Unable to open/create test database './blockdb'" << endl;
+        cerr << status.ToString() << endl;
+        return;
+    }
+
+
+    // Iterate over each item in the database and print them
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next())
+    {
+        cout << it->key().ToString() << " : " << it->value().ToString() << endl;
+    }
+    if (false == it->status().ok())
+    {
+        cerr << "An error was found during the scan" << endl;
+        cerr << it->status().ToString() << endl;
+    }
+
+    // Close the database
+    delete db;
+
+
+
 
 
     return block;

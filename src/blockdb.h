@@ -36,7 +36,7 @@ public:
     //int AddBlock(std::string publicKey);
     bool AddBlock(CFunctions::block_structure block);
     void GetBlocks();
-
+    CFunctions::block_structure getBlock(long number);
 };
 
 #endif // MAGNITE_BLOCK_DB_H
