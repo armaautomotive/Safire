@@ -390,17 +390,23 @@ bool CRelayClient::receiveRequestBlocks(){
         std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
         // parse message=
 
-/*
-        std::string::size_type sz;
-        long requestedBlock = std::stol (readBuffer, &sz);
-        if( requestedBlock == -1 ){ // Request genesis block onward
+        std::string blockRequestString = functions.parseSectionString(readBuffer, "\"message\":\"", "\"");
+        if(blockRequestString.length() > 0){
+            std::cout << "-" << blockRequestString << std::endl;
+            std::string::size_type sz;
+            long requestedBlock = std::stol(blockRequestString, &sz);
+            if( requestedBlock == -1 ){ // Request genesis block onward
+
+                // if chain.firstBlock exists and > 0
 
 
-        } else {
+            } else {
 
+                // query from blockdb 
 
-        }      
- */
+            }      
+        }
+ 
         // compose 
  
         //std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);

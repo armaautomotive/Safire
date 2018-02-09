@@ -21,7 +21,7 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     CPlatform platform;
     CFunctions functions;
     std::string dbPath = platform.getSafirePath();
-    std::cout << dbPath << std::endl;
+    //std::cout << dbPath << std::endl;
 
     leveldb::DB* db;
     leveldb::Options options;
