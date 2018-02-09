@@ -352,7 +352,7 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
             res = curl_easy_perform(curl);
             curl_easy_cleanup(curl);
 
-            std::cout << " SEND request to receive block data. " << std::endl;
+            std::cout << " SEND request to receive block data. " << blockNumber << " to: " << node.public_key << std::endl;
         }
     }
 }
