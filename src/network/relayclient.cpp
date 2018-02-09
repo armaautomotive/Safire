@@ -352,7 +352,7 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
             res = curl_easy_perform(curl);
             curl_easy_cleanup(curl);
 
-            //std::cout << " SEND request BLOCK " << functions.blockJSON(block) << std::endl;
+            std::cout << " SEND request to receive block data. " << std::endl;
         }
     }
 }
@@ -400,7 +400,7 @@ bool CRelayClient::receiveRequestBlocks(){
         std::string sender_key = functions.parseSectionString(readBuffer, "\"sender_key\":\"", "\"");    
  
         if(blockRequestString.length() > 0){
-            std::cout << "-" << blockRequestString << " sender_key: " << sender_key << std::endl;
+            std::cout << " -  Receive request for block: " << blockRequestString << " sender_key: " << sender_key << std::endl;
             std::string::size_type sz;
             long requestedBlock = std::stol(blockRequestString, &sz);
             if( requestedBlock == -1 ){ // Request genesis block onward
