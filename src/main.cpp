@@ -147,11 +147,17 @@ void blockBuilderThread(int argc, char* argv[]){
                 block.records.push_back(fictionJoinRecord);
                 block.records.push_back(blockRewardRecord);
 
-		time_t t = time(0);
-                std::string block_time = std::asctime(std::localtime(&t));
+		//time_t t = time(0);
+                //std::string block_time = std::asctime(std::localtime(&t));
 
 		block.number = selector.getCurrentTimeBlock();
-                block.time = block_time;
+                
+                //time_t  epoch;
+                //time(&epoch);
+                //std::stringstream ss;
+                //ss << epoch;
+                //std::string ts = ss.str();
+                block.time = ts;
 
                 block.hash = functions.getBlockHash(block);
                 ecdsa.SignMessage(privateKey, block.hash, signature);
@@ -200,6 +206,10 @@ void blockBuilderThread(int argc, char* argv[]){
                 // if no progress, send request again.
 
                 usleep(1000000);  
+
+                currBlock = selector.getCurrentTimeBlock();
+                relayClient.sendRequestBlocks(chain.getLatestBlock());
+
             }
         }
  
@@ -217,9 +227,10 @@ void blockBuilderThread(int argc, char* argv[]){
                 }
                 //std::cout << "here 2 " << std::endl;
 
-		time_t t = time(0);
-		std::string block_time = std::asctime(std::localtime(&t));
-  
+		//time_t t = time(0);
+		//std::string block_time = std::asctime(std::localtime(&t));
+                  
+
 		if(build_block){
 
 			// While time remaining in block
@@ -282,7 +293,7 @@ void blockBuilderThread(int argc, char* argv[]){
 			block.records.push_back(periodSummaryRecord);
             
 			block.number = selector.getCurrentTimeBlock(); //  blockNumber++;
-			block.time = block_time;
+			block.time = ts;
             
             
 			// Add records from queue...

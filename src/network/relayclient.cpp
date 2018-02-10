@@ -268,7 +268,7 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
             res = curl_easy_perform(curl);
             curl_easy_cleanup(curl);
 
-            //std::cout << " SEND BLOCK " << functions.blockJSON(block) << std::endl;
+            //std::cout << " SEND BLOCK " << post_data << std::endl;
         }
     }
 }
@@ -361,7 +361,8 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
 /**
 * receiveRequestBlocks
 *
-* Description: 
+* Description: Read requests from other nodes to send a block. 
+*    Given requesting key and block number (-1 for first block) 
 * 
 */
 bool CRelayClient::receiveRequestBlocks(){
@@ -393,7 +394,7 @@ bool CRelayClient::receiveRequestBlocks(){
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
         
-        std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
+        //std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
         // parse message=
 
         std::string blockRequestString = functions.parseSectionString(readBuffer, "\"message\":\"", "\"");
@@ -415,7 +416,7 @@ bool CRelayClient::receiveRequestBlocks(){
  
             if(requestedBlock > -1){
                     CFunctions::block_structure block = blockDB.getBlock(requestedBlock);                     
-                    std::cout << "sending " << functions.blockJSON(block) << std::endl;
+                    //std::cout << "sending " << functions.blockJSON(block) << std::endl;
 
                     std::string readBuffer;
                     CURLcode res;
@@ -437,7 +438,7 @@ bool CRelayClient::receiveRequestBlocks(){
                         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
                         res = curl_easy_perform(curl);
                         curl_easy_cleanup(curl);
-                        //std::cout << " SEND BLOCK " << functions.blockJSON(block) << std::endl;
+                        std::cout << " SENT BLOCK ON REQUEST " << post_data << std::endl;
                     }
             }
 
