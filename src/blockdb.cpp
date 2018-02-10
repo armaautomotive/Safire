@@ -98,25 +98,19 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
         return block;
     }
 
+    std::string key = boost::lexical_cast<std::string>(number); 
+    std::string blockJson;
+    db->Get(leveldb::ReadOptions(), key, &blockJson);
 
-    // Iterate over each item in the database and print them
-    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
-    for (it->SeekToFirst(); it->Valid(); it->Next())
-    {
-        cout << it->key().ToString() << " : " << it->value().ToString() << endl;
-    }
-    if (false == it->status().ok())
-    {
-        cerr << "An error was found during the scan" << endl;
-        cerr << it->status().ToString() << endl;
+    CFunctions functions;
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
+
+    if(blocks.size() > 0){
+        block = blocks.at(0);
     }
 
     // Close the database
     delete db;
-
-
-
-
 
     return block;
 }

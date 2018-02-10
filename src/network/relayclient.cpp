@@ -415,6 +415,8 @@ bool CRelayClient::receiveRequestBlocks(){
  
             if(requestedBlock > -1){
                     CFunctions::block_structure block = blockDB.getBlock(requestedBlock);                     
+                    std::cout << "sending " << functions.blockJSON(block) << std::endl;
+
                     std::string readBuffer;
                     CURLcode res;
                     CURL * curl;
