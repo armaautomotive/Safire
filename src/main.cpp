@@ -30,6 +30,7 @@
 #include "blockdb.h"
 
 #include "functions/functions.h"
+#include "functions/blockbuilder.hpp" // Revierw this later.
 
 //#include "network/server.h"
 #include "cli.h"
@@ -39,6 +40,7 @@
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
 
+
 volatile bool buildingBlocks = true;
 
 /**
@@ -47,6 +49,7 @@ volatile bool buildingBlocks = true;
 * Description:
 * std::thread blockThread (blockBuilderThread);
 */
+/*
 void blockBuilderThread(int argc, char* argv[]){
 	CECDSACrypto ecdsa;
 	CFunctions functions;
@@ -342,6 +345,7 @@ void stop() {
     buildingBlocks = false;
     // Join thread
 }
+*/
 
 int main(int argc, char* argv[])
 {
@@ -350,7 +354,8 @@ int main(int argc, char* argv[])
     // Start New BlockChain Mode
     // Read command line arg
 
-    CFunctions functions;    
+    CFunctions functions;
+    CBlockBuilder blockBuilder;
     /*
     CFunctions::record_structure record;
     record.time = "2017/06/03";
@@ -483,7 +488,9 @@ int main(int argc, char* argv[])
 */
     //functions.parseBlockFile();
 
-    std::thread blockThread(blockBuilderThread, argc, argv);    
+    // blockBuilder
+    std::thread blockThread(&CBlockBuilder::blockBuilderThread, blockBuilder, argc, argv);
+    
     //std::thread p2pNetworkThread(&CP2P::p2pNetworkThread, p2p, argc, argv); // TODO: implement a main class to pass into threads instead of 'p2p' instance. For communication.
     std::thread relayNetworkThread(&CRelayClient::relayNetworkThread, relayClient, argc, argv); 
 
@@ -493,7 +500,7 @@ int main(int argc, char* argv[])
 
     std::cout << "Shutting down... " << std::endl;
     chain.writeFile();
-    stop();
+    blockBuilder.stop();
     blockThread.join();
     //p2p.exit();
     relayClient.exit();

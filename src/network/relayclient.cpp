@@ -184,6 +184,16 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
             res = curl_easy_perform(curl);
             curl_easy_cleanup(curl);
+
+            // read server response
+            std::stringstream ss;
+            ss << readBuffer;
+            std::string line;
+            while(std::getline(ss,line,'\n')){
+                std::cout << "Response: " << line << std::endl;
+            
+            }
+
         }
     }
 }
