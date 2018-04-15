@@ -34,8 +34,10 @@ public:
     }
 
     //int AddBlock(std::string publicKey);
+    bool addFirstBlock(CFunctions::block_structure block);
     bool AddBlock(CFunctions::block_structure block);
     void GetBlocks();
+    CFunctions::block_structure getFirstBlock();
     CFunctions::block_structure getBlock(long number);
 };
 

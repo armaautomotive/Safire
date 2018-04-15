@@ -192,6 +192,7 @@ std::string CFunctions::blockJSON( CFunctions::block_structure block){
 * addToBlockFile
 *
 * Description: Add a block to the chain file.
+*   text file and db.
 */
 int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     CBlockDB blockDB;
@@ -210,22 +211,6 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     
     std::string json = blockJSON(block);
     outfile << json;
-    /*
-    outfile << "{\"block\":{" <<
-        "\"network\":\"" << block.network << "\"," <<
-	"\"number\":\"" << block.number << "\"," <<
-	"\"time\":\"" << block.time << "\"," <<
-        "\"previous_block_hash\":\"" << block.previous_block_hash << "\"," << 
-	"\"hash\":\"" << block.hash << "\"," <<
-	//"[" << block.transaction_type << "]" << 
-	"\"records\":{\n";
-    // Loop though block records
-    for(int i = 0; i < block.records.size(); i++ ){
-	CFunctions::record_structure record = block.records.at(i);
-	outfile << recordJSON(record);
-    }
-    outfile << "}}}\n";
-    */
     outfile.close();
 
     latest_block = block; // TEMP this may change     

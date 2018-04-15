@@ -14,6 +14,7 @@
 #include "wallet.h"
 #include "network/p2p.h"
 #include "network/relayclient.h"
+#include "blockdb.h"
 
 /**
 * printCommands 
@@ -225,6 +226,12 @@ void CCLI::processUserInput(){
            std::cout << " Blockchain detail: " << std::endl; 
 
            functions.parseBlockFile(publicKey, true);
+
+           CBlockDB blockDB;
+           //blockDB.GetBlocks();
+           CFunctions::block_structure last_block = functions.getLastBlock("");
+           CFunctions::block_structure block = blockDB.getBlock(last_block.number);
+
 
         } else if( command.compare("printqueue") == 0){
             std::cout << " Record Queue: " << std::endl;

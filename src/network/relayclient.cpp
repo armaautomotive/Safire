@@ -362,7 +362,7 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
             res = curl_easy_perform(curl);
             curl_easy_cleanup(curl);
 
-            std::cout << " SEND request to receive block data. " << blockNumber << " to: " << node.public_key << std::endl;
+            //std::cout << " SEND request to receive block data. " << blockNumber << " to: " << node.public_key << std::endl;
         }
     }
 }
@@ -418,7 +418,10 @@ bool CRelayClient::receiveRequestBlocks(){
             if( requestedBlock == -1 ){ // Request genesis block onward
                 // if chain.firstBlock exists and > 0
 		if(chain.getFirstBlock() > -1){
-                    requestedBlock = chain.getFirstBlock();
+                    requestedBlock = chain.getFirstBlock(); // requires the complete chain to be parsed to access using this approach.
+
+                    // Read from blockDB
+                    //functions:: = blockDB.getFirstBlock();
 		}
             }
                      

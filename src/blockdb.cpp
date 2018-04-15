@@ -9,12 +9,47 @@
 using namespace std;
 
 /**
-* RandomPrivateKey
+* addFirstBlock
 *
-* Description: Generate a random sha256 hash to be used as a private key.
-*     Generates 128 random ascii characters to feed into a sha256 hash.
 *
-* @param: std::string output private key.
+*/
+bool CBlockDB::addFirstBlock(CFunctions::block_structure block){ 
+    CPlatform platform;
+    CFunctions functions;
+    std::string dbPath = platform.getSafirePath();
+    //std::cout << dbPath << std::endl;
+
+    leveldb::DB* db;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
+    if (false == status.ok())
+    {
+        cerr << "Unable to open/create test database './blockdb'" << endl;
+        cerr << status.ToString() << endl;
+        return -1;
+    }
+
+    leveldb::WriteOptions writeOptions;
+
+    // Insert
+    ostringstream keyStream;
+    keyStream << "first_block"; // boost::lexical_cast<std::string>(block.number);
+    ostringstream valueStream;
+    valueStream << functions.blockJSON(block);
+    db->Put(writeOptions, keyStream.str(), valueStream.str());
+
+    // Close the database
+    delete db; 
+    return true;
+}
+
+/**
+* AddBlock
+*
+* Description: Add a block json to the database. Indexed by block number.
+*
+* @param: CFunctions::block_structure block - structure representing block information.
 * @return bool returns 1 is successfull.
 */
 bool CBlockDB::AddBlock(CFunctions::block_structure block){
@@ -49,6 +84,13 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
 }
 
 
+/**
+* GetBlocks
+*
+* Description: get a list of blocks from the DB.
+*
+* @return: 
+*/
 void CBlockDB::GetBlocks()
 {
     leveldb::DB* db;
@@ -77,6 +119,42 @@ void CBlockDB::GetBlocks()
 
     // Close the database
     delete db; 
+}
+
+
+/**
+* getFirstBlock
+*
+* // first_block
+*/
+CFunctions::block_structure CBlockDB::getFirstBlock(){
+    CFunctions::block_structure block;
+    leveldb::DB* db;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
+    if (false == status.ok())
+    {
+        cerr << "Unable to open/create test database './blockdb'" << endl;
+        cerr << status.ToString() << endl;
+        return block;
+    }
+
+    std::string key = "first_block"; // boost::lexical_cast<std::string>(number);
+    std::string blockJson;
+    db->Get(leveldb::ReadOptions(), key, &blockJson);
+
+    CFunctions functions;
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
+
+    if(blocks.size() > 0){
+        block = blocks.at(0);
+    }
+
+    // Close the database
+    delete db;
+
+    return block;
 }
 
 

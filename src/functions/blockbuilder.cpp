@@ -12,6 +12,7 @@
 #include "functions/selector.h"
 #include "functions/chain.h"
 #include "wallet.h"
+#include "blockdb.h"
 
 volatile bool isBuildingBlocks = true;
 
@@ -24,10 +25,12 @@ volatile bool isBuildingBlocks = true;
 void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     CECDSACrypto ecdsa;
     CFunctions functions;
+    CBlockDB blockDB;
     CRelayClient relayClient;
     CSelector selector;
     selector.syncronizeTime();
     CChain chain;
+    //CBlockDB blockDB;
     // Check block chain for latest block information.
     // TODO...
     
@@ -139,6 +142,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         
         chain.setFirstBlock(block);
         functions.addToBlockFile(block);
+        blockDB.addFirstBlock(block);
         relayClient.sendBlock(block);
         
         // Wait until the block period is over
