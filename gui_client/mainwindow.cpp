@@ -13,6 +13,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     
     QVBoxLayout *vlay = new QVBoxLayout(wdg);
 
+    wdg->setStyleSheet("background-color: #00BFFF");
 
     bigEditor = new QTextEdit;
     bigEditor->setPlainText(tr("This widget takes up all the remaining space "
@@ -32,7 +33,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     setWindowTitle(tr("Safire"));
 
 
-    QPushButton *hello = new QPushButton( "Hello world!" );
+    hello = new QPushButton( "Hello world!" );
     hello->setText(tr("something"));
     hello->resize( 100, 30 );
     //a.setMainWidget( &hello );
@@ -62,7 +63,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
     adjustSize();
 
-    //this.setStyleSheet("QMainWindow {background: 'yellow';}");
+    // Connect button signal to appropriate slot
+    connect(hello, SIGNAL (released()), this, SLOT (handleButton()));
 }
 
 MainWindow::~MainWindow()
@@ -110,4 +112,11 @@ void MainWindow::createGridGroupBox()
 }
 
 
+void MainWindow::handleButton()
+{
+    // change the text
+    hello->setText("Example");
+    // resize button
+    //hello->resize(100,100);
+}
 

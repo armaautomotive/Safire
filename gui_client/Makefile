@@ -711,6 +711,8 @@ compiler_moc_header_clean:
 	-$(DEL_FILE) moc_mainwindow.cpp
 moc_mainwindow.cpp: ../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QMainWindow \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qmainwindow.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QGroupBox \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qgroupbox.h \
 		mainwindow.h \
 		moc_predefs.h \
 		../../Qt/5.10.1/clang_64/bin/moc
@@ -737,6 +739,8 @@ compiler_clean: compiler_moc_predefs_clean compiler_moc_header_clean
 main.o: main.cpp mainwindow.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QMainWindow \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qmainwindow.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QGroupBox \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qgroupbox.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QApplication \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qapplication.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QDesktopWidget \
@@ -747,7 +751,9 @@ main.o: main.cpp mainwindow.h \
 
 mainwindow.o: mainwindow.cpp mainwindow.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QMainWindow \
-		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qmainwindow.h
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qmainwindow.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QGroupBox \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qgroupbox.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o mainwindow.o mainwindow.cpp
 
 moc_mainwindow.o: moc_mainwindow.cpp 
