@@ -37,7 +37,12 @@ private:
     QLineEdit *lineEdits[NumGridRows];
     QTextEdit *smallEditor;
 
-    QPushButton *hello;
+    QPushButton *m_balance_view;
+    QPushButton *m_history_view;
+    QPushButton *m_send_view;
+    QPushButton *m_receive_view;
+    QPushButton *m_options_view;
+
 
 
 };

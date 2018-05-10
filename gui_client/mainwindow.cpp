@@ -11,7 +11,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     QWidget * wdg = new QWidget(this);
     //QWidget * wdg = new QWidget(frame);
     
-    QVBoxLayout *vlay = new QVBoxLayout(wdg);
+    QHBoxLayout *hlay = new QHBoxLayout(wdg);
+
+    QVBoxLayout *leftPaneVerticalLayout = new QVBoxLayout(wdg);
+
+    QVBoxLayout *balanceViewVerticalLayout = new QVBoxLayout(wdg);
+
+
+    // Add horizontal
+    //hlay->addWidget(vlay);
+
+
+    QPushButton * temp = new QPushButton("TEMP");
+    balanceViewVerticalLayout->addWidget(temp);
+
+
 
     wdg->setStyleSheet("background-color: #00BFFF");
 
@@ -33,38 +47,52 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     setWindowTitle(tr("Safire"));
 
 
-    hello = new QPushButton( "Hello world!" );
-    hello->setText(tr("something"));
-    hello->resize( 100, 30 );
+    m_balance_view = new QPushButton( "Balance" );
+    //m_balance_view->setText(tr("something"));
+    m_balance_view->resize( 100, 30 );
+    m_balance_view->setMaximumWidth(200);
     //a.setMainWidget( &hello );
-    //hello.show();
-    vlay->addWidget(hello);
+    //m_balance_view.show();
+    leftPaneVerticalLayout->addWidget(m_balance_view);
 
-    QPushButton *btn2 = new QPushButton("btn2");
-    vlay->addWidget(btn2);
-    QPushButton *btn3 = new QPushButton("btn3");
-    vlay->addWidget(btn3);
+    m_history_view = new QPushButton("History");
+    m_history_view->setMaximumWidth(200);
+    leftPaneVerticalLayout->addWidget(m_history_view);
+    m_send_view = new QPushButton("Send Payment");
+    m_send_view->setMaximumWidth(200);
+    leftPaneVerticalLayout->addWidget(m_send_view);
+
+    m_receive_view = new QPushButton("Receive Payment");
+    m_receive_view->setMaximumWidth(200);
+    leftPaneVerticalLayout->addWidget(m_receive_view);
+    m_options_view = new QPushButton("Options");
+    m_options_view->setMaximumWidth(200);
+    leftPaneVerticalLayout->addWidget(m_options_view);
    
 
-    QDesktopWidget dw;
-    int x=dw.width()*0.7;
-    int y=dw.height()*0.7;
-    QRect rect(0, 0, 240, 500);
-    wdg->setGeometry(rect); 
+    //QDesktopWidget dw;
+    //int x=dw.width()*0.7;
+    //int y=dw.height()*0.7;
+    //QRect rect(0, 0, 640, 500);
+    //wdg->setGeometry(rect);
+    //hlay->setGeometry(rect);
 
+
+    hlay->addLayout(leftPaneVerticalLayout);
+    hlay->addLayout(balanceViewVerticalLayout);
 
     //frame->setLayout(wdg);
-
-    wdg->setLayout(vlay); 
+    //wdg->setLayout(vlay);
+    wdg->setLayout(hlay);
     
     setCentralWidget(wdg);
 
     resize( 600, 500);
 
-    adjustSize();
+    //adjustSize();
 
     // Connect button signal to appropriate slot
-    connect(hello, SIGNAL (released()), this, SLOT (handleButton()));
+    connect(m_balance_view, SIGNAL (released()), this, SLOT (handleButton()));
 }
 
 MainWindow::~MainWindow()
@@ -115,8 +143,8 @@ void MainWindow::createGridGroupBox()
 void MainWindow::handleButton()
 {
     // change the text
-    hello->setText("Example");
+    m_balance_view->setText("Example");
     // resize button
-    //hello->resize(100,100);
+    //m_balance_view->resize(100,100);
 }
 
