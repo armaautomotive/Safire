@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include <QDesktopWidget>
+#include <QLabel>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 {
@@ -24,6 +25,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
     QPushButton * temp = new QPushButton("TEMP");
     balanceViewVerticalLayout->addWidget(temp);
+
+    QLabel *balanceLabel = new QLabel(this);
+    balanceLabel->setText("0.00 sfr");
+    balanceViewVerticalLayout->addWidget(balanceLabel);    
+
+    QLabel *connectionLabel = new QLabel(this);
+    connectionLabel->setText("Not connected");
+    balanceViewVerticalLayout->addWidget(connectionLabel); 
 
 
 
