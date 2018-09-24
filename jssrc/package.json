@@ -1,0 +1,22 @@
+{
+  "name": "muon-quick",
+  "version": "0.0.1",
+  "description": "Safire Digital Currency Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "node setup.js"
+  },
+  "repository": "https://github.com/brave/muon-quick",
+  "keywords": [
+    "Muon",
+    "quick",
+    "start",
+    "tutorial",
+    "demo"
+  ],
+  "author": "Safire",
+  "license": "CC0-1.0",
+  "devDependencies": {
+    "electron-prebuilt": "brave/electron-prebuilt"
+  }
+}
