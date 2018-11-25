@@ -14,7 +14,7 @@ using namespace std;
 /**
  * addFirstBlock
  *
- * Description: Add block entry. NOT USED. 
+ * Description: Add block entry. NOT USED.
  *
  */
 bool CBlockDB::addFirstBlock(CFunctions::block_structure block){ 
@@ -75,13 +75,23 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
 
     leveldb::WriteOptions writeOptions;
 
-    // Insert
+    // Insert block record into leveldb
     ostringstream keyStream;
-    keyStream << boost::lexical_cast<std::string>(block.number);
+    keyStream << "b_" << boost::lexical_cast<std::string>(block.number);
     ostringstream valueStream;
     valueStream << functions.blockJSON(block);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
 
+    // Insert all sender_key->block_id records for fast lookup.
+    for(int i = 0; i < block.records.size(); i++ ){
+        CFunctions::record_structure record = block.records.at(i);
+        ostringstream sendKeyStream;
+        sendKeyStream << "s_" << record.sender_public_key;
+        ostringstream sendValueStream;
+        sendValueStream << functions.blockJSON(block);
+        db->Put(writeOptions, sendKeyStream.str(), sendValueStream.str());
+    }
+    
     // Close the database
     delete db;
     return true;
@@ -163,10 +173,12 @@ CFunctions::block_structure CBlockDB::getFirstBlock(){
 
 
 /**
-* getBlock
-*
-* Description: Get a block by number 
-*/
+ * getBlock
+ *
+ * Description: Get a block by number
+ *
+ * @param: number (long) id of block to look up as a key
+ */
 CFunctions::block_structure CBlockDB::getBlock(long number){
     CFunctions::block_structure block;
     leveldb::DB* db;
@@ -180,7 +192,7 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
         return block;
     }
 
-    std::string key = boost::lexical_cast<std::string>(number); 
+    std::string key = "b_" + boost::lexical_cast<std::string>(number);
     std::string blockJson;
     db->Get(leveldb::ReadOptions(), key, &blockJson);
 
@@ -196,4 +208,35 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
 
     return block;
 }
+
+/**
+ * GetBlockWithSender
+ *
+ * Description: Return a block record that contains a sender key in it.
+ *  If no block exists, return null.
+ *  This can be used to look up a block record validating a sender has been approved by the network.
+ *
+ * @param sender_key string.
+ * @param index int.
+ * @return block_structure.
+ */
+CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key, int index ){
+    CFunctions::block_structure block;
+    leveldb::DB* db;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
+    if (false == status.ok())
+    {
+        cerr << "Unable to open/create test database './blockdb'" << endl;
+        cerr << status.ToString() << endl;
+        return block;
+    }
+    
+    
+    
+    return block;
+}
+    
+    
 

@@ -39,6 +39,7 @@ public:
     void GetBlocks();
     CFunctions::block_structure getFirstBlock();
     CFunctions::block_structure getBlock(long number);
+    CFunctions::block_structure GetBlockWithSender( std::string sender_key, int index );
 };
 
-#endif // MAGNITE_BLOCK_DB_H
+#endif // SAFIRE_BLOCK_DB_H
