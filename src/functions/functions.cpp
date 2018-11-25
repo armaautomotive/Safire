@@ -1,4 +1,4 @@
-// Copyright (c) 2016 2017 Jon Taylor
+// Copyright (c) 2016 2017 2018 Jon Taylor
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -198,8 +198,8 @@ int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     CBlockDB blockDB;
     blockDB.AddBlock(block);
 
-    time_t t = time(0);   // get time now
-    struct tm * now = localtime( & t );
+    time_t t = time(0); // get time now
+    struct tm * now = localtime(&t);
     int year = (now->tm_year + 1900);
     
     std::stringstream ss;

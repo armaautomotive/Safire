@@ -1,5 +1,8 @@
-#include "blockdb.h"
+// Copyright (c) 2016 2017 2018 Jon Taylor
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "blockdb.h"
 #include <sstream>
 #include <unistd.h>   // open and close
 #include "leveldb/db.h"
@@ -9,10 +12,11 @@
 using namespace std;
 
 /**
-* addFirstBlock
-*
-*
-*/
+ * addFirstBlock
+ *
+ * Description: Add block entry. NOT USED. 
+ *
+ */
 bool CBlockDB::addFirstBlock(CFunctions::block_structure block){ 
     CPlatform platform;
     CFunctions functions;
