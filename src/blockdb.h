@@ -33,13 +33,20 @@ public:
     {
     }
 
+    leveldb::DB getDatabase();
     //int AddBlock(std::string publicKey);
-    bool addFirstBlock(CFunctions::block_structure block);
+    //bool addFirstBlock(CFunctions::block_structure block);
     bool AddBlock(CFunctions::block_structure block);
+    void setFirstBlockId(long number);
+    long getFirstBlockId();
+    void setLatestBlockId(long number);
+    long getLatestBlockId();
+    long getNextBlockId(long previousBlockId);
+    
     void GetBlocks();
-    CFunctions::block_structure getFirstBlock();
+    //CFunctions::block_structure getFirstBlock();
     CFunctions::block_structure getBlock(long number);
-    CFunctions::block_structure GetBlockWithSender( std::string sender_key, int index );
+    CFunctions::block_structure GetBlockWithSender(std::string sender_key, int index);
 };
 
 #endif // SAFIRE_BLOCK_DB_H

@@ -17,6 +17,7 @@ using namespace std;
  * Description: Add block entry. NOT USED.
  *
  */
+/*
 bool CBlockDB::addFirstBlock(CFunctions::block_structure block){ 
     CPlatform platform;
     CFunctions functions;
@@ -47,6 +48,34 @@ bool CBlockDB::addFirstBlock(CFunctions::block_structure block){
     delete db; 
     return true;
 }
+ */
+
+/**
+ * getDatabase
+ *
+ * Description: Get a levelDB instance.
+ */
+leveldb::DB CBlockDB::getDatabase(){
+    CPlatform platform;
+    CFunctions functions;
+    std::string dbPath = platform.getSafirePath();
+    //std::cout << dbPath << std::endl;
+    
+    leveldb::DB* db;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
+    if (false == status.ok())
+    {
+        cerr << "Unable to open/create test database './blockdb'" << endl;
+        cerr << status.ToString() << endl;
+        return -1;
+    }
+    
+    leveldb::WriteOptions writeOptions;
+    
+    return db;
+}
 
 /**
 * AddBlock
@@ -57,11 +86,12 @@ bool CBlockDB::addFirstBlock(CFunctions::block_structure block){
 * @return bool returns 1 is successfull.
 */
 bool CBlockDB::AddBlock(CFunctions::block_structure block){
-    CPlatform platform;
     CFunctions functions;
+    
+    /*
+    CPlatform platform;
     std::string dbPath = platform.getSafirePath();
     //std::cout << dbPath << std::endl;
-
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;
@@ -74,6 +104,9 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     }
 
     leveldb::WriteOptions writeOptions;
+     */
+    
+    leveldb::DB* db = getDatabase();
 
     // Insert block record into leveldb
     ostringstream keyStream;
@@ -92,11 +125,73 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         db->Put(writeOptions, sendKeyStream.str(), sendValueStream.str());
     }
     
+    // Insert all recipient_public_key->block_id records for fast lookup.
+    for(int i = 0; i < block.records.size(); i++ ){
+        
+    }
+    
+    
     // Close the database
     delete db;
     return true;
 }
 
+/**
+ * setFirstBlockId
+ *
+ * Description: Set the dedicated entity recording the network wide first genesis block by id.
+ *  Nodes that create a network will set this. Nodes that startup without this value need
+ *  to retrieve past block data starting from this first block.
+ */
+void CBlockDB::setFirstBlockId(long number){
+    leveldb::DB* db = getDatabase();
+    ostringstream keyStream;
+    keyStream << "first_block_id";
+    ostringstream valueStream;
+    valueStream << boost::lexical_cast<std::string>(number);
+    db->Put(writeOptions, keyStream.str(), valueStream.str());
+}
+
+/**
+ * getFirstBlockId
+ *
+ * Description: Retruen the stord first block id. Represents the start of the chain.
+ *   If this is missing the node has to:
+ * A) retrieve the chain from other nodes or
+ * B) start a new network.
+ */
+long CBlockDB::getFirstBlockId(){
+    leveldb::DB* db = getDatabase();
+    
+    std::string key = "first_block_id"; // boost::lexical_cast<std::string>(number);
+    std::string firstBlockId;
+    db->Get(leveldb::ReadOptions(), key, &firstBlockId);
+    
+    // ***
+    
+    return -1;
+}
+
+void CBlockDB::setLatestBlockId(long number){
+
+}
+
+long CBlockDB::getLatestBlockId(){
+    return -1;
+}
+
+/**
+ * getNextBlockId
+ *
+ * Description: Get a block id for the block that follows after a given block id.
+ * Blocks are generated in sequance but there may be ommitions if a node does not generate
+ * a block. Each block contains the previous block id and a db index stores these in an index
+ * for fast lookup.
+ */
+long CBlockDB::getNextBlockId(long previousBlockId){
+   
+    return -1;
+}
 
 /**
 * GetBlocks
