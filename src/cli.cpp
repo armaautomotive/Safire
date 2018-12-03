@@ -24,8 +24,8 @@
 void CCLI::printCommands(){
 	std::cout << "Commands:\n" <<
 	" join [network name]     - request membership in the network. The default network is 'main'.\n" <<
-        " switch [network name]   - switch current network. Default is 'main'.\n" <<
-        //" swtch wallet            - change wallet" <<
+    " switch [network name]   - switch current network. Default is 'main'.\n" <<
+    //" swtch wallet            - change wallet" <<
 	" balance                 - print balance and transaction summary.\n" <<
 	" sent                    - print sent transaction list details.\n" <<
 	" received                - print received transaction list details.\n" <<
@@ -33,7 +33,7 @@ void CCLI::printCommands(){
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
 	" vote                    - vote on network behaviour and settings.\n" <<
-        " advanced                - more commands for admin and testing functions.\n" <<
+    " advanced                - more commands for admin and testing functions.\n" <<
 	" quit                    - shutdown the application.\n " << std::endl;
 }
 
@@ -44,6 +44,7 @@ void CCLI::printAdvancedCommands(){
     " chain                  - Scan the complete blockchain for verification. Reports findings.\n " <<
     " printchain             - Print the blockchain summary and validation.\n " <<
     " printqueue             - Print the record queue.\n " <<
+    " resetall               - Delete node data.\n  " <<
     std::endl;
 }
 
@@ -237,6 +238,12 @@ void CCLI::processUserInput(){
             std::cout << " Record Queue: " << std::endl;
             //std::cout << "     Not implemented " << std::endl; 
             functions.printQueue();
+            
+        } else if( command.compare("resetall") == 0){
+            std::cout << " Purging node data: " << std::endl;
+            CBlockDB blockDB;
+            blockDB.DeleteAll();
+            //functions.printQueue();
 
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;

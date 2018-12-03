@@ -45,6 +45,7 @@ public:
     //CFunctions::block_structure getFirstBlock();
     CFunctions::block_structure getBlock(long number);
     CFunctions::block_structure GetBlockWithSender(std::string sender_key, int index);
+    void DeleteAll();
 };
 
 #endif // SAFIRE_BLOCK_DB_H

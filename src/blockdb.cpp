@@ -213,6 +213,7 @@ void CBlockDB::GetBlocks(){
         cerr << "An error was found during the scan" << endl;
         cerr << it->status().ToString() << endl; 
     }
+    delete it;
 
     // Close the database
     delete db; 
@@ -286,3 +287,28 @@ CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key
     return block;
 }
 
+
+/**
+ * DeleteAll
+ *
+ * Description: Delete all data in the levelDB database.
+ */
+void CBlockDB::DeleteAll(){
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    // Iterate over each item in the database and print them
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next())
+    {
+        //cout << it->key().ToString() << " : " << it->value().ToString() << endl;
+        db->Delete(leveldb::WriteOptions(), it->key().ToString());
+        cout << "Delete: " << it->key().ToString() << "\n";
+    }
+    if (false == it->status().ok())
+    {
+        cerr << "An error was found during the scan" << endl;
+        cerr << it->status().ToString() << endl;
+    }
+    delete it;
+    delete db;
+}
