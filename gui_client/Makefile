@@ -713,6 +713,18 @@ moc_mainwindow.cpp: ../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QMa
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qmainwindow.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QGroupBox \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qgroupbox.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QVBoxLayout \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qboxlayout.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QTextEdit \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qtextedit.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QPushButton \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qpushbutton.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QDialogButtonBox \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qdialogbuttonbox.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QLabel \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qlabel.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QLineEdit \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qlineedit.h \
 		mainwindow.h \
 		moc_predefs.h \
 		../../Qt/5.10.1/clang_64/bin/moc
@@ -741,6 +753,18 @@ main.o: main.cpp mainwindow.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qmainwindow.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QGroupBox \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qgroupbox.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QVBoxLayout \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qboxlayout.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QTextEdit \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qtextedit.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QPushButton \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qpushbutton.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QDialogButtonBox \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qdialogbuttonbox.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QLabel \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qlabel.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QLineEdit \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qlineedit.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QApplication \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qapplication.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QDesktopWidget \
@@ -753,7 +777,21 @@ mainwindow.o: mainwindow.cpp mainwindow.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QMainWindow \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qmainwindow.h \
 		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QGroupBox \
-		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qgroupbox.h
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qgroupbox.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QVBoxLayout \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qboxlayout.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QTextEdit \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qtextedit.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QPushButton \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qpushbutton.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QDialogButtonBox \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qdialogbuttonbox.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QLabel \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qlabel.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QLineEdit \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qlineedit.h \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/QDesktopWidget \
+		../../Qt/5.10.1/clang_64/lib/QtWidgets.framework/Headers/qdesktopwidget.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o mainwindow.o mainwindow.cpp
 
 moc_mainwindow.o: moc_mainwindow.cpp 

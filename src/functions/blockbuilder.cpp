@@ -146,7 +146,11 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         
         chain.setFirstBlock(block);
         functions.addToBlockFile(block);
-        blockDB.addFirstBlock(block);
+        
+        //blockDB.addFirstBlock(block); // depricate
+        blockDB.AddBlock(block);
+        blockDB.setFirstBlockId(block.number);
+        
         relayClient.sendBlock(block);
         
         // Wait until the block period is over

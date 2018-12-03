@@ -12,55 +12,15 @@
 using namespace std;
 
 /**
- * addFirstBlock
- *
- * Description: Add block entry. NOT USED.
- *
- */
-/*
-bool CBlockDB::addFirstBlock(CFunctions::block_structure block){ 
-    CPlatform platform;
-    CFunctions functions;
-    std::string dbPath = platform.getSafirePath();
-    //std::cout << dbPath << std::endl;
-
-    leveldb::DB* db;
-    leveldb::Options options;
-    options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
-    if (false == status.ok())
-    {
-        cerr << "Unable to open/create test database './blockdb'" << endl;
-        cerr << status.ToString() << endl;
-        return -1;
-    }
-
-    leveldb::WriteOptions writeOptions;
-
-    // Insert
-    ostringstream keyStream;
-    keyStream << "first_block"; // boost::lexical_cast<std::string>(block.number);
-    ostringstream valueStream;
-    valueStream << functions.blockJSON(block);
-    db->Put(writeOptions, keyStream.str(), valueStream.str());
-
-    // Close the database
-    delete db; 
-    return true;
-}
- */
-
-/**
  * getDatabase
  *
  * Description: Get a levelDB instance.
  */
-leveldb::DB CBlockDB::getDatabase(){
+leveldb::DB * CBlockDB::getDatabase(){
     CPlatform platform;
     CFunctions functions;
     std::string dbPath = platform.getSafirePath();
     //std::cout << dbPath << std::endl;
-    
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;
@@ -69,11 +29,9 @@ leveldb::DB CBlockDB::getDatabase(){
     {
         cerr << "Unable to open/create test database './blockdb'" << endl;
         cerr << status.ToString() << endl;
-        return -1;
+        //return null;
     }
-    
     leveldb::WriteOptions writeOptions;
-    
     return db;
 }
 
@@ -102,9 +60,8 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         cerr << status.ToString() << endl;
         return -1;
     }
-
+    */
     leveldb::WriteOptions writeOptions;
-     */
     
     leveldb::DB* db = getDatabase();
 
@@ -130,6 +87,15 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         
     }
     
+    // Save index to next block
+    if(block.previous_block_id > -1){
+        ostringstream keyStream;
+        keyStream << "next_block_" <<  block.previous_block_id;
+        ostringstream valueStream;
+        valueStream << block.number;
+        db->Put(writeOptions, keyStream.str(), valueStream.str());
+    }
+    
     
     // Close the database
     delete db;
@@ -144,6 +110,7 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
  *  to retrieve past block data starting from this first block.
  */
 void CBlockDB::setFirstBlockId(long number){
+    leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
     ostringstream keyStream;
     keyStream << "first_block_id";
@@ -161,23 +128,33 @@ void CBlockDB::setFirstBlockId(long number){
  * B) start a new network.
  */
 long CBlockDB::getFirstBlockId(){
+    leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
-    
     std::string key = "first_block_id"; // boost::lexical_cast<std::string>(number);
     std::string firstBlockId;
     db->Get(leveldb::ReadOptions(), key, &firstBlockId);
-    
-    // ***
-    
-    return -1;
+    long result = std::stol(firstBlockId);
+    return result;
 }
 
 void CBlockDB::setLatestBlockId(long number){
-
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    ostringstream keyStream;
+    keyStream << "latest_block_id";
+    ostringstream valueStream;
+    valueStream << boost::lexical_cast<std::string>(number);
+    db->Put(writeOptions, keyStream.str(), valueStream.str());
 }
 
 long CBlockDB::getLatestBlockId(){
-    return -1;
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    std::string key = "latest_block_id"; // boost::lexical_cast<std::string>(number);
+    std::string firstBlockId;
+    db->Get(leveldb::ReadOptions(), key, &firstBlockId);
+    long result = std::stol(firstBlockId);
+    return result;
 }
 
 /**
@@ -189,8 +166,14 @@ long CBlockDB::getLatestBlockId(){
  * for fast lookup.
  */
 long CBlockDB::getNextBlockId(long previousBlockId){
-   
-    return -1;
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    ostringstream keyStream;
+    keyStream << "next_block_" <<  previousBlockId;
+    std::string nextBlockIdString;
+    db->Get(leveldb::ReadOptions(), keyStream.str(), &nextBlockIdString);
+    long result = std::stol(nextBlockIdString);
+    return result;
 }
 
 /**
@@ -200,8 +183,8 @@ long CBlockDB::getNextBlockId(long previousBlockId){
 *
 * @return: 
 */
-void CBlockDB::GetBlocks()
-{
+void CBlockDB::GetBlocks(){
+    leveldb::WriteOptions writeOptions;
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;
@@ -230,43 +213,6 @@ void CBlockDB::GetBlocks()
     delete db; 
 }
 
-
-/**
-* getFirstBlock
-*
-* // first_block
-*/
-CFunctions::block_structure CBlockDB::getFirstBlock(){
-    CFunctions::block_structure block;
-    leveldb::DB* db;
-    leveldb::Options options;
-    options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
-    if (false == status.ok())
-    {
-        cerr << "Unable to open/create test database './blockdb'" << endl;
-        cerr << status.ToString() << endl;
-        return block;
-    }
-
-    std::string key = "first_block"; // boost::lexical_cast<std::string>(number);
-    std::string blockJson;
-    db->Get(leveldb::ReadOptions(), key, &blockJson);
-
-    CFunctions functions;
-    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
-
-    if(blocks.size() > 0){
-        block = blocks.at(0);
-    }
-
-    // Close the database
-    delete db;
-
-    return block;
-}
-
-
 /**
  * getBlock
  *
@@ -276,6 +222,7 @@ CFunctions::block_structure CBlockDB::getFirstBlock(){
  */
 CFunctions::block_structure CBlockDB::getBlock(long number){
     CFunctions::block_structure block;
+    leveldb::WriteOptions writeOptions;
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;
@@ -317,6 +264,7 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
  */
 CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key, int index ){
     CFunctions::block_structure block;
+    leveldb::WriteOptions writeOptions;
     leveldb::DB* db;
     leveldb::Options options;
     options.create_if_missing = true;
@@ -328,8 +276,7 @@ CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key
         return block;
     }
     
-    
-    
+    // todo:
     return block;
 }
     

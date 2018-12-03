@@ -26,7 +26,10 @@ std::string CRelayClient::remotePeerAddress;
 
 std::vector< CRelayClient::node_status > CRelayClient::node_statuses;
 
-
+/**
+ * CRelayClient
+ * Description:
+ */
 CRelayClient::CRelayClient(){
     running = true;
     connected = false;
@@ -35,19 +38,25 @@ CRelayClient::CRelayClient(){
     stun_addr = "$(host -4 -t A stun.stunprotocol.org | awk '{ print $4 }')";
 }
 
-
+/**
+ * WriteCallback
+ *
+ * Description: Callback function.
+ */
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
     ((std::string*)userp)->append((char*)contents, size * nmemb);
     return size * nmemb;
 }
 
-
 /**
-* getNetworkPeer
-*
-* Description: requests a new peer node connection from a: the current network or b: a connection server.
-*/
+ * getNetworkPeer
+ *
+ * Description: requests a new peer node connection from a: the current network or b: a connection server.
+ *
+ * @param: string myPeerAddress.
+ * @return: string - network address.
+ */
 std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
     std::string readBuffer;
     CURLcode res;
@@ -60,7 +69,7 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
         CWallet wallet;
         wallet.read(privateKey, publicKey);
 
-	// http://173.255.218.54/relay.php?action=getnodes&sender_key=109
+        // http://173.255.218.54/relay.php?action=getnodes&sender_key=109
         std::string url_string = "http://173.255.218.54/relay.php";
         std::string post_data = "action=getnodes&sender_key=";
         post_data.append(publicKey);
@@ -75,40 +84,42 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
         // TODO: parse results and write to local peer node file.
         std::string openTag = "\"public_key\":\"";
         std::size_t open = readBuffer.find(openTag);
-	if(open != std::string::npos){
+        if(open != std::string::npos){
         	std::size_t close = readBuffer.find("\"", open + openTag.length());
         	while(open != std::string::npos && close != std::string::npos){
-			std::string key_section = readBuffer.substr( open + openTag.length(), close - open - openTag.length());
+                std::string key_section = readBuffer.substr( open + openTag.length(), close - open - openTag.length());
         		//std::cout << "_" << key_section << "_ " << std::endl;
-			bool exists = false;
-			for(int i = 0; i < node_statuses.size(); i++){
-				CRelayClient::node_status node = node_statuses.at(i);
-				if(node.public_key.compare(key_section) == 0){
-					exists = true;
-				}
-			}
-			if(exists == false && key_section.length() > 10){
-				CRelayClient::node_status node;
-				node.public_key = key_section;
-				node_statuses.push_back(node);
-			}
-			readBuffer = readBuffer.substr( close + 1 );	
-			open = readBuffer.find("\"public_key\":\"");
-			if(open != std::string::npos){
-				close = readBuffer.find("\"", open + openTag.length());		
-			}
-		}
-	}
+                bool exists = false;
+                for(int i = 0; i < node_statuses.size(); i++){
+                    CRelayClient::node_status node = node_statuses.at(i);
+                    if(node.public_key.compare(key_section) == 0){
+                        exists = true;
+                    }
+                }
+                if(exists == false && key_section.length() > 10){
+                    CRelayClient::node_status node;
+                    node.public_key = key_section;
+                    node_statuses.push_back(node);
+                }
+                readBuffer = readBuffer.substr( close + 1 );
+                open = readBuffer.find("\"public_key\":\"");
+                if(open != std::string::npos){
+                    close = readBuffer.find("\"", open + openTag.length());
+                }
+            }
+        }
     }
     return "";
 }
 
+/**
+ * getPeers
+ *
+ * Description:
+ */
 std::vector<CRelayClient::node_status> CRelayClient::getPeers(){
 	return node_statuses;
 }
-
-
-
 
 /**
 * relayNetworkThread
@@ -140,7 +151,6 @@ void CRelayClient::relayNetworkThread(int argc, char* argv[]){
     std::cout << "Relay Network Shutdown." << std::endl;
 }
 
-
 /**
 * exit
 *
@@ -149,7 +159,6 @@ void CRelayClient::relayNetworkThread(int argc, char* argv[]){
 void CRelayClient::exit(){
     running = false;
 }
-
 
 /**
 * sendRecord - broadcastRecord
@@ -171,7 +180,7 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
         curl = curl_easy_init();
         if(curl) {
             // http://173.255.218.54/relay.php?action=sendmessage&type=trans&sender_key=109&receiver_key=110&message=jsondata 
-	    std::string url_string = "http://173.255.218.54/relay.php";
+            std::string url_string = "http://173.255.218.54/relay.php";
             std::string post_data = "action=sendmessage&type=trans&sender_key=";
             post_data.append(publicKey); // record.sender_public_key
             post_data.append("&receiver_key=");
@@ -193,7 +202,6 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
                 std::cout << "Response: " << line << std::endl;
             
             }
-
         }
     }
 }
@@ -366,7 +374,6 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
         }
     }
 }
-
 
 /**
 * receiveRequestBlocks

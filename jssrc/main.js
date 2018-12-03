@@ -27,6 +27,8 @@ function createWindow () {
 
   console.log("Hello " + __dirname + '/index.html');
 
+  
+
   // Open the DevTools.
   //mainWindow.webContents.openDevTools()
 

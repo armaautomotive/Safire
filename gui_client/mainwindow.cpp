@@ -17,14 +17,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     QVBoxLayout *leftPaneVerticalLayout = new QVBoxLayout(wdg);
 
     QVBoxLayout *balanceViewVerticalLayout = new QVBoxLayout(wdg);
+    QVBoxLayout *historyViewVerticalLayout = new QVBoxLayout(wdg); 
 
 
     // Add horizontal
     //hlay->addWidget(vlay);
 
-
+    // Balance View
     QPushButton * temp = new QPushButton("TEMP");
-    balanceViewVerticalLayout->addWidget(temp);
+    //balanceViewVerticalLayout->addWidget(temp);
 
     QLabel *balanceLabel = new QLabel(this);
     balanceLabel->setText("0.00 sfr");
@@ -33,6 +34,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     QLabel *connectionLabel = new QLabel(this);
     connectionLabel->setText("Not connected");
     balanceViewVerticalLayout->addWidget(connectionLabel); 
+
+
+    // History View
+    historyViewVerticalLayout->addWidget(temp);
+
+    // Send View
 
 
 
@@ -89,6 +96,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
     hlay->addLayout(leftPaneVerticalLayout);
     hlay->addLayout(balanceViewVerticalLayout);
+
+    hlay->addLayout(historyViewVerticalLayout);
 
     //frame->setLayout(wdg);
     //wdg->setLayout(vlay);

@@ -174,6 +174,7 @@ std::string CFunctions::blockJSON( CFunctions::block_structure block){
         "\"network\":\"" << block.network << "\"," <<
         "\"number\":\"" << block.number << "\"," <<
         "\"time\":\"" << block.time << "\"," <<
+        "\"previous_block_id\":\"" << block.previous_block_id + "\"," <<
         "\"previous_block_hash\":\"" << block.previous_block_hash + "\"," <<
         "\"hash\":\"" << block.hash + "\"," <<
         "\"records\":{\n";
@@ -610,6 +611,7 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 latest_block.records.clear();
                 latest_block.creator_key = parseSectionString(block_section, "\"creator_key\":\"", "\""); 
                 latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
+                latest_block.previous_block_id = parseSectionLong(block_section, "\"previous_block_id\":\"", "\"");
                 std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                 latest_block.hash = hash;
                 std::string records_section = parseSectionBlock(block_section, "\"records\":", "{", "}");

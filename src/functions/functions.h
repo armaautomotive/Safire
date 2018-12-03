@@ -66,15 +66,16 @@ public:
     };
     
     struct block_structure {
-        std::string network;                    // name of network block belongs to.
+        std::string network;                // name of network block belongs to.
         long number;                     	// sequential block number
         std::string time;              		// time block created
         long file_index;                 	// bytes into block file for fast lookup.
-        //std::string block_hash;            	// sha256 hash of all record hashes in this block.
+        //std::string block_hash;           // sha256 hash of all record hashes in this block.
+        long previous_block_id;             //
         std::string previous_block_hash;   	// ???  
         std::string block_records;         	// string value of all records in block.
-        std::string creator_key;                // public key of user that creates the block.
-        std::string hash;                       // sha256 hash of block content and it's records. 
+        std::string creator_key;            // public key of user that creates the block.
+        std::string hash;                   // sha256 hash of block content and it's records.
         std::string signature;          	// signature of block hash with block creator
         std::vector<CFunctions::record_structure> records;
         bool internal_validated = false;

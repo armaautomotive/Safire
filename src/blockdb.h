@@ -17,6 +17,8 @@
 #include <string.h>
 #include <assert.h>
 
+#include "leveldb/db.h"
+
 class CBlockDB
 {
 private:
@@ -33,8 +35,7 @@ public:
     {
     }
 
-    leveldb::DB getDatabase();
-    //int AddBlock(std::string publicKey);
+    leveldb::DB * getDatabase();
     //bool addFirstBlock(CFunctions::block_structure block);
     bool AddBlock(CFunctions::block_structure block);
     void setFirstBlockId(long number);
