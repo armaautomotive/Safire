@@ -1,22 +1,20 @@
-// Copyright (c) 2016 Jon Taylor
+// Copyright (c) 2016,2018 Jon Taylor
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef MAGNITE_BLOCK_DB_H
-#define MAGNITE_BLOCK_DB_H
+#ifndef SAFIRE_BLOCK_DB_H
+#define SAFIRE_BLOCK_DB_H
 
 #include "functions/functions.h"
 #include <iostream>
 #include <string>
 #include <stdexcept>
 #include <vector>
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
 #include <assert.h>
-
 #include "leveldb/db.h"
 
 class CBlockDB
