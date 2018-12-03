@@ -21,7 +21,6 @@ class CBlockDB
 {
 private:
 
-
 public:
     //! Construct an invalid private key.
     CBlockDB()

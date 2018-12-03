@@ -117,6 +117,7 @@ void CBlockDB::setFirstBlockId(long number){
     ostringstream valueStream;
     valueStream << boost::lexical_cast<std::string>(number);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
+    delete db;
 }
 
 /**
@@ -134,6 +135,7 @@ long CBlockDB::getFirstBlockId(){
     std::string firstBlockId;
     db->Get(leveldb::ReadOptions(), key, &firstBlockId);
     long result = std::stol(firstBlockId);
+    delete db;
     return result;
 }
 
@@ -145,6 +147,7 @@ void CBlockDB::setLatestBlockId(long number){
     ostringstream valueStream;
     valueStream << boost::lexical_cast<std::string>(number);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
+    delete db;
 }
 
 long CBlockDB::getLatestBlockId(){
@@ -154,6 +157,7 @@ long CBlockDB::getLatestBlockId(){
     std::string firstBlockId;
     db->Get(leveldb::ReadOptions(), key, &firstBlockId);
     long result = std::stol(firstBlockId);
+    delete db;
     return result;
 }
 
@@ -173,6 +177,7 @@ long CBlockDB::getNextBlockId(long previousBlockId){
     std::string nextBlockIdString;
     db->Get(leveldb::ReadOptions(), keyStream.str(), &nextBlockIdString);
     long result = std::stol(nextBlockIdString);
+    delete db;
     return result;
 }
 
@@ -247,7 +252,6 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
 
     // Close the database
     delete db;
-
     return block;
 }
 
@@ -277,8 +281,8 @@ CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key
     }
     
     // todo:
+    
+    delete db;
     return block;
 }
-    
-    
 
