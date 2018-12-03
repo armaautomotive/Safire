@@ -241,10 +241,11 @@ void CCLI::processUserInput(){
             
         } else if( command.compare("resetall") == 0){
             std::cout << " Purging node data: " << std::endl;
+            functions.DeleteAll();
+            
             CBlockDB blockDB;
             blockDB.DeleteAll();
-            //functions.printQueue();
-
+            
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;
 	

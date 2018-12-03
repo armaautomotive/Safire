@@ -11,6 +11,9 @@
 #include "functions/selector.h"
 #include "blockdb.h"
 #include "functions/chain.h"
+#include <boost/filesystem.hpp>
+#include <boost/range/iterator_range.hpp>
+#include <iostream>
 
 /**
  * tokenClose
@@ -773,3 +776,28 @@ std::string CFunctions::getBlockSignature(block_structure block){
 	return "";
 }
 
+/**
+ * DeleteAll
+ *
+ * Descirption: delete block data files.
+ */
+void CFunctions::DeleteAll(){
+    boost::filesystem::path p = ".";
+    std::string prefix("block_");
+    std::string extension(".dat");
+    for(auto& entry : boost::make_iterator_range(boost::filesystem::directory_iterator(p), {})){
+        std::ostringstream oss;
+        oss << entry;
+        std::string path = oss.str();
+        //std::cout << path << "\n";
+        std::size_t extension_found = path.find(extension);
+        std::size_t prefix_found = path.find(prefix);
+        if (extension_found != std::string::npos && prefix_found != std::string::npos){
+            //std::cout << "DELETE: " << path << "\n";
+            boost::filesystem::remove(entry);
+        }
+    }
+    // "queue.dat"
+    boost::filesystem::remove("queue.dat");
+    boost::filesystem::remove("chain.index");
+}

@@ -114,6 +114,7 @@ public:
     std::vector<CFunctions::block_structure> parseBlockJson(std::string block_json);
     void printQueue();
 
+    void DeleteAll();
  
     CFunctions::block_structure latest_block;
     double balance; // wallet balance
