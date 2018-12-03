@@ -49,7 +49,7 @@ volatile bool buildingBlocks = true;
 
 int main(int argc, char* argv[])
 {
-    std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1" << ANSI_COLOR_RESET << std::endl;
+    std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.02" << ANSI_COLOR_RESET << std::endl;
     std::cout << std::endl;
     // Start New BlockChain Mode
     // Read command line arg
