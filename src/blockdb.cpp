@@ -190,17 +190,7 @@ long CBlockDB::getNextBlockId(long previousBlockId){
 */
 void CBlockDB::GetBlocks(){
     leveldb::WriteOptions writeOptions;
-    leveldb::DB* db;
-    leveldb::Options options;
-    options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
-    if (false == status.ok())
-    {
-        cerr << "Unable to open/create test database './blockdb'" << endl;
-        cerr << status.ToString() << endl;
-        return;
-    }
-
+    leveldb::DB* db = getDatabase();
 
     // Iterate over each item in the database and print them
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
@@ -229,16 +219,7 @@ void CBlockDB::GetBlocks(){
 CFunctions::block_structure CBlockDB::getBlock(long number){
     CFunctions::block_structure block;
     leveldb::WriteOptions writeOptions;
-    leveldb::DB* db;
-    leveldb::Options options;
-    options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
-    if (false == status.ok())
-    {
-        cerr << "Unable to open/create test database './blockdb'" << endl;
-        cerr << status.ToString() << endl;
-        return block;
-    }
+    leveldb::DB* db = getDatabase();
 
     std::string key = "b_" + boost::lexical_cast<std::string>(number);
     std::string blockJson;
@@ -270,23 +251,13 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
 CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key, int index ){
     CFunctions::block_structure block;
     leveldb::WriteOptions writeOptions;
-    leveldb::DB* db;
-    leveldb::Options options;
-    options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
-    if (false == status.ok())
-    {
-        cerr << "Unable to open/create test database './blockdb'" << endl;
-        cerr << status.ToString() << endl;
-        return block;
-    }
+    leveldb::DB* db = getDatabase();
     
     // todo:
     
     delete db;
     return block;
 }
-
 
 /**
  * DeleteAll
