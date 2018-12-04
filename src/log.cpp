@@ -1,37 +1,49 @@
-#include "log.h"
+// Copyright (c) 2018 Jon Taylor
+// Website: http://safire.org
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "log.h"
 #include <sstream>
-#include <unistd.h>   // open and close
-#include <sys/stat.h> // temp because we removed util
-#include <fcntl.h> // temp removed util.h
+#include <unistd.h>     // open and close
+#include <sys/stat.h>   // temp because we removed util
+#include <fcntl.h>      // temp removed util.h
 #include <time.h>
-#include "ecdsacrypto.h"
-#include "functions/functions.h"
-#include "wallet.h"
-#include "network/p2p.h"
-#include "network/relayclient.h"
-#include "blockdb.h"
+#include <sstream>
 
 /**
-* printCommands
+* log
 *
-* Description: Print a list of commands that are accepted.
+* Description:
 */
-void CLOG::log(std::string str){
-
-        std::cout << "Commands:\n" <<
-        " join [network name]     - request membership in the network. The default network is 'main'.\n" <<
-        " switch [network name]   - switch current network. Default is 'main'.\n" <<
-        //" swtch wallet            - change wallet" <<
-        " balance                 - print balance and transaction summary.\n" <<
-        " sent                    - print sent transaction list details.\n" <<
-        " received                - print received transaction list details.\n" <<
-        " network                 - print network stats including currency and volumes.\n" <<
-        " send                    - send a payment to another user address.\n" <<
-        " receive                 - prints your public key address to have others send you payments.\n" <<
-        " vote                    - vote on network behaviour and settings.\n" <<
-        " advanced                - more commands for admin and testing functions.\n" <<
-        " quit                    - shutdown the application.\n " << std::endl;
+void CFileLogger::log(std::string str){
+    time_t t = time(0); // get time now
+    struct tm * now = localtime(&t);
+    int year = (now->tm_year + 1900);
+    
+    std::stringstream ss;
+    ss << "safire_" << year << ".log";
+    std::string file_path = ss.str();
+    
+    std::ofstream outfile;
+    outfile.open(file_path, std::ios_base::app);
+    
+    outfile << str;
+    outfile.close();
 }
 
-
+/**
+ * clearLog
+ *
+ * Description:
+ */
+void CFileLogger::clearLog(){
+    time_t t = time(0); // get time now
+    struct tm * now = localtime(&t);
+    int year = (now->tm_year + 1900);
+    
+    std::stringstream ss;
+    ss << "safire_" << year << ".log";
+    std::string file_path = ss.str();
+    
+}

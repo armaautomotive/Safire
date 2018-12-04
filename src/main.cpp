@@ -31,6 +31,7 @@
 //#include "userdb.h"
 //#include "leveldb/db.h" // TEMP 
 #include "blockdb.h"
+#include "log.h"
 
 #include "functions/functions.h"
 #include "functions/blockbuilder.hpp" // Revierw this later.
@@ -51,6 +52,11 @@ int main(int argc, char* argv[])
 {
     std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.02" << ANSI_COLOR_RESET << std::endl;
     std::cout << std::endl;
+    
+    CFileLogger log;
+    log.log("Safire starting.\n");
+    //log.clearLog();
+    
     // Start New BlockChain Mode
     // Read command line arg
 

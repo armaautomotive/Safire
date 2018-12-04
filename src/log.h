@@ -3,32 +3,32 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SAFIRE_CLI_H
-#define SAFIRE_CLI_H
+#ifndef SAFIRE_LOG_H
+#define SAFIRE_LOG_H
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <stdexcept>
-#include <vector>
+//#include <vector>
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
 #include <assert.h>
 
-class CLOG
+class CFileLogger
 {
 private:
 
-
 public:
     //! Construct an invalid private key.
-    CLOG()
+    CFileLogger()
     {
     }
 
     //! Destructor (again necessary because of memlocking).
-    ~CLOG()
+    ~CFileLogger()
     {
     }
 

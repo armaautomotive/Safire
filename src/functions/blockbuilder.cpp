@@ -17,6 +17,7 @@
 #include "functions/chain.h"
 #include "wallet.h"
 #include "blockdb.h"
+#include "log.h"
 
 volatile bool isBuildingBlocks = true;
 
@@ -34,6 +35,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     CSelector selector;
     selector.syncronizeTime();
     CChain chain;
+    //CFileLogger log;
     //CBlockDB blockDB;
     // Check block chain for latest block information.
     // TODO...
@@ -63,13 +65,16 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     if(argc >= 3 ){ // && argv[1] == "genesis"
         networkGenesis = true;
         networkName = argv[2];
-        //std::cout << " 1 " << argv[1] << " " << argv[2] ;
+        //std::cout << " 1 " << argv[1] << " " << argv[2];
     }
     
     long timeBlock = selector.getCurrentTimeBlock();
     
     if(networkGenesis){
         std::cout << "Creating genesis block for a new network named " << networkName << std::endl;
+        
+        //log.log("Creating genesis block.\n");
+        //log.clearLog();
         
         CFunctions::record_structure joinRecord;
         joinRecord.network = networkName;
@@ -175,6 +180,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         std::cout << "Current time: " << currBlock << " latest: " << chain.getLatestBlock() << std::endl;
         
         relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
+        //log.log("Request the beginning of the blockchain from our peer nodes. \n");
+        
         
         //std::cout << "-" << std::endl;
         int progressPos = 0;
@@ -298,6 +305,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             
             functions.addToBlockFile(block);
             // TODO: Broadcast block to network
+            //log.log("Adding new block. Send to relay client. \n");
             relayClient.sendBlock(block);
             
             //previous_block = block; // temp

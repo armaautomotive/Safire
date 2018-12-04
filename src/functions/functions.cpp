@@ -106,7 +106,6 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
     return records;
 }
 
-
 /**
 * parseOneRecordStructure  - extractOneQueueRecord
 *
@@ -116,10 +115,8 @@ CFunctions::record_structure CFunctions::extractOneQueueRecord(){
     CFunctions::record_structure record;
 
 
-
     return record; 
 }
-
 
 /**
 * existsInQueue
@@ -132,7 +129,6 @@ int CFunctions::existsInQueue(record_structure record){
     return 0;
 }
 
-
 /**
 * getRecordsInQueue
 *
@@ -142,7 +138,6 @@ int CFunctions::getRecordsInQueue( int limit ){
     
     
 }
-
 
 /**
  * validateRecord
@@ -164,13 +159,15 @@ int CFunctions::generateBlock(std::vector<record_structure> records, std::string
     
 }
 
-
 /**
-* blockJSON
-*
-* Description: 
-*/
-std::string CFunctions::blockJSON( CFunctions::block_structure block){
+ * blockJSON
+ *
+ * Description: generate json string from block data.
+ *
+ * @param: block_structure
+ * @return string json.
+ */
+std::string CFunctions::blockJSON(CFunctions::block_structure block){
     std::stringstream ss;
     ss << "{\"block\":{" <<
         "\"creator_key\":\"" << block.creator_key << "\","  << 
