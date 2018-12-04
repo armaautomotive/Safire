@@ -97,10 +97,13 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         db->Put(writeOptions, keyStream.str(), valueStream.str());
     }
     
-    setLatestBlockId(block.number);
+    
     
     // Close the database
     delete db;
+    
+    setLatestBlockId(block.number);
+    
     return true;
 }
 
