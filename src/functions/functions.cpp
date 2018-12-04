@@ -174,7 +174,7 @@ std::string CFunctions::blockJSON(CFunctions::block_structure block){
         "\"network\":\"" << block.network << "\"," <<
         "\"number\":\"" << block.number << "\"," <<
         "\"time\":\"" << block.time << "\"," <<
-        "\"previous_block_id\":\"" << block.previous_block_id + "\"," <<
+        "\"previous_block_id\":\"" << boost::lexical_cast<std::string>(block.previous_block_id) << "\"," <<
         "\"previous_block_hash\":\"" << block.previous_block_hash + "\"," <<
         "\"hash\":\"" << block.hash + "\"," <<
         "\"records\":{\n";
@@ -319,6 +319,7 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
  * Description: parse the block chain stored in levelDB managed by CBlockDB.
  */
 void CFunctions::scanChain(std::string my_public_key, bool debug){
+    CECDSACrypto ecdsa;
     CSelector selector;
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
@@ -327,18 +328,22 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
         while(block.number > 0){
             
-            std::cout << " block " << i << "     " << block.number << "\n";
+            //std::cout << " block " << i << "     " << block.number << "\n";
             latest_block = block;
             
             // Evaluate:
             std::vector<CFunctions::record_structure> records = block.records;
-            std::cout << "   records " << records.size() << " \n";
+            //std::cout << "   records " << records.size() << " \n";
             for(int r = 0; r < records.size(); r++){
                 CFunctions::record_structure record = records[r];
-                std::cout << "   record \n";
+                //std::cout << "   record \n";
                 
-                if(record.sender_public_key.compare(my_public_key) == 0 && record.transaction_type == CFunctions::JOIN_NETWORK){ // TODO: and network name matches
+                //std::cout << " pub " << record.sender_public_key << " mykey " << my_public_key << "\n";
+                //std::cout << " pubtype " << record.transaction_type << " mykey " << CFunctions::JOIN_NETWORK << "\n";
+                if(record.sender_public_key.compare(my_public_key) == 0 &&
+                   record.transaction_type == CFunctions::JOIN_NETWORK){ // TODO: and network name matches
                     joined = true;
+                    std::cout << " joined \n";
                 }
                 
                 if(record.transaction_type == CFunctions::JOIN_NETWORK){ // And block + previous chain is valid
@@ -370,6 +375,68 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 // Tally currency supply
                 if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
                     currency_circulation += record.amount;
+                }
+                
+                if(debug){
+                    std::string sender = record.sender_public_key;
+                    std::string recipient = record.recipient_public_key;
+                    if(sender.length() > 8){
+                        sender = sender.erase(8);
+                    }
+                    if(recipient.length() > 8){
+                        recipient = recipient.erase(8);
+                    }
+                    std::cout << "        ";
+                    if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
+                        std::cout << "ISSUE   ";
+                    }
+                    if(record.transaction_type == CFunctions::JOIN_NETWORK){
+                        std::cout << "JOIN_NET";
+                    }
+                    if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
+                        std::cout << "TRANSFER";
+                    }
+                    if(record.transaction_type == CFunctions::CARRY_FORWARD){
+                        std::cout << "CARRY_F ";
+                    }
+                    if(record.transaction_type == CFunctions::PERIOD_SUMMARY){
+                        std::cout << "SUMMARY ";
+                    }
+                    if(record.transaction_type == CFunctions::VOTE){
+                        std::cout << "VOTE    ";
+                    }
+                    if(record.transaction_type == CFunctions::HEART_BEAT){
+                        std::cout << "HEART BT";
+                    }
+                    std::cout << "  sender: " << sender << " -> " << recipient << " amt: " << record.amount;
+                    std::cout << " time: " << record.time << " net: " << record.network ;
+                    std::cout << " typ " << boost::lexical_cast<std::string>(record.transaction_type) << "  ";
+                    std::cout << " fee " << boost::lexical_cast<std::string>(record.fee) << " ";
+                    
+                    std::string validate_record_hash = getRecordHash(record);
+                    if(validate_record_hash.compare(record.hash) == 0){
+                        std::cout << ANSI_COLOR_GREEN <<  " [HASH_OK]" << ANSI_COLOR_RESET;
+                    } else {
+                        std::cout << std::endl << ANSI_COLOR_RED << "        [HASH_ERROR] " << validate_record_hash  << " == " << record.hash << ANSI_COLOR_RESET;
+                        
+                    }
+                    // print signature validation ... TODO
+                    // VerifyMessage()
+                    //std::cout << "\n        ***  sig hash  " << record.hash << " sig " << record.signature  <<  " key  "<<  record.sender_public_key << std::endl;
+                    //std::cout << " ---  " << record.sender_public_key << std::endl;
+                    try {
+                        int r = ecdsa.VerifyMessageCompressed(record.hash, record.signature, record.sender_public_key);
+                        //std::cout << " 3333 ";
+                        if(r){
+                            std::cout << ANSI_COLOR_GREEN << "    [SIG_OK]" << ANSI_COLOR_RESET;
+                        } else {
+                            std::cout << ANSI_COLOR_RED << "    [SIG_ERROR]" << ANSI_COLOR_RESET;
+                        }
+                    } catch (...){
+                        std::cout << "ERROR" << std::endl;
+                    }
+                    
+                    std::cout << std::endl;
                 }
                 
             }

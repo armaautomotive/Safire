@@ -76,6 +76,9 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     if(networkGenesis){
         std::cout << "Creating genesis block for a new network named " << networkName << std::endl;
         
+        // Clear past data (for given network name)
+        blockDB.DeleteAll();
+        
         //log.log("Creating genesis block.\n");
         //log.clearLog();
         
@@ -231,8 +234,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //time_t t = time(0);
         //std::string block_time = std::asctime(std::localtime(&t));
         
-        
-        std::cout << " building blocks " << std::endl;
+        //std::cout << " building blocks " << std::endl;
         
         if(build_block){
             
@@ -298,13 +300,12 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             block.number = selector.getCurrentTimeBlock(); //  blockNumber++;
             block.time = ts;
             
-            std::cout << " XXX \n";
+            //std::cout << " XXX \n";
             long latestBlockId = blockDB.getLatestBlockId();
             if(latestBlockId == -1){
                 std::cout << "ERROR: Block generation without previous block assigned. \n";
             }
             block.previous_block_id = latestBlockId;
-            
             
             // Add records from queue...
             std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();

@@ -46,40 +46,38 @@ leveldb::DB * CBlockDB::getDatabase(){
 */
 bool CBlockDB::AddBlock(CFunctions::block_structure block){
     CFunctions functions;
+    CFileLogger log;
     
     /*
     CPlatform platform;
     std::string dbPath = platform.getSafirePath();
     //std::cout << dbPath << std::endl;
-    leveldb::DB* db;
-    leveldb::Options options;
-    options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &db);
-    if (false == status.ok())
-    {
-        cerr << "Unable to open/create test database './blockdb'" << endl;
-        cerr << status.ToString() << endl;
-        return -1;
-    }
     */
     leveldb::WriteOptions writeOptions;
-    
     leveldb::DB* db = getDatabase();
-
+   
     // Insert block record into leveldb
     ostringstream keyStream;
     keyStream << "b_" << boost::lexical_cast<std::string>(block.number);
     ostringstream valueStream;
     valueStream << functions.blockJSON(block);
+    
+    //std::cout << " key: " << keyStream.str() << " \n";
+    //std::cout << " val: " << valueStream.str() << " \n";
+    log.log("AddBlock: ");
+    log.log("     key: " + keyStream.str());
+    log.log("     val: " + valueStream.str());
+    
     db->Put(writeOptions, keyStream.str(), valueStream.str());
+    
 
     // Insert all sender_key->block_id records for fast lookup.
     for(int i = 0; i < block.records.size(); i++ ){
         CFunctions::record_structure record = block.records.at(i);
-        ostringstream sendKeyStream;
-        sendKeyStream << "s_" << record.sender_public_key;
-        ostringstream sendValueStream;
-        sendValueStream << functions.blockJSON(block);
+        //ostringstream sendKeyStream;
+        //sendKeyStream << "s_" << record.sender_public_key;
+        //ostringstream sendValueStream;
+        //sendValueStream << functions.blockJSON(block);
         //db->Put(writeOptions, sendKeyStream.str(), sendValueStream.str());
     }
     
@@ -96,8 +94,6 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         valueStream << block.number;
         db->Put(writeOptions, keyStream.str(), valueStream.str());
     }
-    
-    
     
     // Close the database
     delete db;
@@ -166,6 +162,7 @@ void CBlockDB::setLatestBlockId(long number){
 }
 
 long CBlockDB::getLatestBlockId(){
+    //std::cout << " a \n ";
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
     std::string key = "latest_block_id"; // boost::lexical_cast<std::string>(number);
@@ -178,6 +175,7 @@ long CBlockDB::getLatestBlockId(){
         result = boost::lexical_cast<long>(latestBlockIdString);
     }
     
+    //std::cout << " z \n ";
     return result;
 }
 
@@ -201,7 +199,7 @@ long CBlockDB::getNextBlockId(long previousBlockId){
     if(nextBlockIdString.length() > 0){
         result = boost::lexical_cast<long>(nextBlockIdString);
     }
-    std::cout << " next " << result << "\n";
+    //std::cout << " next " << result << "\n";
     
     return result;
 }
