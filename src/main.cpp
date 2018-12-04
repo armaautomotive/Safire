@@ -54,8 +54,8 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
     
     CFileLogger log;
+    log.clearLog();
     log.log("Safire starting.\n");
-    //log.clearLog();
     
     // Start New BlockChain Mode
     // Read command line arg
