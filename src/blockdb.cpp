@@ -7,6 +7,7 @@
 #include <unistd.h>   // open and close
 #include "leveldb/db.h"
 #include "platform.h"
+#include "log.h";
 #include <boost/lexical_cast.hpp>
 
 using namespace std;
@@ -79,7 +80,7 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         sendKeyStream << "s_" << record.sender_public_key;
         ostringstream sendValueStream;
         sendValueStream << functions.blockJSON(block);
-        db->Put(writeOptions, sendKeyStream.str(), sendValueStream.str());
+        //db->Put(writeOptions, sendKeyStream.str(), sendValueStream.str());
     }
     
     // Insert all recipient_public_key->block_id records for fast lookup.
@@ -90,12 +91,13 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     // Save index to next block
     if(block.previous_block_id > -1){
         ostringstream keyStream;
-        keyStream << "next_block_" <<  block.previous_block_id;
+        keyStream << "next_block_" << block.previous_block_id;
         ostringstream valueStream;
         valueStream << block.number;
         db->Put(writeOptions, keyStream.str(), valueStream.str());
     }
     
+    setLatestBlockId(block.number);
     
     // Close the database
     delete db;
@@ -118,6 +120,8 @@ void CBlockDB::setFirstBlockId(long number){
     valueStream << boost::lexical_cast<std::string>(number);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
     delete db;
+    
+    //std::cout << " set first " << number << "\n";
 }
 
 /**
@@ -131,11 +135,19 @@ void CBlockDB::setFirstBlockId(long number){
 long CBlockDB::getFirstBlockId(){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
-    std::string key = "first_block_id"; // boost::lexical_cast<std::string>(number);
-    std::string firstBlockId;
-    db->Get(leveldb::ReadOptions(), key, &firstBlockId);
-    long result = std::stol(firstBlockId);
+    std::string key = "first_block_id";
+    std::string firstBlockIdString;
+    db->Get(leveldb::ReadOptions(), key, &firstBlockIdString);
+    long result = -1;
+    if(firstBlockIdString.length() > 0){
+        //result = std::stol(firstBlockIdString);
+        result = boost::lexical_cast<long>(firstBlockIdString);
+        //std::cout << "   --- " << firstBlockIdString << "\n";
+    }
     delete db;
+    
+    //std::cout << " get first " << result << "\n";
+    
     return result;
 }
 
@@ -154,10 +166,15 @@ long CBlockDB::getLatestBlockId(){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
     std::string key = "latest_block_id"; // boost::lexical_cast<std::string>(number);
-    std::string firstBlockId;
-    db->Get(leveldb::ReadOptions(), key, &firstBlockId);
-    long result = std::stol(firstBlockId);
+    std::string latestBlockIdString;
+    db->Get(leveldb::ReadOptions(), key, &latestBlockIdString);
     delete db;
+    long result = -1;
+    //std::stol(firstBlockId);
+    if(latestBlockIdString.length() > 0){
+        result = boost::lexical_cast<long>(latestBlockIdString);
+    }
+    
     return result;
 }
 
@@ -176,8 +193,13 @@ long CBlockDB::getNextBlockId(long previousBlockId){
     keyStream << "next_block_" <<  previousBlockId;
     std::string nextBlockIdString;
     db->Get(leveldb::ReadOptions(), keyStream.str(), &nextBlockIdString);
-    long result = std::stol(nextBlockIdString);
     delete db;
+    long result = -1; //std::stol(nextBlockIdString);
+    if(nextBlockIdString.length() > 0){
+        result = boost::lexical_cast<long>(nextBlockIdString);
+    }
+    std::cout << " next " << result << "\n";
+    
     return result;
 }
 
@@ -218,6 +240,7 @@ void CBlockDB::GetBlocks(){
  */
 CFunctions::block_structure CBlockDB::getBlock(long number){
     CFunctions::block_structure block;
+    block.number = -1;
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
 
@@ -235,6 +258,17 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
     // Close the database
     delete db;
     return block;
+}
+
+/**
+ * getNextBlock
+ *
+ * Description: get the next block in the chain.
+ */
+CFunctions::block_structure CBlockDB::getNextBlock(CFunctions::block_structure block){
+    long nextId = getNextBlockId(block.number);
+    CFunctions::block_structure nextBlock = getBlock(nextId);
+    return nextBlock;
 }
 
 /**

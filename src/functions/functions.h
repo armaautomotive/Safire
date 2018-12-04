@@ -100,8 +100,11 @@ public:
     int addToBlockFile( block_structure block );
     double parseSectionDouble(std::string content, std::string start, std::string end);
     long parseSectionLong(std::string content, std::string start, std::string end);
+    
+    void scanChain(std::string my_public_key, bool debug);
     int parseBlockFile( std::string my_public_key, bool debug );
-    int parseSectionInt(std::string content, std::string start, std::string end);    
+    
+    int parseSectionInt(std::string content, std::string start, std::string end);
     std::string parseSectionBlock(std::string & content, std::string start, std::string open, std::string close);
     std::string parseSectionString(std::string content, std::string start, std::string end);
     std::string getBlockHash(block_structure block);

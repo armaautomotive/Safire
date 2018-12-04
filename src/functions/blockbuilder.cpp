@@ -34,7 +34,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     CRelayClient relayClient;
     CSelector selector;
     selector.syncronizeTime();
-    CChain chain;
+    CChain chain;   // depricate
     //CFileLogger log;
     //CBlockDB blockDB;
     // Check block chain for latest block information.
@@ -57,7 +57,10 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         wallet.read(privateKey, publicKey);
         //std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
     }
-    functions.parseBlockFile( publicKey, false );
+    
+    //functions.parseBlockFile(publicKey, false); // depricate
+    functions.scanChain(publicKey, false);
+    
     relayClient.getNewNetworkPeer(publicKey);
     
     bool networkGenesis = false;
@@ -137,6 +140,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //std::string block_time = std::asctime(std::localtime(&t));
         
         block.number = selector.getCurrentTimeBlock();
+        block.previous_block_id = -1;
         
         //time_t  epoch;
         //time(&epoch);
@@ -149,8 +153,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         ecdsa.SignMessage(privateKey, block.hash, signature);
         block.signature = signature;
         
-        chain.setFirstBlock(block);
-        functions.addToBlockFile(block);
+        //chain.setFirstBlock(block); // depricate
+        //functions.addToBlockFile(block);
         
         //blockDB.addFirstBlock(block); // depricate
         blockDB.AddBlock(block);
@@ -170,8 +174,10 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     // Does a blockfile exist? if networkGenesis==false and there is no block file we wait until the network syncs before wrting to the blockfile.
     CFunctions::block_structure previous_block;
     
+    long firstBlockId = blockDB.getFirstBlockId();
+    
     // syncronize chain
-    if(networkGenesis == false && chain.getFirstBlock() == -1 ){
+    if(networkGenesis == false && firstBlockId == -1 ){ // chain.getFirstBlock() == -1
         //
         std::cout << "Syncronizing Blockchain." << std::endl;
         
@@ -209,7 +215,9 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     int blockNumber = functions.latest_block.number + 1;
     //long timeBlock = 0;
     while(isBuildingBlocks){
-        functions.parseBlockFile(publicKey, false);
+        //functions.parseBlockFile(publicKey, false); // depricate
+        functions.scanChain(publicKey, false);
+        
         timeBlock = selector.getCurrentTimeBlock();
         //std::cout << "here " << std::endl;
         
@@ -223,6 +231,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //time_t t = time(0);
         //std::string block_time = std::asctime(std::localtime(&t));
         
+        
+        std::cout << " building blocks " << std::endl;
         
         if(build_block){
             
@@ -288,6 +298,13 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             block.number = selector.getCurrentTimeBlock(); //  blockNumber++;
             block.time = ts;
             
+            std::cout << " XXX \n";
+            long latestBlockId = blockDB.getLatestBlockId();
+            if(latestBlockId == -1){
+                std::cout << "ERROR: Block generation without previous block assigned. \n";
+            }
+            block.previous_block_id = latestBlockId;
+            
             
             // Add records from queue...
             std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();
@@ -303,7 +320,9 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             ecdsa.SignMessage(privateKey, block.hash, signature);
             block.signature = signature;
             
-            functions.addToBlockFile(block);
+            blockDB.AddBlock(block);
+            
+            //functions.addToBlockFile(block); // depricate
             // TODO: Broadcast block to network
             //log.log("Adding new block. Send to relay client. \n");
             relayClient.sendBlock(block);

@@ -40,6 +40,7 @@ public:
     void setLatestBlockId(long number);
     long getLatestBlockId();
     long getNextBlockId(long previousBlockId);
+    CFunctions::block_structure getNextBlock(CFunctions::block_structure block);
     
     void GetBlocks();
     //CFunctions::block_structure getFirstBlock();

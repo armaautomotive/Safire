@@ -190,14 +190,14 @@ std::string CFunctions::blockJSON(CFunctions::block_structure block){
 }
 
 /**
-* addToBlockFile
+* addToBlockFile *** DEPRICATE ***
 *
 * Description: Add a block to the chain file.
 *   text file and db.
 */
 int CFunctions::addToBlockFile( CFunctions::block_structure block ){
     CBlockDB blockDB;
-    blockDB.AddBlock(block);
+    //blockDB.AddBlock(block);
 
     time_t t = time(0); // get time now
     struct tm * now = localtime(&t);
@@ -314,7 +314,74 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 
 
 /**
-* parseBlockFile
+ * loadChain
+ *
+ * Description: parse the block chain stored in levelDB managed by CBlockDB.
+ */
+void CFunctions::scanChain(std::string my_public_key, bool debug){
+    CSelector selector;
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    int i = 1;
+    if(firstBlockId > -1){
+        CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+        while(block.number > 0){
+            
+            std::cout << " block " << i << "     " << block.number << "\n";
+            latest_block = block;
+            
+            // Evaluate:
+            std::vector<CFunctions::record_structure> records = block.records;
+            std::cout << "   records " << records.size() << " \n";
+            for(int r = 0; r < records.size(); r++){
+                CFunctions::record_structure record = records[r];
+                std::cout << "   record \n";
+                
+                if(record.sender_public_key.compare(my_public_key) == 0 && record.transaction_type == CFunctions::JOIN_NETWORK){ // TODO: and network name matches
+                    joined = true;
+                }
+                
+                if(record.transaction_type == CFunctions::JOIN_NETWORK){ // And block + previous chain is valid
+                    user_count++;
+                    selector.addUser(record.sender_public_key);
+                }
+                
+                // Recipient of transfer
+                if( (record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
+                     record.transaction_type == CFunctions::ISSUE_CURRENCY) &&
+                   record.recipient_public_key.compare(my_public_key) == 0 ){
+                    balance += record.amount;
+                }
+                
+                // subtract sent payments from balance
+                if(record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+                   record.sender_public_key.compare(my_public_key) == 0 &&
+                   record.recipient_public_key.compare(my_public_key) != 0){ // subtract sent from wallet to anyone but self.
+                    balance -= record.amount;
+                    balance -= record.fee;
+                    //std::cout << " sent " << std::endl;
+                }
+                
+                // collect fees
+                if(record.transaction_type == CFunctions::TRANSFER_CURRENCY || record.transaction_type == CFunctions::VOTE){
+                    balance += record.fee;
+                }
+                
+                // Tally currency supply
+                if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
+                    currency_circulation += record.amount;
+                }
+                
+            }
+            
+            block = blockDB.getNextBlock(block);
+            i++;
+        }
+    }
+}
+
+/**
+* parseBlockFile   *** DEPRICATE ***
 *
 * Description: Read the block file into in memory data structure.
 *
@@ -324,7 +391,7 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
     CECDSACrypto ecdsa;
     CSelector selector;
-    CChain chain;
+    CChain chain;  // DEPRICATE
     time_t t = time(0);   // get time now
     struct tm * now = localtime( & t );
     int year = (now->tm_year + 1900);
@@ -413,43 +480,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                         CFunctions::record_structure record;
 
                         record = parseRecordJson(record_section);
-                        /*
-                        record.network = parseSectionString(record_section, "\"network\":\"", "\"");
-                        record.time = parseSectionString(record_section, "\"time\":\"", "\"");
-                        int transaction_type = parseSectionInt(record_section, "\"typ\":\"", "\"" ); 
-                        // transaction_type_strings JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE, HEART_BEAT
-                        // TODO: there has to be a better way to do this
-                        if(transaction_type == 0){
-                            record.transaction_type = CFunctions::JOIN_NETWORK;
-                        } 
-                        if(transaction_type == 1){
-                            record.transaction_type = CFunctions::ISSUE_CURRENCY;
-                        }
-                        if(transaction_type == 2){
-                            record.transaction_type = CFunctions::TRANSFER_CURRENCY;
-                        }
-                        if(transaction_type == 3){
-                            record.transaction_type = CFunctions::CARRY_FORWARD;
-                        }
-                        if(transaction_type == 4){
-                            record.transaction_type = CFunctions::PERIOD_SUMMARY;
-                        }
-                        if(transaction_type == 5){
-                            record.transaction_type = CFunctions::VOTE;
-                        }
-                        if(transaction_type == 6){
-                            record.transaction_type = CFunctions::HEART_BEAT;
-                        } 
-                        // address
-			            record.recipient_public_key = parseSectionString(record_section, "\"rcvkey\":\"", "\"" );
-                        record.sender_public_key = parseSectionString(record_section, "\"sndkey\":\"", "\"" );
-                        record.amount = parseSectionDouble(record_section, "\"amt\":\"", "\"");
-                        record.fee = parseSectionDouble(record_section, "\"fee\":\"", "\"");
-                        record.name = parseSectionString(record_section, "\"name\":\"", "\"");	
-                        record.value = parseSectionString(record_section, "\"value\":\"", "\"");
-                        record.hash = parseSectionString(record_section, "\"hash\":\"", "\"");
-                        record.signature = parseSectionString(record_section, "\"sig\":\"", "\""); 
-                         */
+                        
 
 
                         if(record.sender_public_key.compare(my_public_key) == 0 && record.transaction_type == CFunctions::JOIN_NETWORK){ // TODO: and network name matches
@@ -581,10 +612,10 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 
 
 /**
-* parseBlockJson
-*
-* Description: parse json into block structures. 
-*/
+ * parseBlockJson TODO: move this into a JSON class?
+ *
+ * Description: parse json into block structures.
+ */
 std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string block_json){
     //std::cout << " parseBlockJson: " << block_json  << std::endl;    
     std::vector<CFunctions::block_structure> blocks;
