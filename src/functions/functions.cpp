@@ -343,7 +343,6 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 if(record.sender_public_key.compare(my_public_key) == 0 &&
                    record.transaction_type == CFunctions::JOIN_NETWORK){ // TODO: and network name matches
                     joined = true;
-                    std::cout << " joined \n";
                 }
                 
                 if(record.transaction_type == CFunctions::JOIN_NETWORK){ // And block + previous chain is valid
@@ -456,6 +455,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
 * 	so that on subsiquent parse operations it only has to read new sections of the file?
 */
 int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
+    
+    std::cout << "WARNING: CALLING DEPRICATED FUNCTION parseBlockFile() \n";
+    
     CECDSACrypto ecdsa;
     CSelector selector;
     CChain chain;  // DEPRICATE

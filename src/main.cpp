@@ -110,7 +110,8 @@ int main(int argc, char* argv[])
         //"  private  " << privateKey << "\n  " <<
         " Your public address: " << publicKey << std::endl;
 
-    functions.parseBlockFile( publicKey, false );
+    //functions.parseBlockFile( publicKey, false );
+    functions.scanChain(publicKey, false);
     std::cout << " Your balance: " << functions.balance << " sfr" << std::endl; 
 
     std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
