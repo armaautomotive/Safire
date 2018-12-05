@@ -168,6 +168,7 @@ void CRelayClient::exit(){
 * Description: send a transaction record to another/all connected node
 */
 void CRelayClient::sendRecord(CFunctions::record_structure record){
+    CFileLogger log;
     CFunctions functions;
     std::string publicKey;
     std::string privateKey;
@@ -290,7 +291,7 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
             curl_easy_cleanup(curl);
 
             //std::cout << " SEND BLOCK " << post_data << std::endl;
-            log.log("\n");
+            log.log("Relay send Block: " + post_data + "\n");
         }
     }
 }
@@ -383,7 +384,7 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
 
             //std::cout << " SEND request to receive block data. " << blockNumber << " to: " << node.public_key << std::endl;
             std::ostringstream logStream;
-            logStream << "SEND request to receive block data. " << blockNumber + " to: " << node.public_key << "\n";
+            logStream << "SEND request to receive block data. blockNumber: " << blockNumber + " to: " << node.public_key << "\n";
             log.log(logStream.str());
         }
     }

@@ -68,9 +68,9 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     
     //std::cout << " key: " << keyStream.str() << " \n";
     //std::cout << " val: " << valueStream.str() << " \n";
-    log.log("AddBlock: ");
-    log.log("     key: " + keyStream.str());
-    log.log("     val: " + valueStream.str());
+    log.log("AddBlock to levelDB: \n");
+    log.log("     key: " + keyStream.str() + "\n");
+    log.log("     val: " + valueStream.str() + "\n");
     
     db->Put(writeOptions, keyStream.str(), valueStream.str());
     
