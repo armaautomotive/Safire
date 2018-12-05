@@ -80,15 +80,16 @@ void CCLI::processUserInput(){
 		if( command.find("join") != std::string::npos ){
 			
 			//CFunctions functions;
-                        //std::string privateKey;
-                        //std::string publicKey;
-                        //CWallet wallet;
-                        //bool e = wallet.fileExists("wallet.dat");
-                        //if(e != 0){
-                                // Load wallet
-                                //wallet.read(privateKey, publicKey);
-                                functions.parseBlockFile(publicKey, false); 
-                        //}
+            //std::string privateKey;
+            //std::string publicKey;
+            //CWallet wallet;
+            //bool e = wallet.fileExists("wallet.dat");
+            //if(e != 0){
+                // Load wallet
+                //wallet.read(privateKey, publicKey);
+                //functions.parseBlockFile(publicKey, false);
+                functions.scanChain(publicKey, false);
+            //}
 
 			std::cout << "Enter network name to join (blank for default): \n" << std::endl;
 			std::string networkName;
@@ -139,7 +140,8 @@ void CCLI::processUserInput(){
 				// Load wallet
 				//wallet.read(privateKey, publicKey);
     
-				functions.parseBlockFile(publicKey, false);
+				//functions.parseBlockFile(publicKey, false);
+                functions.scanChain(publicKey, false);
 				std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
 
 			//}
@@ -189,8 +191,9 @@ void CCLI::processUserInput(){
 
         } else if ( command.find("network") != std::string::npos ){
 
-		functions.parseBlockFile(publicKey, false);
-                std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
+		//functions.parseBlockFile(publicKey, false);
+        functions.scanChain(publicKey, false);
+        std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
 		std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
                 std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
                 std::cout << " User count: " << functions.user_count << std::endl;
@@ -227,7 +230,8 @@ void CCLI::processUserInput(){
         } else if ( command.compare("printchain") == 0){
            std::cout << " Blockchain detail: " << std::endl; 
 
-           functions.parseBlockFile(publicKey, true);
+           //functions.parseBlockFile(publicKey, true);
+            functions.scanChain(publicKey, false);
 
            CBlockDB blockDB;
            //blockDB.GetBlocks();

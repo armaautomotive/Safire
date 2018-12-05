@@ -30,9 +30,9 @@ leveldb::DB * CBlockDB::getDatabase(){
     {
         cerr << "Unable to open/create test database './blockdb'" << endl;
         cerr << status.ToString() << endl;
-        //return null;
+        //return 0;
+        db = 0;
     }
-    leveldb::WriteOptions writeOptions;
     return db;
 }
 
@@ -55,6 +55,10 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     */
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::AddBlock \n";
+        return false;
+    }
    
     // Insert block record into leveldb
     ostringstream keyStream;
@@ -133,7 +137,11 @@ void CBlockDB::setFirstBlockId(long number){
  */
 long CBlockDB::getFirstBlockId(){
     leveldb::WriteOptions writeOptions;
-    leveldb::DB* db = getDatabase();
+    leveldb::DB * db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::getFirstBlockId \n";
+        return -1;
+    }
     std::string key = "first_block_id";
     std::string firstBlockIdString;
     db->Get(leveldb::ReadOptions(), key, &firstBlockIdString);
