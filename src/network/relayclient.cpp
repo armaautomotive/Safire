@@ -18,6 +18,7 @@
 #include <boost/lexical_cast.hpp>
 #include "functions/chain.h"
 #include "blockdb.h"
+#include "log.h"
 
 std::string CRelayClient::myPeerAddress;
 bool CRelayClient::running;
@@ -136,6 +137,7 @@ void CRelayClient::relayNetworkThread(int argc, char* argv[]){
         receiveRecords(); // receive transaction records
         if(receiveBlocks()){  // receive blocks and write to file
              functions.parseBlockFile("", false); // parse block file changes
+            
         }
         // TODO: requests for blocks by id
         receiveRequestBlocks();
@@ -258,6 +260,7 @@ void CRelayClient::receiveRecords(){
 * Description: send a block to each connected peer.
 */
 void CRelayClient::sendBlock(CFunctions::block_structure block){
+    CFileLogger log;
     CFunctions functions;
     std::string publicKey;
     std::string privateKey;
@@ -287,6 +290,7 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
             curl_easy_cleanup(curl);
 
             //std::cout << " SEND BLOCK " << post_data << std::endl;
+            log.log("\n");
         }
     }
 }
@@ -298,7 +302,9 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
 */
 bool CRelayClient::receiveBlocks(){
     bool result = false;
+    CFileLogger log;
     CFunctions functions;
+    CBlockDB blockDB;
     std::string readBuffer;
     CURLcode res;
     CURL * curl;
@@ -321,11 +327,15 @@ bool CRelayClient::receiveBlocks(){
         curl_easy_cleanup(curl);
 
         //std::cout << " GETBLOCK " << readBuffer << std::endl;
+        log.log("GETBLOCK " + readBuffer + " \n");
 
         std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);   
         for(int i = 0; i < blocks.size(); i++){
             CFunctions::block_structure block = blocks.at(i);
-            functions.addToBlockFile(block);
+            //functions.addToBlockFile(block);
+            
+            blockDB.AddBlock(block);
+            
             result = true;
         } 
     }   
@@ -341,6 +351,7 @@ bool CRelayClient::receiveBlocks(){
 *
 */
 void CRelayClient::sendRequestBlocks(long blockNumber){
+    CFileLogger log;
     CFunctions functions;
     std::string publicKey;
     std::string privateKey;
@@ -371,6 +382,9 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
             curl_easy_cleanup(curl);
 
             //std::cout << " SEND request to receive block data. " << blockNumber << " to: " << node.public_key << std::endl;
+            std::ostringstream logStream;
+            logStream << "SEND request to receive block data. " << blockNumber + " to: " << node.public_key << "\n";
+            log.log(logStream.str());
         }
     }
 }
@@ -387,6 +401,7 @@ bool CRelayClient::receiveRequestBlocks(){
     CFunctions functions;
     CChain chain;
     CBlockDB blockDB;
+    CFileLogger log;
 
     std::string readBuffer;
     CURLcode res;
@@ -419,20 +434,30 @@ bool CRelayClient::receiveRequestBlocks(){
         std::string sender_key = functions.parseSectionString(readBuffer, "\"sender_key\":\"", "\"");    
  
         if(blockRequestString.length() > 0){
-            std::cout << " -  Receive request for block: " << blockRequestString << " sender_key: " << sender_key << std::endl;
+            //std::cout << " -  Receive request for block: " << blockRequestString << " sender_key: " << sender_key << std::endl;
+            log.log(" -  Receive request for block: " + blockRequestString + " sender_key: " + sender_key + "\n");
+            
             std::string::size_type sz;
             long requestedBlock = std::stol(blockRequestString, &sz);
             if( requestedBlock == -1 ){ // Request genesis block onward
+                
+                requestedBlock = blockDB.getFirstBlockId();
+                
+                /*
                 // if chain.firstBlock exists and > 0
-		if(chain.getFirstBlock() > -1){
-                    requestedBlock = chain.getFirstBlock(); // requires the complete chain to be parsed to access using this approach.
+                if(chain.getFirstBlock() > -1){ // de
+                            requestedBlock = chain.getFirstBlock(); // requires the complete chain to be parsed to access using this approach.
 
-                    // Read from blockDB
-                    //functions:: = blockDB.getFirstBlock();
-		}
+                            // Read from blockDB
+                            //functions:: = blockDB.getFirstBlock();
+                }
+                 */
             }
                      
-            std::cout << "block number to send " << requestedBlock << std::endl;
+            //std::cout << "block number to send " << requestedBlock << std::endl;
+            std::ostringstream logStream;
+            logStream << " block number to send " << requestedBlock << "\n";
+            log.log(logStream.str());
  
             if(requestedBlock > -1){
                     CFunctions::block_structure block = blockDB.getBlock(requestedBlock);                     
@@ -458,11 +483,11 @@ bool CRelayClient::receiveRequestBlocks(){
                         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
                         res = curl_easy_perform(curl);
                         curl_easy_cleanup(curl);
-                        std::cout << " SENT BLOCK ON REQUEST " << post_data << std::endl;
+                        //std::cout << " SENT BLOCK ON REQUEST " << post_data << std::endl;
+                        
+                        log.log(" SENT BLOCK ON REQUEST " + post_data + "\n");
                     }
             }
-
-
  
         }
  
