@@ -57,6 +57,14 @@ int main(int argc, char* argv[])
     log.clearLog();
     log.log("Safire starting.\n");
     
+    // Check for node reset command
+    if(argc >= 2 && strcmp(argv[1], "reset") == 0){
+       std::cout << "Reseting Node... \n";
+       CBlockDB blockDB;
+       blockDB.DeleteAll();
+       return 1;
+    }
+    
     // Start New BlockChain Mode
     // Read command line arg
 

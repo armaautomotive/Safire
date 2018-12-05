@@ -447,13 +447,16 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
 }
 
 /**
-* parseBlockFile   *** DEPRICATE ***
-*
-* Description: Read the block file into in memory data structure.
-*
-* TODO: Keep track of a file pointer index of the last part of the file parsed 
-* 	so that on subsiquent parse operations it only has to read new sections of the file?
-*/
+ * parseBlockFile   *** DEPRICATE ***
+ *
+ * This function is being depricated because file storage of the blockchain makes it difficult to
+ * access specific records and insert or re order records received out of sequence from the network.
+ *
+ * Description: Read the block file into in memory data structure.
+ *
+ * TODO: Keep track of a file pointer index of the last part of the file parsed
+ * 	so that on subsiquent parse operations it only has to read new sections of the file?
+ */
 int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
     
     std::cout << "WARNING: CALLING DEPRICATED FUNCTION parseBlockFile() \n";

@@ -65,7 +65,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     
     bool networkGenesis = false;
     std::string networkName = "main";
-    if(argc >= 3 ){ // && argv[1] == "genesis"
+    if(argc >= 3 && strcmp(argv[1], "genesis") == 0){ // && argv[1] == "genesis"
         networkGenesis = true;
         networkName = argv[2];
         //std::cout << " 1 " << argv[1] << " " << argv[2];

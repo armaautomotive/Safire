@@ -66,7 +66,8 @@ void CCLI::processUserInput(){
 	if(e != 0){
 		// Load wallet
 		wallet.read(privateKey, publicKey);
-		functions.parseBlockFile(publicKey, false);	
+		//functions.parseBlockFile(publicKey, false);
+        functions.scanChain(publicKey, false);
 	}
 
 	printCommands();
