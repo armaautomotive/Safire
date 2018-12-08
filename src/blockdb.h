@@ -20,7 +20,7 @@
 class CBlockDB
 {
 private:
-    static leveldb::DB * db;
+    leveldb::DB * db = 0; // static
 
 public:
     

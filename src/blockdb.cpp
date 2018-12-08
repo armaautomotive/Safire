@@ -12,39 +12,19 @@
 
 using namespace std;
 
-leveldb::DB * CBlockDB::db;
+//leveldb::DB * CBlockDB::db = 0;
 
 CBlockDB::CBlockDB(){
-    //std::cout << "1 \n";
-    if(!CBlockDB::db){
-        //std::cout << "2 \n";
-        CPlatform platform;
-        CFunctions functions;
-        std::string dbPath = platform.getSafirePath();
-        //std::cout << dbPath << std::endl;
-        //leveldb::DB* db;
-        
-        //std::cout << "2.1 \n";
-        
-        leveldb::Options options;
-        options.create_if_missing = true;
-        leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &CBlockDB::db);
-        std::cout << "2.2 \n";
-        if (false == status.ok())
-        {
-            cerr << "Unable to open/create database './blockdb'" << endl;
-            cerr << status.ToString() << endl;
-            //return 0;
-            //CBlockDB::db = 0;
-        }
-        std::cout << "2.3  \n";
-    } else {
-        std::cout << "3 \n";
-    }
+    std::cout << "CBlockDB()\n";
+    //CBlockDB::db = getDatabase();
 }
 
 CBlockDB::~CBlockDB(){
-    std::cout << "deconstructor \n";
+    std::cout << "~CBlockDB()\n";
+    if(CBlockDB::db){
+        std::cout << "   Delete db handler. \n";
+        //delete CBlockDB::db;
+    }
 }
 
 /**
@@ -53,7 +33,32 @@ CBlockDB::~CBlockDB(){
  * Description: Get a levelDB instance.
  */
 leveldb::DB * CBlockDB::getDatabase(){
-    return CBlockDB::db;
+    leveldb::DB* ldb;
+    //if(!CBlockDB::db){
+        //std::cout << "2 \n";
+        CPlatform platform;
+        CFunctions functions;
+        std::string dbPath = platform.getSafirePath();
+        //std::cout << dbPath << std::endl;
+    
+        //std::cout << "2.1 \n";
+        
+        leveldb::Options options;
+        options.create_if_missing = true;
+        leveldb::Status status = leveldb::DB::Open(options, "./blockdb", &ldb);
+        std::cout << "2.2 \n";
+        if (false == status.ok())
+        {
+            cerr << "Unable to open/create database './blockdb'" << endl;
+            cerr << status.ToString() << endl;
+            //return 0;
+            //CBlockDB::db = 0;
+            ldb = 0;
+        }
+        std::cout << "2.3  \n";
+    //}
+    
+    return ldb;
 }
 
 /**
@@ -120,7 +125,7 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     }
     
     // Close the database
-    //delete db;
+    delete db;
     
     setLatestBlockId(block.number);
     
@@ -142,7 +147,7 @@ void CBlockDB::setFirstBlockId(long number){
     ostringstream valueStream;
     valueStream << boost::lexical_cast<std::string>(number);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
-    //delete db;
+    delete db;
     
     //std::cout << " set first " << number << "\n";
 }
@@ -172,7 +177,7 @@ long CBlockDB::getFirstBlockId(){
         result = boost::lexical_cast<long>(firstBlockIdString);
         //std::cout << "   --- " << firstBlockIdString << "\n";
     }
-    //delete db;
+    delete db;
     
     //std::cout << " get first " << result << "\n";
     
@@ -187,7 +192,7 @@ void CBlockDB::setLatestBlockId(long number){
     ostringstream valueStream;
     valueStream << boost::lexical_cast<std::string>(number);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
-    //delete db;
+    delete db;
 }
 
 long CBlockDB::getLatestBlockId(){
@@ -198,7 +203,7 @@ long CBlockDB::getLatestBlockId(){
     std::string latestBlockIdString;
     db->Get(leveldb::ReadOptions(), key, &latestBlockIdString);
     
-    //delete db;
+    delete db;
     
     long result = -1;
     //std::stol(firstBlockId);
@@ -225,7 +230,7 @@ long CBlockDB::getNextBlockId(long previousBlockId){
     keyStream << "next_block_" <<  previousBlockId;
     std::string nextBlockIdString;
     db->Get(leveldb::ReadOptions(), keyStream.str(), &nextBlockIdString);
-    //delete db;
+    delete db;
     long result = -1; //std::stol(nextBlockIdString);
     if(nextBlockIdString.length() > 0){
         result = boost::lexical_cast<long>(nextBlockIdString);
@@ -260,7 +265,7 @@ void CBlockDB::GetBlocks(){
     delete it;
 
     // Close the database
-    //delete db;
+    delete db;
 }
 
 /**
@@ -288,7 +293,7 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
     }
 
     // Close the database
-    //delete db;
+    delete db;
     return block;
 }
 
@@ -321,7 +326,7 @@ CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key
     
     // todo:
     
-    //delete db;
+    delete db;
     return block;
 }
 
@@ -347,5 +352,5 @@ void CBlockDB::DeleteAll(){
         cerr << it->status().ToString() << endl;
     }
     delete it;
-    //delete db;
+    delete db;
 }

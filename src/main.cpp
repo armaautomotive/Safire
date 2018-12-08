@@ -55,6 +55,10 @@ int main(int argc, char* argv[])
     
     CBlockDB blockDB;
     
+    std::cout << " getDB \n";
+    
+    leveldb::DB * db = blockDB.getDatabase();
+    
     std::cout << "b \n";
     
     CFileLogger log;
