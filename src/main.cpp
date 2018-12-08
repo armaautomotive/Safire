@@ -44,14 +44,18 @@
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
 
-
 volatile bool buildingBlocks = true;
-
 
 int main(int argc, char* argv[])
 {
     std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.02" << ANSI_COLOR_RESET << std::endl;
     std::cout << std::endl;
+    
+    std::cout << "a \n";
+    
+    CBlockDB blockDB;
+    
+    std::cout << "b \n";
     
     CFileLogger log;
     log.clearLog();
@@ -60,7 +64,6 @@ int main(int argc, char* argv[])
     // Check for node reset command
     if(argc >= 2 && strcmp(argv[1], "reset") == 0){
        std::cout << "Reseting Node... \n";
-       CBlockDB blockDB;
        blockDB.DeleteAll();
        return 1;
     }

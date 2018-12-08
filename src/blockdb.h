@@ -20,17 +20,15 @@
 class CBlockDB
 {
 private:
+    static leveldb::DB * db;
 
 public:
+    
     //! Construct an invalid private key.
-    CBlockDB()
-    {
-    }
+    CBlockDB();
 
     //! Destructor (again necessary because of memlocking).
-    ~CBlockDB()
-    {
-    }
+    ~CBlockDB();
 
     leveldb::DB * getDatabase();
     //bool addFirstBlock(CFunctions::block_structure block);
