@@ -319,7 +319,7 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
  * Description: parse the block chain stored in levelDB managed by CBlockDB.
  */
 void CFunctions::scanChain(std::string my_public_key, bool debug){
-    std::cout << "scanChain \n";
+    //std::cout << "scanChain \n";
     CECDSACrypto ecdsa;
     CSelector selector;
     CBlockDB blockDB;

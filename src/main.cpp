@@ -51,15 +51,22 @@ int main(int argc, char* argv[])
     std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.02" << ANSI_COLOR_RESET << std::endl;
     std::cout << std::endl;
     
-    std::cout << "a \n";
+    //std::cout << "a \n";
     
     CBlockDB blockDB;
     
-    std::cout << " getDB \n";
+    //std::cout << " getDB \n";
     
-    leveldb::DB * db = blockDB.getDatabase();
+    //leveldb::DB * db = blockDB.getDatabase();
+    //long x = blockDB.getFirstBlockId();
     
-    std::cout << "b \n";
+    //std::cout << " getDB2 \n";
+    
+    //leveldb::DB * db2 = blockDB.getDatabase();
+    //long y = blockDB.getFirstBlockId();
+    
+    
+    //std::cout << "b \n";
     
     CFileLogger log;
     log.clearLog();

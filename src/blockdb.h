@@ -20,7 +20,7 @@
 class CBlockDB
 {
 private:
-    leveldb::DB * db = 0; // static
+    static leveldb::DB * db;
 
 public:
     
@@ -31,6 +31,8 @@ public:
     ~CBlockDB();
 
     leveldb::DB * getDatabase();
+    leveldb::DB * getDatabase2();
+    
     //bool addFirstBlock(CFunctions::block_structure block);
     bool AddBlock(CFunctions::block_structure block);
     void setFirstBlockId(long number);

@@ -28,7 +28,7 @@ volatile bool isBuildingBlocks = true;
  * std::thread blockThread (blockBuilderThread);
  */
 void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
-    std::cout << "CBlockBuilder 1\n";
+    //std::cout << "CBlockBuilder 1\n";
     CECDSACrypto ecdsa;
     CFunctions functions;
     CBlockDB blockDB;
@@ -175,14 +175,14 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         }
     }
     
-    std::cout << "CBlockBuilder 2\n";
+    //std::cout << "CBlockBuilder 2\n";
     
     // Does a blockfile exist? if networkGenesis==false and there is no block file we wait until the network syncs before wrting to the blockfile.
     CFunctions::block_structure previous_block;
     
     long firstBlockId = blockDB.getFirstBlockId();
     
-    std::cout << "CBlockBuilder 3\n";
+    //std::cout << "CBlockBuilder 3\n";
     
     // syncronize chain
     if(networkGenesis == false && firstBlockId == -1 ){ // chain.getFirstBlock() == -1
