@@ -45,6 +45,7 @@ void CCLI::printAdvancedCommands(){
     " printchain             - Print the blockchain summary and validation.\n " <<
     " printqueue             - Print the record queue.\n " <<
     " resetall               - Delete node data.\n  " <<
+    " requestblock           - Send network request for block data. \n" <<
     std::endl;
 }
 
@@ -250,7 +251,20 @@ void CCLI::processUserInput(){
             
             CBlockDB blockDB;
             blockDB.DeleteAll();
+           
+        } else if(command.compare("requestblock") == 0){
+            std::cout << " Request block... " << std::endl;
+          
+            // What is the latest block this node has.
+            CBlockDB blockDB;
+            long latestBlockId = blockDB.getLatestBlockId();
+            std::cout << " id: " << latestBlockId << std::endl;
             
+            // Get connected nodes.
+            
+            
+ 
+
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;
 	
