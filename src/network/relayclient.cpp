@@ -419,6 +419,7 @@ bool CRelayClient::receiveRequestBlocks(){
     CChain chain;
     CBlockDB blockDB;
     CFileLogger log;
+    std::ostringstream logStream;
 
     std::string readBuffer;
     CURLcode res;
@@ -445,6 +446,9 @@ bool CRelayClient::receiveRequestBlocks(){
         
         //std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
         // parse message=
+        logStream << "receiveRequestBlocks: " << " "  << readBuffer << std::endl;
+        log.log(logStream.str());
+        
 
         std::string blockRequestString = functions.parseSectionString(readBuffer, "\"message\":\"", "\"");
         // TODO: we need to know who is requesting the block.
