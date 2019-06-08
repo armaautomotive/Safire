@@ -71,7 +71,7 @@ std::string CRelayClient::getNewNetworkPeer(std::string myPeerAddress){
         wallet.read(privateKey, publicKey);
 
         // http://173.255.218.54/relay.php?action=getnodes&sender_key=109
-        std::string url_string = "http://173.255.218.54/relay.php";
+        std::string url_string = "http://safire.org/relay.php";
         std::string post_data = "action=getnodes&sender_key=";
         post_data.append(publicKey);
 
@@ -183,7 +183,7 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
         curl = curl_easy_init();
         if(curl) {
             // http://173.255.218.54/relay.php?action=sendmessage&type=trans&sender_key=109&receiver_key=110&message=jsondata 
-            std::string url_string = "http://173.255.218.54/relay.php";
+            std::string url_string = "http://safire.org/relay.php";
             std::string post_data = "action=sendmessage&type=trans&sender_key=";
             post_data.append(publicKey); // record.sender_public_key
             post_data.append("&receiver_key=");
@@ -228,7 +228,7 @@ void CRelayClient::receiveRecords(){
         wallet.read(privateKey, publicKey);
 
         // http://173.255.218.54/relay.php?action=getmessages&type=trans&sender_key=xxx&receiver_key=110
-        std::string url_string = "http://173.255.218.54/relay.php";
+        std::string url_string = "http://safire.org/relay.php";
         std::string post_data = "action=getmessages&type=trans&sender_key=&receiver_key=";
         post_data.append(publicKey);
 
@@ -276,7 +276,7 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
         curl = curl_easy_init();
         if(curl) {
             // http://173.255.218.54/relay.php?action=sendmessage&type=block&sender_key=109&receiver_key=110&message=jsondata
-            std::string url_string = "http://173.255.218.54/relay.php";
+            std::string url_string = "http://safire.org/relay.php";
             std::string post_data = "action=sendmessage&type=block&sender_key=";
             post_data.append(publicKey);
             post_data.append("&receiver_key=");
@@ -317,7 +317,7 @@ bool CRelayClient::receiveBlocks(){
         CWallet wallet;
         wallet.read(privateKey, publicKey);
         // http://173.255.218.54/relay.php?action=getmessages&type=block&sender_key=xxx&receiver_key=110
-        std::string url_string = "http://173.255.218.54/relay.php";
+        std::string url_string = "http://safire.org/relay.php";
         std::string post_data = "action=getmessages&type=block&sender_key=&receiver_key=";
         post_data.append(publicKey);
         curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
@@ -352,6 +352,8 @@ bool CRelayClient::receiveBlocks(){
 *
 */
 void CRelayClient::sendRequestBlocks(long blockNumber){
+    std::string sBlockNumber = boost::lexical_cast<std::string>(blockNumber);
+    
     CFileLogger log;
     CFunctions functions;
     std::string publicKey;
@@ -360,6 +362,9 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
     wallet.read(privateKey, publicKey);
     for(int i = 0; i < node_statuses.size(); i++){
         CRelayClient::node_status node = node_statuses.at(i);
+        
+        //std::cout << "   NODE: " << node.public_key << std::endl;
+        
         std::string readBuffer;
         CURLcode res;
         CURL * curl;
@@ -367,14 +372,13 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
         curl = curl_easy_init();
         if(curl) {
             // http://173.255.218.54/relay.php?action=sendmessage&type=request&sender_key=109&receiver_key=110&message=-1
-            
-            std::string url_string = "http://173.255.218.54/relay.php";
+            std::string url_string = "http://safire.org/relay.php";
             std::string post_data = "action=sendmessage&type=request&sender_key=";
             post_data.append(publicKey);
             post_data.append("&receiver_key=");
             post_data.append(node.public_key);
             post_data.append("&message=");
-            post_data.append(boost::lexical_cast<std::string>(blockNumber));
+            post_data.append(sBlockNumber);
             curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
             curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -382,10 +386,22 @@ void CRelayClient::sendRequestBlocks(long blockNumber){
             res = curl_easy_perform(curl);
             curl_easy_cleanup(curl);
 
-            //std::cout << " SEND request to receive block data. " << blockNumber << " to: " << node.public_key << std::endl;
+            //std::cout << " SEND request to receive block data. " << sBlockNumber << " to: " << node.public_key << std::endl;
             std::ostringstream logStream;
-            logStream << "SEND request to receive block data. blockNumber: " << blockNumber + " to: " << node.public_key << "\n";
+            logStream << "SEND request to receive block data. blockNumber: " << sBlockNumber + " to: " << node.public_key << "\n";
+            logStream << "   " << url_string << " " << post_data << "\n";
+            
+            // read server response
+            std::stringstream ss;
+            ss << readBuffer;
+            std::string line;
+            while(std::getline(ss,line,'\n')){
+                logStream << "Response: " << line << std::endl;
+                //logStream << "Response  " << url_string << " " << post_data << "\n";
+            }
+            
             log.log(logStream.str());
+            
         }
     }
 }
@@ -416,7 +432,7 @@ bool CRelayClient::receiveRequestBlocks(){
         wallet.read(privateKey, publicKey);
         // http://173.255.218.54/relay.php?action=getmessages&type=request&sender_key=xxx&receiver_key=110
 
-        std::string url_string = "http://173.255.218.54/relay.php";
+        std::string url_string = "http://safire.org/relay.php";
         std::string post_data = "action=getmessages&type=request&sender_key=&receiver_key=";
         post_data.append(publicKey);
         post_data.append("&return_request_data=true"); // we need the sender key in order to reply to this request
@@ -471,7 +487,7 @@ bool CRelayClient::receiveRequestBlocks(){
                     curl = curl_easy_init();
                     if(curl) {
                         // http://173.255.218.54/relay.php?action=sendmessage&type=block&sender_key=109&receiver_key=110&message=jsondata
-                        std::string url_string = "http://173.255.218.54/relay.php";
+                        std::string url_string = "http://safire.org/relay.php";
                         std::string post_data = "action=sendmessage&type=block&sender_key=";
                         post_data.append(publicKey);
                         post_data.append("&receiver_key=");

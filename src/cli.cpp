@@ -33,6 +33,7 @@ void CCLI::printCommands(){
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
 	" vote                    - vote on network behaviour and settings.\n" <<
+    " debug                   - log debug information.\n" <<
     " advanced                - more commands for admin and testing functions.\n" <<
 	" quit                    - shutdown the application.\n " << std::endl;
 }
@@ -261,7 +262,8 @@ void CCLI::processUserInput(){
             std::cout << " id: " << latestBlockId << std::endl;
             
             // Get connected nodes.
-            
+            CRelayClient relayClient;
+            relayClient.sendRequestBlocks(latestBlockId);
             
  
 
