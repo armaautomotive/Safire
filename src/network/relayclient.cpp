@@ -328,7 +328,7 @@ bool CRelayClient::receiveBlocks(){
         curl_easy_cleanup(curl);
 
         //std::cout << " GETBLOCK " << readBuffer << std::endl;
-        log.log("GETBLOCK " + readBuffer + " \n");
+        log.log("receiveBlocks(): " + readBuffer + " \n");
 
         std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);   
         for(int i = 0; i < blocks.size(); i++){
@@ -446,7 +446,7 @@ bool CRelayClient::receiveRequestBlocks(){
         
         //std::cout << " GETBLOCKREQUEST " << readBuffer << std::endl;
         // parse message=
-        logStream << "receiveRequestBlocks: " << " "  << readBuffer << std::endl;
+        logStream << "receiveRequestBlocks: " << post_data << " : "  << readBuffer << std::endl;
         log.log(logStream.str());
         
 
