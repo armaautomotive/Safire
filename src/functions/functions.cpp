@@ -457,7 +457,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         // Update latest block record
         long latestBlockId = blockDB.getLatestBlockId();
         if(latest_block.number > latestBlockId){
-            setLatestBlockId(latest_block.number);
+            blockDB.setLatestBlockId(latest_block.number);
         }
         
         

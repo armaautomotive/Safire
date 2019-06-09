@@ -137,7 +137,7 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     //delete db;
     
     // Update latest block id record.
-    // DON'T DO THIS? latest block should be latest validated block. not any random block.
+    // DON'T DO THIS! latest block should be latest validated block. not any random block.
     //long latestBlockId = getLatestBlockId();
     //if(block.number > latestBlockId){
         //setLatestBlockId(block.number);
@@ -198,6 +198,13 @@ long CBlockDB::getFirstBlockId(){
     return result;
 }
 
+/**
+ * setLatestBlockId
+ *
+ * Description: set a keyed record with a reference to the latest verified block in
+ *  the chain.
+ * @param long number - block number.
+ */
 void CBlockDB::setLatestBlockId(long number){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
@@ -209,6 +216,13 @@ void CBlockDB::setLatestBlockId(long number){
     //delete db;
 }
 
+/**
+ * getLatestBlockId
+ *
+ * Description: query the LevelDB for the keyed record storing the latest verified
+ *  block number.
+ * @return long block number.
+ */
 long CBlockDB::getLatestBlockId(){
     //std::cout << " a \n ";
     leveldb::WriteOptions writeOptions;
@@ -236,6 +250,7 @@ long CBlockDB::getLatestBlockId(){
  * Blocks are generated in sequance but there may be ommitions if a node does not generate
  * a block. Each block contains the previous block id and a db index stores these in an index
  * for fast lookup.
+ * @param previousBlockId - block number id.
  */
 long CBlockDB::getNextBlockId(long previousBlockId){
     leveldb::WriteOptions writeOptions;
