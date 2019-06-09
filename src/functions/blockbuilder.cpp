@@ -185,9 +185,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     //std::cout << "CBlockBuilder 3\n";
     
     // syncronize chain
-    if(networkGenesis == false && firstBlockId == -1 ){ // chain.getFirstBlock() == -1
-        //
-        std::cout << "Syncronizing Blockchain." << std::endl;
+    if(networkGenesis == false && firstBlockId == -1){ // && firstBlockId == -1
+        std::cout << "Syncronizing Blockchain." << std::endl; // Downloading
         
         // Expected latest block number.
         long currBlock = selector.getCurrentTimeBlock();
@@ -197,6 +196,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //log.log("Request the beginning of the blockchain from our peer nodes. \n");
         
         // ISSUE: CRelayClient::receiveBlocks() will receive this block but not know it is the genesis (-1) block.
+        // Solution: just use the block.previous_block_id member. Only the genesis block won't have a value.
         
         //std::cout << "-" << std::endl;
         int progressPos = 0;
@@ -223,22 +223,30 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             currBlock = selector.getCurrentTimeBlock();
             relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
         }
+        std::cout << "Chain is up to date. " << std::endl;
     }
     
     int blockNumber = functions.latest_block.number + 1;
     //long timeBlock = 0;
     while(isBuildingBlocks){
         //functions.parseBlockFile(publicKey, false); // depricate
-        functions.scanChain(publicKey, false);
+        functions.scanChain(publicKey, false); // ??? check this
         
         timeBlock = selector.getCurrentTimeBlock();
         //std::cout << "here " << std::endl;
         
-        // is it current users turn to generate a block.
+        // Is it the current users turn to generate a block?
         bool build_block = selector.isSelected(publicKey);
-        if(functions.joined == false){ // Can't build block unless a member of the block.
+        // Can't build block unless a member of the block.
+        if(functions.joined == false){
             build_block = false;
         }
+        // If latest block is not up to date, don't build new block
+        long currBlock = selector.getCurrentTimeBlock();
+        if(blockDB.getLatestBlockId() < currBlock - 1){
+            build_block = false;
+        }
+        
         //std::cout << "here 2 " << std::endl;
         
         //time_t t = time(0);
@@ -349,7 +357,15 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             }
             //std::cout << "block done" << std::endl;
             
-        } else {
+        } else { // Not building this block
+            
+            // Download recent blocks to keep the local chain up to date.
+            long currBlock = selector.getCurrentTimeBlock();
+            if(blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks){
+                //std::cout << "Syncronizing Blockchain." << std::endl;
+                relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+            }
+            
             usleep(1000000);
             //std::cout << "wait" << std::endl;
         }
@@ -357,7 +373,6 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         if(!isBuildingBlocks){
             usleep(1000000);
         }
-        
     }
 }
 

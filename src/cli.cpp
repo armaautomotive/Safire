@@ -147,7 +147,7 @@ void CCLI::processUserInput(){
 				std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
 
 			//}
-		} else if ( command.find("sent") != std::string::npos ){
+        } else if ( command.find("sent") != std::string::npos ){
 			std::cout << "This feature is not implemented yet.\n" << std::endl;
             
         } else if ( command.find("receive") != std::string::npos ){
@@ -163,82 +163,89 @@ void CCLI::processUserInput(){
             std::cin >> amount;
             std::cout << "Sending " << amount << " to user: " << destination_address << " \n" << std::endl;
 
-		double d_amount = ::atof(amount.c_str());
+            double d_amount = ::atof(amount.c_str());
 
-		// TODO also check balance adjusted using sent requests in queue....
-		// TODO check destination address is an accepted user
-		if(d_amount > functions.balance ){
-			std::cout << "Insuficient balance. Unable to send transfer request. " << std::endl;
-		} else {
+            // TODO also check balance adjusted using sent requests in queue....
+            // TODO check destination address is an accepted user
+            if(d_amount > functions.balance ){
+                std::cout << "Insuficient balance. Unable to send transfer request. " << std::endl;
+            } else {
 
-			CFunctions::record_structure sendRecord;
-			time_t  timev;
-			time(&timev);
-			std::stringstream ss;
-			ss << timev;
-			std::string ts = ss.str();
-			sendRecord.time = ts;
-			sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
-			sendRecord.amount = d_amount;
-                        sendRecord.fee = 0.0;
-			sendRecord.sender_public_key = publicKey;
-			sendRecord.recipient_public_key = publicKey;
-			std::string message_siganture = destination_address;
-			ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
-			sendRecord.signature = message_siganture;
-			functions.addToQueue( sendRecord );
-			relayClient.sendRecord(sendRecord);	
-			std::cout << "Sent transfer request. " << std::endl;	
-		}
+                CFunctions::record_structure sendRecord;
+                time_t  timev;
+                time(&timev);
+                std::stringstream ss;
+                ss << timev;
+                std::string ts = ss.str();
+                sendRecord.time = ts;
+                sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
+                sendRecord.amount = d_amount;
+                            sendRecord.fee = 0.0;
+                sendRecord.sender_public_key = publicKey;
+                sendRecord.recipient_public_key = publicKey;
+                std::string message_siganture = destination_address;
+                ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
+                sendRecord.signature = message_siganture;
+                functions.addToQueue( sendRecord );
+                relayClient.sendRecord(sendRecord);
+                std::cout << "Sent transfer request. " << std::endl;
+            }
 
         } else if ( command.find("network") != std::string::npos ){
 
-		//functions.parseBlockFile(publicKey, false);
-        functions.scanChain(publicKey, false);
-        std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
-		std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
-                std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
-                std::cout << " User count: " << functions.user_count << std::endl;
+            //functions.parseBlockFile(publicKey, false);
+            functions.scanChain(publicKey, false);
+            std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
+            std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
+                    std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
+                    std::cout << " User count: " << functions.user_count << std::endl;
 
-		// Block chain size?
-	 	std::cout << " Blockchain size: " << " 0MB" << std::endl;
-	
-		std::cout << " Pending transactions: " << " 0" << std::endl;  
-			
-		// Active connections?
-		//std::cout << "This feature is not implemented yet.\n" << std::endl;
-		std::vector<CRelayClient::node_status> peers = relayClient.getPeers();
-		std::cout << " Peers: "; for(int i = 0; i < peers.size(); i++){ std::cout << peers.at(i).public_key << " "; } std::cout << std::endl;         
- 
-		//CP2P p2p;
-		//std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
-                //p2p.sendData("DATA DATA DATA 123 \0");
-
- 
-	} else if ( command.find("quit") != std::string::npos ){
-			running = false;
+            // Block chain size?
+            std::cout << " Blockchain size: " << " 0MB" << std::endl;
+        
+            std::cout << " Pending transactions: " << " 0" << std::endl;
             
-        } else if ( command.find("advanced") != std::string::npos ){
-            printAdvancedCommands();
-        } else if ( command.find("tests") != std::string::npos ){
-            CECDSACrypto ecdsa;
-            ecdsa.runTests();
+            // Active connections?
+            //std::cout << "This feature is not implemented yet.\n" << std::endl;
+            std::vector<CRelayClient::node_status> peers = relayClient.getPeers();
+            std::cout << " Peers: "; for(int i = 0; i < peers.size(); i++){ std::cout << peers.at(i).public_key << " "; } std::cout << std::endl;
+     
+            //CP2P p2p;
+            //std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
+                    //p2p.sendData("DATA DATA DATA 123 \0");
+
+ 
+        } else if ( command.find("quit") != std::string::npos ){
+                running = false;
+            
+            } else if ( command.find("advanced") != std::string::npos ){
+                printAdvancedCommands();
+            } else if ( command.find("tests") != std::string::npos ){
+                CECDSACrypto ecdsa;
+                ecdsa.runTests();
 
 
 
-	} else if ( command.compare("chain") == 0){
+        } else if ( command.compare("chain") == 0){
            std::cout << " Blockchain state: " << " Not implemented. " << std::endl;
 	
         } else if ( command.compare("printchain") == 0){
-           std::cout << " Blockchain detail: " << std::endl; 
+            std::cout << " Blockchain detail: " << std::endl;
 
-           //functions.parseBlockFile(publicKey, true);
+            //functions.parseBlockFile(publicKey, true);
             functions.scanChain(publicKey, false);
 
-           CBlockDB blockDB;
-           //blockDB.GetBlocks();
-           CFunctions::block_structure last_block = functions.getLastBlock("");
-           CFunctions::block_structure block = blockDB.getBlock(last_block.number);
+            CBlockDB blockDB;
+            //blockDB.GetBlocks();
+            CFunctions::block_structure last_block = functions.getLastBlock("");
+            CFunctions::block_structure block = blockDB.getBlock(last_block.number);
+            
+            long firstBlockId = blockDB.getFirstBlockId();
+            long latestBlockId = blockDB.getLatestBlockId();
+            std::cout << "First Block: " << firstBlockId << std::endl;
+            std::cout << "Latest Block: " << firstBlockId << std::endl;
+            
+            // long CBlockDB::getNextBlockId(long previousBlockId)
 
 
         } else if( command.compare("printqueue") == 0){
