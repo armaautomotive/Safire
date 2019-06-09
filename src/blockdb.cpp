@@ -137,10 +137,11 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     //delete db;
     
     // Update latest block id record.
-    long latestBlockId = getLatestBlockId();
-    if(block.number > latestBlockId){
-        setLatestBlockId(block.number);
-    }
+    // DON'T DO THIS? latest block should be latest validated block. not any random block.
+    //long latestBlockId = getLatestBlockId();
+    //if(block.number > latestBlockId){
+        //setLatestBlockId(block.number);
+    //}
     
     return true;
 }

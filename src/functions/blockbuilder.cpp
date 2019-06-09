@@ -361,6 +361,13 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             
         } else { // Not building this block
             
+            firstBlockId = blockDB.getFirstBlockId();
+            if(firstBlockId == -1){
+                relayClient.sendRequestBlocks(-1);
+            }
+            
+            
+            
             // Download recent blocks to keep the local chain up to date.
             long currBlock = selector.getCurrentTimeBlock();
             if(blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks){

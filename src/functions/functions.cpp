@@ -328,6 +328,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     int i = 1;
     if(firstBlockId > -1){
         CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+        //CFunctions::block_structure previous_block = block;
         while(block.number > 0){
             
             if(debug){
@@ -452,6 +453,14 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         }
         // No more blocks in chain.
         //std::cout << "End of chain." << std::endl;
+        
+        // Update latest block record
+        long latestBlockId = blockDB.getLatestBlockId();
+        if(latest_block.number > latestBlockId){
+            setLatestBlockId(latest_block.number);
+        }
+        
+        
     }
 }
 
