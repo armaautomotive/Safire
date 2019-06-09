@@ -1,4 +1,4 @@
-// Copyright (c) 2016 2017 2018 Jon Taylor
+// Copyright (c) 2016 2017 2018 2019 Jon Taylor
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,6 +14,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <iostream>
+#include "log.h"
 
 /**
  * tokenClose
@@ -459,8 +460,10 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
  * 	so that on subsiquent parse operations it only has to read new sections of the file?
  */
 int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
-    
-    std::cout << "WARNING: CALLING DEPRICATED FUNCTION parseBlockFile() \n";
+    CFileLogger log;
+    std::ostringstream logStream;
+    logStream << " WARNING: CALLING DEPRICATED FUNCTION parseBlockFile() \n";
+    log.log(logStream.str());
     
     CECDSACrypto ecdsa;
     CSelector selector;

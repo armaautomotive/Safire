@@ -10,6 +10,9 @@
 *   http://173.255.218.54/relay.php?action=sendmessage&type=trans&sender_key=109&receiver_key=110&message=jsondata
 *   http://173.255.218.54/relay.php?action=getmessages&type=block&sender_key=xxx&receiver_key=110
 *
+*  Copyright (c) 2016 2017 2018 2019 Jon Taylor
+*  Distributed under the MIT software license, see the accompanying
+*  file COPYING or http://www.opensource.org/licenses/mit-license.php.
 */
 
 #include "relayclient.h"
@@ -336,6 +339,7 @@ bool CRelayClient::receiveBlocks(){
             //functions.addToBlockFile(block);
             
             blockDB.AddBlock(block);
+            // Update CChain.setLatestBlock() ??? OR depricate CChain. 
             
             result = true;
         } 

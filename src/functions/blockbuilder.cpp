@@ -35,7 +35,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     CRelayClient relayClient;
     CSelector selector;
     selector.syncronizeTime();
-    CChain chain;   // depricate
+    //CChain chain;   // depricate
     //CFileLogger log;
     //CBlockDB blockDB;
     // Check block chain for latest block information.
@@ -191,23 +191,27 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         
         // Expected latest block number.
         long currBlock = selector.getCurrentTimeBlock();
-        std::cout << "Current time: " << currBlock << " latest: " << chain.getLatestBlock() << std::endl;
+        std::cout << " Latest time block: " << blockDB.getLatestBlockId() << " current time block: " << currBlock << std::endl;
         
         relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
         //log.log("Request the beginning of the blockchain from our peer nodes. \n");
         
-        
         //std::cout << "-" << std::endl;
         int progressPos = 0;
-        while( chain.getLatestBlock() < currBlock - 1 && isBuildingBlocks ){
+        //long latestBlockId = blockDB.getLatestBlockId();
+        while( blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks ){
             if(progressPos == 0){
-                std::cout << "\rSynchronizing: " << "|" << std::flush; progressPos++;
+                std::cout << "\rSynchronizing: " << "|" << " " <<
+                    blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos++;
             } else if(progressPos == 1){
-                std::cout << "\rSynchronizing: " << "/" << std::flush; progressPos++;
+                std::cout << "\rSynchronizing: " << "/" << " " <<
+                    blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos++;
             } else if(progressPos == 2){
-                std::cout << "\rSynchronizing: " << "-" << std::flush; progressPos++;
+                std::cout << "\rSynchronizing: " << "-" << " " <<
+                    blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos++;
             } else if(progressPos == 3){
-                std::cout << "\rSynchronizing: " << "-" << std::flush; progressPos = 0;
+                std::cout << "\rSynchronizing: " << "-" << " " <<
+                    blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos = 0;
             }
             
             // if no progress, send request again.
@@ -215,8 +219,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             usleep(1000000);
             
             currBlock = selector.getCurrentTimeBlock();
-            relayClient.sendRequestBlocks(chain.getLatestBlock());
-            
+            relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
         }
     }
     
