@@ -196,10 +196,12 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
         //log.log("Request the beginning of the blockchain from our peer nodes. \n");
         
+        // ISSUE: CRelayClient::receiveBlocks() will receive this block but not know it is the genesis (-1) block.
+        
         //std::cout << "-" << std::endl;
         int progressPos = 0;
         //long latestBlockId = blockDB.getLatestBlockId();
-        while( blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks ){
+        while(blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks){
             if(progressPos == 0){
                 std::cout << "\rSynchronizing: " << "|" << " " <<
                     blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos++;

@@ -339,7 +339,12 @@ bool CRelayClient::receiveBlocks(){
             //functions.addToBlockFile(block);
             
             blockDB.AddBlock(block);
-            // Update CChain.setLatestBlock() ??? OR depricate CChain. 
+            // Update CChain.setLatestBlock() ??? OR depricate CChain.
+            
+            // Is this received block the genesis block?
+            if(blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0){
+                blockDB.setFirstBlockId(block.number);
+            }
             
             result = true;
         } 
