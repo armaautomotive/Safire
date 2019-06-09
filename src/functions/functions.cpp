@@ -450,6 +450,8 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             block = blockDB.getNextBlock(block);
             i++;
         }
+        // No more blocks in chain.
+        std::cout << "End of chain." << std::endl;
     }
 }
 

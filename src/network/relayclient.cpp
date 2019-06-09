@@ -482,6 +482,19 @@ bool CRelayClient::receiveRequestBlocks(){
                             //functions:: = blockDB.getFirstBlock();
                 }
                  */
+            } else {
+                // if the requested block number is not -1 then it is the last one present and we want to increment.
+                // TODO:
+                CFunctions::block_structure block = blockDB.getBlock(requestedBlock);
+                if(block.number > 0){
+                    block = blockDB.getNextBlock(block);
+                    requestedBlock = block.number;
+                    
+                    
+                    std::string sRB = boost::lexical_cast<std::string>(requestedBlock);
+                    log.log(" XXX new requested block  " << sRB << "\n");
+                }
+                
             }
                      
             //std::cout << "block number to send " << requestedBlock << std::endl;
