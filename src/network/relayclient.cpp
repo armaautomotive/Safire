@@ -336,15 +336,21 @@ bool CRelayClient::receiveBlocks(){
         std::vector< CFunctions::block_structure > blocks = functions.parseBlockJson(readBuffer);   
         for(int i = 0; i < blocks.size(); i++){
             CFunctions::block_structure block = blocks.at(i);
-            //functions.addToBlockFile(block);
             
+            //functions.addToBlockFile(block); // DEPRICATE
             blockDB.AddBlock(block);
-            // Update CChain.setLatestBlock() ??? OR depricate CChain.
             
             // Is this received block the genesis block?
+            // This isn't a solid method but works for prototyping.
             if(blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0){
                 blockDB.setFirstBlockId(block.number);
+                
+                // set latest to initalise. Not required but cleaner.
+                //blockDB.setLatestBlockId(block.number);
             }
+            
+            // Update chain state attributes. (LatestBlockId)
+            functions.scanChain(publicKey, false);
             
             result = true;
         } 
