@@ -491,8 +491,10 @@ bool CRelayClient::receiveRequestBlocks(){
                     requestedBlock = block.number;
                     
                     
-                    std::string sRB = boost::lexical_cast<std::string>(requestedBlock);
-                    log.log(" XXX new requested block  " << sRB << "\n");
+                    //std::string sRB = boost::lexical_cast<std::string>(requestedBlock);
+                    std::ostringstream logStream;
+                    logStream << " XXX new requested block: " << requestedBlock << "\n";
+                    log.log(logStream.str());
                 }
                 
             }
