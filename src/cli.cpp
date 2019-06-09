@@ -233,7 +233,7 @@ void CCLI::processUserInput(){
             std::cout << " Blockchain detail: " << std::endl;
 
             //functions.parseBlockFile(publicKey, true);
-            functions.scanChain(publicKey, false);
+            functions.scanChain(publicKey, true);
 
             CBlockDB blockDB;
             //blockDB.GetBlocks();

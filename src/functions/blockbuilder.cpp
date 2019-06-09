@@ -35,6 +35,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     CRelayClient relayClient;
     CSelector selector;
     selector.syncronizeTime();
+    CFileLogger log;
     //CChain chain;   // depricate
     //CFileLogger log;
     //CBlockDB blockDB;
@@ -242,9 +243,10 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             build_block = false;
         }
         // If latest block is not up to date, don't build new block
+        // Issue, this will fail if there is a gap in the chain. If a node doesn't generate a block.
         long currBlock = selector.getCurrentTimeBlock();
         if(blockDB.getLatestBlockId() < currBlock - 1){
-            build_block = false;
+            //build_block = false;
         }
         
         //std::cout << "here 2 " << std::endl;
@@ -362,15 +364,21 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             // Download recent blocks to keep the local chain up to date.
             long currBlock = selector.getCurrentTimeBlock();
             if(blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks){
+                log.log("Block builder. Currently behind on chain. Requesting blocks from the network...\n");
+                
                 //std::cout << "Syncronizing Blockchain." << std::endl;
                 relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
             }
             
             usleep(1000000);
+            
             //std::cout << "wait" << std::endl;
         }
         
-        if(!isBuildingBlocks){
+        if(!isBuildingBlocks){ // ??? why
+            //for(int i = 0; i < 10 && ; i++){
+                
+            //}
             usleep(1000000);
         }
     }

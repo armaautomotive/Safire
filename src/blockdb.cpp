@@ -236,7 +236,7 @@ long CBlockDB::getNextBlockId(long previousBlockId){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
     ostringstream keyStream;
-    keyStream << "next_block_" <<  previousBlockId;
+    keyStream << "next_block_" << previousBlockId;
     std::string nextBlockIdString;
     db->Get(leveldb::ReadOptions(), keyStream.str(), &nextBlockIdString);
     //delete db;
