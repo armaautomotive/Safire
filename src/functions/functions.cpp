@@ -451,7 +451,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             i++;
         }
         // No more blocks in chain.
-        std::cout << "End of chain." << std::endl;
+        //std::cout << "End of chain." << std::endl;
     }
 }
 
