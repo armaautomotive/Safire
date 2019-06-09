@@ -303,6 +303,7 @@ void CBlockDB::GetBlocks(){
  * Description: Get a block by number
  *
  * @param: number (long) id of block to look up as a key
+ * @return block_structure record containing block member data.
  */
 CFunctions::block_structure CBlockDB::getBlock(long number){
     CFunctions::block_structure block;

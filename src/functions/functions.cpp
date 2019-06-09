@@ -449,7 +449,16 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             }
             
             block = blockDB.getNextBlock(block);
+            
+            // blockDB.getNextBlock has a bug that can't detect the end of the chain. Catch that case here.
+            if(block.number == latest_block.number){
+                CFunctions::block_structure blank_block;
+                block = blank_block;
+            }
             i++;
+            
+            //std::cout << " i " << i << " number:" << block.number << std::endl;
+            
         }
         // No more blocks in chain.
         //std::cout << "End of chain." << std::endl;
@@ -459,7 +468,6 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         if(latest_block.number > latestBlockId){
             blockDB.setLatestBlockId(latest_block.number);
         }
-        
         
     }
 }
