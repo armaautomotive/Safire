@@ -242,8 +242,8 @@ void CCLI::processUserInput(){
             
             long firstBlockId = blockDB.getFirstBlockId();
             long latestBlockId = blockDB.getLatestBlockId();
-            std::cout << "First Block: " << firstBlockId << std::endl;
-            std::cout << "Latest Block: " << firstBlockId << std::endl;
+            std::cout << "First Block:  " << firstBlockId << std::endl;
+            std::cout << "Latest Block: " << latestBlockId << std::endl;
             
             // long CBlockDB::getNextBlockId(long previousBlockId)
 

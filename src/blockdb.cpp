@@ -136,7 +136,11 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     // Close the database
     //delete db;
     
-    setLatestBlockId(block.number);
+    // Update latest block id record.
+    long latestBlockId = getLatestBlockId();
+    if(block.number > latestBlockId){
+        setLatestBlockId(block.number);
+    }
     
     return true;
 }
