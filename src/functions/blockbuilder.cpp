@@ -377,7 +377,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                 relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
             }
             
-            usleep(1000000);
+            //usleep(1000000);
+            usleep(100000);
             
             //std::cout << "wait" << std::endl;
         }

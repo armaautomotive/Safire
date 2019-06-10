@@ -754,6 +754,11 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 latest_block.records.clear();
                 latest_block.creator_key = parseSectionString(block_section, "\"creator_key\":\"", "\""); 
                 latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
+                
+                if(latest_block.number > 204009003){
+                    std::cout << " OH DAM INVALID BLOCK NUMBER:  " << block_section << std::endl;
+                }
+                
                 latest_block.previous_block_id = parseSectionLong(block_section, "\"previous_block_id\":\"", "\"");
                 std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                 latest_block.hash = hash;
@@ -941,3 +946,31 @@ void CFunctions::DeleteAll(){
     boost::filesystem::remove("queue.dat");
     boost::filesystem::remove("chain.index");
 }
+
+
+/**
+ * IsChainUpToDate
+ *
+ * Description:
+ * @return: boolean true if up to date
+ */
+bool CFunctions::IsChainUpToDate(){
+    CSelector selector;
+    selector.syncronizeTime();
+    CBlockDB blockDB;
+    
+    long currBlock = selector.getCurrentTimeBlock();
+    long latestBlockId = blockDB.getLatestBlockId();
+    
+    bool result = false;
+    
+    std::cout << " ----- :  " << blockDB.getLatestBlockId() << " < " << currBlock << std::endl;
+    
+    if(blockDB.getLatestBlockId() < currBlock - 0 ){
+        result = false;
+    } else {
+        result = true;
+    }
+    return result;
+}
+

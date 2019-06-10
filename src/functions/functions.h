@@ -118,6 +118,8 @@ public:
     void printQueue();
 
     void DeleteAll();
+    
+    bool IsChainUpToDate();
  
     CFunctions::block_structure latest_block;
     double balance; // wallet balance

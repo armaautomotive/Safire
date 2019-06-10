@@ -144,6 +144,10 @@ void CCLI::processUserInput(){
     
 				//functions.parseBlockFile(publicKey, false);
                 functions.scanChain(publicKey, false);
+            
+            // Print chain sync status.
+            
+            
 				std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
 
 			//}
@@ -195,6 +199,8 @@ void CCLI::processUserInput(){
 
             //functions.parseBlockFile(publicKey, false);
             functions.scanChain(publicKey, false);
+            
+            std::cout << " Network up to date: " << (functions.IsChainUpToDate() == true ? "yes" : "no") << std::endl;
             std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
             std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
                     std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;

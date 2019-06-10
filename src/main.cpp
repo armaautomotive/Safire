@@ -136,6 +136,8 @@ int main(int argc, char* argv[])
     functions.scanChain(publicKey, false);
     std::cout << " Your balance: " << functions.balance << " sfr" << std::endl; 
 
+    
+    std::cout << " Network up to date: " << (functions.IsChainUpToDate() == true ? "yes" : "no") << std::endl;
     std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
 
     std::cout << std::endl;
