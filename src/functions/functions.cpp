@@ -964,7 +964,7 @@ bool CFunctions::IsChainUpToDate(){
     
     bool result = false;
     
-    std::cout << " ----- :  " << blockDB.getLatestBlockId() << " < " << currBlock << std::endl;
+    //std::cout << " ----- :  " << blockDB.getLatestBlockId() << " < " << currBlock << std::endl;
     
     if(blockDB.getLatestBlockId() < currBlock - 0 ){
         result = false;
