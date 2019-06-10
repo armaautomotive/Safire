@@ -216,7 +216,8 @@ void CCLI::processUserInput(){
             // Active connections?
             //std::cout << "This feature is not implemented yet.\n" << std::endl;
             std::vector<CRelayClient::node_status> peers = relayClient.getPeers();
-            std::cout << " Peers: "; for(int i = 0; i < peers.size(); i++){ std::cout << peers.at(i).public_key << " "; } std::cout << std::endl;
+            std::cout << " Peers: " << peers.size() << std::endl;
+            //for(int i = 0; i < peers.size(); i++){ std::cout << peers.at(i).public_key << " "; } std::cout << std::endl;
      
             //CP2P p2p;
             //std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
@@ -238,6 +239,10 @@ void CCLI::processUserInput(){
            std::cout << " Blockchain state: " << " Not implemented. " << std::endl;
 	
         } else if ( command.compare("printchain") == 0){
+            
+            // TODO: Only print issues and the last 5 blocks.
+            // Otherwise it's too much data.
+            
             std::cout << " Blockchain detail: " << std::endl;
 
             //functions.parseBlockFile(publicKey, true);
