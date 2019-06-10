@@ -472,6 +472,8 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             blockDB.setLatestBlockId(latest_block.number);
             // check this... values don't seem correct
             
+            
+            // ****
             std::cout << " set latest block id " << latest_block.number << std::endl;
         }
         
@@ -516,7 +518,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 
     //CFunctions::block_structure block;
     currency_circulation = 0;
-    balance = 0;
+    //balance = 0;
     std::string content = "";
     user_count = 0;
 
@@ -604,21 +606,21 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                         if( (record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
                                         record.transaction_type == CFunctions::ISSUE_CURRENCY) &&
                                          record.recipient_public_key.compare(my_public_key) == 0 ){
-                            balance += record.amount;
+                            //balance += record.amount;
                         }
 
                         // subtract sent payments from balance
                         if(record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
                                          record.sender_public_key.compare(my_public_key) == 0 &&
                                          record.recipient_public_key.compare(my_public_key) != 0){ // subtract sent from wallet to anyone but self.
-                            balance -= record.amount;
-                                            balance -= record.fee;
+                            //balance -= record.amount;
+                            //balance -= record.fee;
                             //std::cout << " sent " << std::endl;
                         }
 
                         // collect fees
                         if(record.transaction_type == CFunctions::TRANSFER_CURRENCY || record.transaction_type == CFunctions::VOTE){
-                           balance += record.fee;
+                           //balance += record.fee;
                         }
 
                         // Tally currency supply
