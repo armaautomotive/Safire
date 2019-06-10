@@ -120,6 +120,7 @@ public:
     void DeleteAll();
     
     bool IsChainUpToDate();
+    double SyncProgress();
  
     CFunctions::block_structure latest_block;
     double balance; // wallet balance

@@ -513,6 +513,9 @@ bool CRelayClient::receiveRequestBlocks(){
             if(requestedBlock > -1){
                     CFunctions::block_structure block = blockDB.getBlock(requestedBlock);                     
                     //std::cout << "sending " << functions.blockJSON(block) << std::endl;
+                
+                // send multiple blocks if they exist to speed up sync time.
+                 CFunctions::block_structure next_block = blockDB.getNextBlock(block);
 
                     std::string readBuffer;
                     CURLcode res;
@@ -528,6 +531,11 @@ bool CRelayClient::receiveRequestBlocks(){
                         post_data.append(sender_key);
                         post_data.append("&message=");
                         post_data.append(functions.blockJSON(block));
+                        
+                        if(next_block.number > 0){
+                            post_data.append(functions.blockJSON(next_block));
+                        }
+                        
                         curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
                         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
                         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);

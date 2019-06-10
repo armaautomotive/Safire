@@ -951,7 +951,8 @@ void CFunctions::DeleteAll(){
 /**
  * IsChainUpToDate
  *
- * Description:
+ * Description: return true if the latest validated block is the current most recent time period.
+ *
  * @return: boolean true if up to date
  */
 bool CFunctions::IsChainUpToDate(){
@@ -972,5 +973,26 @@ bool CFunctions::IsChainUpToDate(){
         result = true;
     }
     return result;
+}
+
+/**
+ * SyncProgress
+ *
+ * Description: calculate the percentage progress the local chain is at.
+ *
+ * @return double progress rate between 0 and 100.
+ */
+double CFunctions::SyncProgress(){
+    double progress = 0;
+    CSelector selector;
+    selector.syncronizeTime();
+    CBlockDB blockDB;
+    long currBlock = selector.getCurrentTimeBlock();
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId > 0 && latestBlockId > firstBlockId){
+        progress = (double)( (double)(latestBlockId - firstBlockId) /  (double)(currBlock - firstBlockId) ) * 100.0;
+    }
+    return progress;
 }
 

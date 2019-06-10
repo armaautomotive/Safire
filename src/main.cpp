@@ -138,6 +138,7 @@ int main(int argc, char* argv[])
 
     
     std::cout << " Network up to date: " << (functions.IsChainUpToDate() == true ? "yes" : "no") << std::endl;
+    std::cout << " Sync Porgress: " << functions.SyncProgress() << "% " << std::endl;
     std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
 
     std::cout << std::endl;
