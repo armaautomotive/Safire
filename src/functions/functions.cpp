@@ -325,6 +325,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     CSelector selector;
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
     int i = 1;
     
     double updatedBalance = 0.0;
@@ -334,7 +335,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         //CFunctions::block_structure previous_block = block;
         while(block.number > 0 ){ // && i < 50
             
-            if(debug){
+            if(debug ){ // && block.number > latestBlockId - 10
                 std::cout << "\n";
                 std::cout << "Block " << i << " \n";
                 std::cout << "  previous block: " << block.previous_block_id << "\n";
@@ -389,7 +390,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     currency_circulation += record.amount;
                 }
                 
-                if(debug){
+                if(debug ){ // && block.number > latestBlockId - 10
                     std::string sender = record.sender_public_key;
                     std::string recipient = record.recipient_public_key;
                     if(sender.length() > 8){
@@ -453,6 +454,24 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 
             }
             
+            // Print block bash result.
+            //
+            if(debug ){ // && block.number > latestBlockId - 10
+                std::cout << "  hash: " << block.hash << " ";
+                
+                // calculate has of block data.
+                
+                
+                
+                
+                if(false){
+                    std::cout << ANSI_COLOR_GREEN << "    [OK]" << ANSI_COLOR_RESET;
+                } else {
+                    std::cout << ANSI_COLOR_RED << "    [ERROR]" << ANSI_COLOR_RESET;
+                }
+                std::cout << "\n";
+            }
+            
             block = blockDB.getNextBlock(block);
             
             // blockDB.getNextBlock has a bug that can't detect the end of the chain. Catch that case here.
@@ -469,7 +488,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         //std::cout << "End of chain." << std::endl;
         
         // Update latest block record
-        long latestBlockId = blockDB.getLatestBlockId();
+        latestBlockId = blockDB.getLatestBlockId();
         if(latest_block.number > latestBlockId){
             blockDB.setLatestBlockId(latest_block.number);
             // check this... values don't seem correct
