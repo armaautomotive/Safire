@@ -32,20 +32,21 @@ void CCLI::printCommands(){
 	" network                 - print network stats including currency and volumes.\n" <<
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
-	" vote                    - vote on network behaviour and settings.\n" <<
+	" users                   - prints user address and balance information.\n" <<
+    " vote                    - vote on network behaviour and settings.\n" <<
     " debug                   - log debug information.\n" <<
     " advanced                - more commands for admin and testing functions.\n" <<
-	" quit                    - shutdown the application.\n " << std::endl;
+	" quit                    - shutdown the application.\n" << std::endl;
 }
 
 
 void CCLI::printAdvancedCommands(){
     std::cout << " Advanced: \n" <<
-    " tests                  - Run tests to verify this build is functioning correctly.\n " <<
-    " chain                  - Scan the complete blockchain for verification. Reports findings.\n " <<
-    " printchain             - Print the blockchain summary and validation.\n " <<
-    " printqueue             - Print the record queue.\n " <<
-    " resetall               - Delete node data.\n  " <<
+    " tests                  - Run tests to verify this build is functioning correctly.\n" <<
+    " chain                  - Scan the complete blockchain for verification. Reports findings.\n" <<
+    " printchain             - Print the blockchain summary and validation.\n" <<
+    " printqueue             - Print the record queue.\n" <<
+    " resetall               - Delete node data.\n" <<
     " requestblock           - Send network request for block data. \n" <<
     std::endl;
 }
@@ -99,6 +100,11 @@ void CCLI::processUserInput(){
 			if(networkName.compare("") == 0 ){
 				networkName = "main";
 			}
+            
+            std::cout << "Enter public user name (blank for default): \n" << std::endl;
+            std::string userName;
+            std::cin >> userName;
+            // TODO: add
 
 			if(functions.joined == true){ // TODO this needs to track different networks.
 				std::cout << "Allready joined network. \n" << std::endl;
@@ -288,7 +294,14 @@ void CCLI::processUserInput(){
             CRelayClient relayClient;
             relayClient.sendRequestBlocks(latestBlockId);
             
- 
+        } else if(command.compare("users") == 0){
+            std::cout << "Users: " << std::endl;
+            
+            for(int i = 0; i < functions.users.size(); i++){
+                CFunctions::user_structure user = functions.users.at(i);
+                std::cout << "  user: " << user.public_key << " " << user.balance << " sfr " << std::endl;
+                // if current user publicKey mark
+            }
 
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;

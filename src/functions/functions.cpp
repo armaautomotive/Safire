@@ -25,12 +25,10 @@ int CFunctions::tokenClose(std::string content, std::string open, std::string cl
     std::size_t start_i = content.find(open);
     std::size_t end_i = content.find(close);
     if (start_i!=std::string::npos && end_i!=std::string::npos){
-        std::string section = content.substr (start_i + 1, end_i - start_i -1);
-        
+        std::string section = content.substr(start_i + 1, end_i - start_i -1);
     }
     return 0;
 }
-
 
 /**
 * recordJSON 
@@ -115,7 +113,6 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
 CFunctions::record_structure CFunctions::extractOneQueueRecord(){
     CFunctions::record_structure record;
 
-
     return record; 
 }
 
@@ -173,6 +170,7 @@ std::string CFunctions::blockJSON(CFunctions::block_structure block){
     ss << "{\"block\":{" <<
         "\"creator_key\":\"" << block.creator_key << "\","  << 
         "\"network\":\"" << block.network << "\"," <<
+        //"\"user_name\":\"" << block.user_name << "\"," <<
         "\"number\":\"" << block.number << "\"," <<
         "\"time\":\"" << block.time << "\"," <<
         "\"previous_block_id\":\"" << boost::lexical_cast<std::string>(block.previous_block_id) << "\"," <<
@@ -330,6 +328,13 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     
     double updatedBalance = 0.0;
     
+    users.clear();
+    
+    // TODO: only start scanning at unprocessed sections of the chain.
+    //firstBlockId = blockDB.getScannedBlockId();
+    long scannedBlockId = blockDB.getScannedBlockId();
+    //std::cout << "scannedBlockId " << scannedBlockId << " \n";
+    
     if(firstBlockId > -1){
         CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
         //CFunctions::block_structure previous_block = block;
@@ -389,6 +394,50 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
                     currency_circulation += record.amount;
                 }
+                
+                //
+                // calculate balance for all users.
+                // Because this is expensive, store this in the db, and only process from a checkpoint.
+                //
+                if((record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
+                    record.transaction_type == CFunctions::ISSUE_CURRENCY)){        // Update receiver balance
+                    CFunctions::user_structure user;
+                    user.public_key = "";
+                    for(int i = 0; i < users.size(); i++){
+                        CFunctions::user_structure curr_user = users.at(i);
+                        if( curr_user.public_key.compare( record.recipient_public_key ) == 0 ){
+                            user = curr_user;
+                            user.balance += record.amount;
+                            users[i] = user;
+                            i = users.size(); // Break
+                        }
+                    }
+                    if(user.public_key.compare("") == 0){
+                        user.public_key = record.recipient_public_key;
+                        user.balance += record.amount;
+                        users.push_back(user);
+                    }
+                }
+                if(record.transaction_type == CFunctions::TRANSFER_CURRENCY ){  // Update sender balance
+                    CFunctions::user_structure user;
+                    user.public_key = "";
+                    for(int i = 0; i < users.size(); i++){
+                        CFunctions::user_structure curr_user = users.at(i);
+                        if( curr_user.public_key.compare( record.sender_public_key ) == 0 ){
+                            user = curr_user;
+                            user.balance += record.amount;
+                            users[i] = user;
+                            i = users.size(); // Break
+                        }
+                    }
+                    if(user.public_key.compare("") == 0){
+                        user.public_key = record.sender_public_key;
+                        user.balance -= record.amount;
+                        user.balance -= record.fee;
+                        users.push_back(user);
+                    }
+                }
+                
                 
                 if(debug ){ // && block.number > latestBlockId - 10
                     std::string sender = record.sender_public_key;
@@ -471,6 +520,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 }
                 std::cout << "\n";
             }
+            
+            // Save in the DB an index to the last processed block.
+            blockDB.setScannedBlockId(block.number);
             
             block = blockDB.getNextBlock(block);
             
@@ -782,6 +834,10 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 latest_block.previous_block_id = parseSectionLong(block_section, "\"previous_block_id\":\"", "\"");
                 std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                 latest_block.hash = hash;
+                
+                //std::string user_name = parseSectionString(block_section, "\"user_name\":\"", "\"" );
+                //latest_block.user_name = hash;
+                
                 std::string records_section = parseSectionBlock(block_section, "\"records\":", "{", "}");
                 std::string record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
                 while(record_section.compare("") != 0){

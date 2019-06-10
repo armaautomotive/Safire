@@ -229,6 +229,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //std::cout << "Chain is up to date. " << std::endl;
     }
     
+    long lastLocalBuiltBlockId = -1;
+    
     int blockNumber = functions.latest_block.number + 1;
     //long timeBlock = 0;
     while(isBuildingBlocks){
@@ -350,26 +352,27 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             ecdsa.SignMessage(privateKey, block.hash, signature);
             block.signature = signature;
             
-            blockDB.AddBlock(block);
-            
-            //functions.addToBlockFile(block); // depricate
-            // TODO: Broadcast block to network
-            //log.log("Adding new block. Send to relay client. \n");
-            relayClient.sendBlock(block);
+            if(block.number != lastLocalBuiltBlockId){
+                blockDB.AddBlock(block);
+                relayClient.sendBlock(block);
+            }
+            lastLocalBuiltBlockId = block.number;
             
             //previous_block = block; // temp
             
             // Wait until the block period is over
             long currTimeBlock = selector.getCurrentTimeBlock();
             while( currTimeBlock == timeBlock ){
-                usleep(1000000);
+                usleep(1000000); // One second
+                //usleep(300000);
+                
                 currTimeBlock = selector.getCurrentTimeBlock();
                 //std::cout << ".";
             }
             //std::cout << "block done" << std::endl;
             
         } else { // Not building this block
-            log.log(".\n");
+            //log.log(".\n");
             
             if( functions.IsChainUpToDate() == false ){
             
@@ -389,8 +392,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                 
             }
             
-            //usleep(1000000);
-            usleep(100000);
+            usleep(1000000); //
+            //usleep(100000);
             
             //std::cout << "wait" << std::endl;
         }

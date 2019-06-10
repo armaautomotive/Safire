@@ -390,3 +390,50 @@ void CBlockDB::DeleteAll(){
     delete it;
     //delete db;
 }
+
+
+/**
+ * setScannedBlockId
+ *
+ * Description: Save the last block to be scanned. Saves the local chain from having to be rescanned
+ *  repeatedly.
+ *  the chain.
+ * @param long number - block number.
+ */
+void CBlockDB::setScannedBlockId(long number){
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    ostringstream keyStream;
+    keyStream << "scanned_block_id";
+    ostringstream valueStream;
+    valueStream << boost::lexical_cast<std::string>(number);
+    db->Put(writeOptions, keyStream.str(), valueStream.str());
+    //delete db;
+}
+
+/**
+ * getScannedBBlockId
+ *
+ * Description:
+ *  block number.
+ * @return long block number.
+ */
+long CBlockDB::getScannedBlockId(){
+    //std::cout << " a \n ";
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    std::string key = "scanned_block_id"; // boost::lexical_cast<std::string>(number);
+    std::string scannedBlockIdString;
+    db->Get(leveldb::ReadOptions(), key, &scannedBlockIdString);
+    
+    //delete db;
+    
+    long result = -1;
+    //std::stol(firstBlockId);
+    if(scannedBlockIdString.length() > 0){
+        result = boost::lexical_cast<long>(scannedBlockIdString);
+    }
+    
+    //std::cout << " z \n ";
+    return result;
+}

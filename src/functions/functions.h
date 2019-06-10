@@ -48,20 +48,28 @@ public:
        long users;
        long currency_supply; 
     };
-    std::vector<CFunctions::chain_state_structure> chain_state; 
+    std::vector<CFunctions::chain_state_structure> chain_state;
+    
+    struct user_structure {
+        std::string public_key;
+        double balance;
+        long start_date;
+        long last_date;
+    };
+    std::vector<CFunctions::user_structure> users;
     
     struct record_structure {
-        std::string network;                    // name of network this record belongs to
+        std::string network;                // name of network this record belongs to
         std::string time;
         CFunctions::transaction_types transaction_type;
-        double amount;				// Amount to transfer from sender to recipient. 0 if type is add_user or vote
-        double fee;				// transaction fee
+        double amount;                      // Amount to transfer from sender to recipient. 0 if type is add_user or vote
+        double fee;	                        // transaction fee
         std::string sender_public_key;		// Sender key
         std::string recipient_public_key;	// Recipient key
-        std::string hash;                       // hash of values. 
-        std::string signature;			// signature of hash with sender private key.
-        std::string name; 			// Meta (User name or transfer message)
-        std::string value;			// Meta (vote description)
+        std::string hash;                   // hash of values.
+        std::string signature;              // signature of hash with sender private key.
+        std::string name; 		            // Meta (User name or transfer message)
+        std::string value;                  // Meta (vote description)
         bool internal_validated = false;	// local toggle to indicate the record has been internally validated.
     };
     
