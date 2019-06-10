@@ -202,7 +202,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //std::cout << "-" << std::endl;
         int progressPos = 0;
         //long latestBlockId = blockDB.getLatestBlockId();
-        while(blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks){
+        // functions.IsChainUpToDate() == false
+        while(blockDB.getLatestBlockId() < currBlock - 0 && isBuildingBlocks){
             if(progressPos == 0){
                 std::cout << "\rSynchronizing: " << "|" << " " <<
                     blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos++;
@@ -224,7 +225,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             currBlock = selector.getCurrentTimeBlock();
             relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
         }
-        std::cout << "Chain is up to date. " << std::endl;
+        //std::cout << "Chain is up to date. " << std::endl;
     }
     
     int blockNumber = functions.latest_block.number + 1;
@@ -244,10 +245,10 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         }
         // If latest block is not up to date, don't build new block
         // Issue, this will fail if there is a gap in the chain. If a node doesn't generate a block.
-        long currBlock = selector.getCurrentTimeBlock();
-        if(blockDB.getLatestBlockId() < currBlock - 1){
+        //long currBlock = selector.getCurrentTimeBlock(); // timeBlock
+        //if(blockDB.getLatestBlockId() < currBlock - 1){
             //build_block = false;
-        }
+        //}
         
         //std::cout << "here 2 " << std::endl;
         
@@ -257,6 +258,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //std::cout << " building blocks " << std::endl;
         
         if(build_block){
+            log.log("Generate new block\n");
             
             // While time remaining in block
             if(!isBuildingBlocks){
@@ -360,21 +362,24 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             //std::cout << "block done" << std::endl;
             
         } else { // Not building this block
+            log.log(".\n");
             
-            firstBlockId = blockDB.getFirstBlockId();
-            if(firstBlockId == -1){
-                relayClient.sendRequestBlocks(-1);
-            }
+            if( functions.IsChainUpToDate() == false ){
             
-            
-            
-            // Download recent blocks to keep the local chain up to date.
-            long currBlock = selector.getCurrentTimeBlock();
-            if(blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks){
-                log.log("Block builder. Currently behind on chain. Requesting blocks from the network...\n");
+                firstBlockId = blockDB.getFirstBlockId();
+                if(firstBlockId == -1){
+                    relayClient.sendRequestBlocks(-1);
+                }
                 
-                //std::cout << "Syncronizing Blockchain." << std::endl;
-                relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+                // Download recent blocks to keep the local chain up to date.
+                long currBlock = selector.getCurrentTimeBlock();
+                if(blockDB.getLatestBlockId() < currBlock - 0 && isBuildingBlocks){
+                    log.log("Block builder. Currently behind on chain. Requesting blocks from the network...\n");
+                    
+                    //std::cout << "Syncronizing Blockchain." << std::endl;
+                    relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+                }
+                
             }
             
             //usleep(1000000);
@@ -384,9 +389,6 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         }
         
         if(!isBuildingBlocks){ // ??? why
-            //for(int i = 0; i < 10 && ; i++){
-                
-            //}
             usleep(1000000);
         }
     }
