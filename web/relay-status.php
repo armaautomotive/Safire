@@ -23,21 +23,25 @@ $sql = "select * from messages order by time desc limit 0, 100;";
                         $data_record = array();
                         $data_record["receiver_key"] = $result["receiver_key"];
 
-                        echo " <table><tr><td>". 
-                                $result["type"]  .        
-                                " </td><td>".
-                                
-                                $result["sender_key"]  .        
-                                " </td><td>".   
-                                $result["receiver_key"]  .
-                                
-                                " </td><td>".
+			$msg = $result["message"];
+ 
+
+			echo " <table><tr><td> type ". 
+			 	$result["type"]  .	
+				" </td></tr><tr><td> sender: ".
+				
+			 	$result["sender_key"]  .        
+                                " </td></tr><tr><td> receive: ".	
+				$result["receiver_key"]  .
+				
+				" </td></tr><tr><td> req: ".
                                 $result["request"] .
-                
-                                " </td><td>".
-                                $result["message"] .    
-        
-                                "</td></tr></table><br>";
-                }
-        }
+		
+				" </td></tr><tr><td> message: ".
+                                $result["message"] .	
+	
+				"</td></tr></table><br>";
+		}
+	}
 ?>
+

@@ -332,11 +332,13 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     if(firstBlockId > -1){
         CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
         //CFunctions::block_structure previous_block = block;
-        while(block.number > 0){
+        while(block.number > 0 ){ // && i < 50
             
             if(debug){
-                std::cout << "  block " << i << "    number: " << block.number << "\n";
+                std::cout << "\n";
+                std::cout << "Block " << i << " \n";
                 std::cout << "  previous block: " << block.previous_block_id << "\n";
+                std::cout << "  number: " << block.number << "\n";
                 std::cout << "  creator: " << block.creator_key << "\n";
 
             }

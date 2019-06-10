@@ -106,6 +106,12 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     log.log("     key: " + keyStream.str() + "\n");
     log.log("     val: " + valueStream.str() + "\n");
     
+    CFunctions::block_structure exists = getBlock(block.number);
+    if(exists.number > 0){
+        log.log("FYI block allready exists... \n");
+        return true; // For now just exit function.
+    }
+    
     db->Put(writeOptions, keyStream.str(), valueStream.str());
     
 
