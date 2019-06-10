@@ -259,6 +259,9 @@ void CCLI::processUserInput(){
             
             CBlockDB blockDB;
             blockDB.DeleteAll();
+            
+            // quit
+            running = false;
            
         } else if(command.compare("requestblock") == 0){
             std::cout << " Request block... " << std::endl;

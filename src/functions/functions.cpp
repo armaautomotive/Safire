@@ -326,6 +326,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
     int i = 1;
+    
+    double updatedBalance = 0.0;
+    
     if(firstBlockId > -1){
         CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
         //CFunctions::block_structure previous_block = block;
@@ -362,21 +365,21 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 if( (record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
                      record.transaction_type == CFunctions::ISSUE_CURRENCY) &&
                    record.recipient_public_key.compare(my_public_key) == 0 ){
-                    balance += record.amount;
+                    updatedBalance += record.amount;
                 }
                 
                 // subtract sent payments from balance
                 if(record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
                    record.sender_public_key.compare(my_public_key) == 0 &&
                    record.recipient_public_key.compare(my_public_key) != 0){ // subtract sent from wallet to anyone but self.
-                    balance -= record.amount;
-                    balance -= record.fee;
+                    updatedBalance -= record.amount;
+                    updatedBalance -= record.fee;
                     //std::cout << " sent " << std::endl;
                 }
                 
                 // collect fees
                 if(record.transaction_type == CFunctions::TRANSFER_CURRENCY || record.transaction_type == CFunctions::VOTE){
-                    balance += record.fee;
+                    updatedBalance += record.fee;
                 }
                 
                 // Tally currency supply
@@ -467,8 +470,13 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         long latestBlockId = blockDB.getLatestBlockId();
         if(latest_block.number > latestBlockId){
             blockDB.setLatestBlockId(latest_block.number);
+            // check this... values don't seem correct
+            
+            std::cout << " set latest block id " << latest_block.number << std::endl;
         }
         
+        // Update balance variable
+        balance = updatedBalance;
     }
 }
 
