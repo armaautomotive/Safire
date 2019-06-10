@@ -476,7 +476,8 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             
             
             // ****
-            std::cout << " set latest block id " << latest_block.number << std::endl;
+            //std::cout << " set latest block id " << latest_block.number << std::endl;
+            
         }
         
         // Update balance variable
