@@ -328,7 +328,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     
     double updatedBalance = 0.0;
     
-    users.clear();
+    users.clear(); // depricate
+    //std::map<std::string, CFunctions::user_structure> users_map;
+    users_map.clear();
     
     // TODO: only start scanning at unprocessed sections of the chain.
     //firstBlockId = blockDB.getScannedBlockId();
@@ -408,23 +410,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 // calculate balance for all users.
                 // Because this is expensive, store this in the db, and only process from a checkpoint.
                 //
-                /*
-                CFunctions::user_structure user;
-                user.public_key = "";
-                for(int i = 0; i < users.size(); i++){
-                    CFunctions::user_structure curr_user = users.at(i);
-                    if( curr_user.public_key.compare( record.recipient_public_key ) == 0 ){
-                        user = curr_user;
-                        //user.balance += record.amount;
-                        //users[i] = user;
-                        i = users.size(); // Break
-                    }
-                }
-                if(user.public_key.compare("") == 0){
-                    user.public_key = record.recipient_public_key;
-                }
-                users.push_back(user);
-                 */
+                
                 
                 if((record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
                     record.transaction_type == CFunctions::ISSUE_CURRENCY)){        // Update receiver balance
@@ -436,6 +422,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     }
                     // 2 if TRANSFER_CURRENCY, does the sender have the balance.
                     // TODO: create a cached user lookup facility. Too much code is required to find and update user stats.
+                    
+                    // auto search = example.find(2);
+                    //CFunctions::user_structure user = users_map.find( record.recipient_public_key );
                     
                     CFunctions::user_structure user;
                     user.public_key = "";

@@ -437,3 +437,33 @@ long CBlockDB::getScannedBlockId(){
     //std::cout << " z \n ";
     return result;
 }
+
+/**
+ * AddUser
+ *
+ * Description: Add a user record to store membership, key and current balance for all users.
+ *  Used to verify transfer payments have sufficient balance
+ *  as well as verification of destination addresses before sending funds.
+ */
+void CBlockDB::AddUser(CFunctions::user_structure user){
+    CFunctions functions;
+    CFileLogger log;
+    
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB * db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::AddUser \n";
+        return;
+    }
+    
+    // Insert block record into leveldb
+    ostringstream keyStream;
+    keyStream << "b_" << boost::lexical_cast<std::string>(user.public_key);
+    ostringstream valueStream;
+    valueStream << ""; //functions.blockJSON(block);
+    
+    db->Put(writeOptions, keyStream.str(), valueStream.str());
+}
+
+
+

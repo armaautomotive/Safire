@@ -50,6 +50,10 @@ public:
     
     void setScannedBlockId(long number);
     long getScannedBlockId();
+    
+    void AddUser(CFunctions::user_structure user);
+    
+    
 };
 
 #endif // SAFIRE_BLOCK_DB_H

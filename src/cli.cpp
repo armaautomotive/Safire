@@ -42,6 +42,7 @@ void CCLI::printCommands(){
 
 void CCLI::printAdvancedCommands(){
     std::cout << " Advanced: \n" <<
+    " reindex                - Clear and parse the entire blockchain dataset.\n" <<
     " tests                  - Run tests to verify this build is functioning correctly.\n" <<
     " chain                  - Scan the complete blockchain for verification. Reports findings.\n" <<
     " printchain             - Print the blockchain summary and validation.\n" <<
@@ -281,6 +282,12 @@ void CCLI::processUserInput(){
             
             // quit
             running = false;
+            
+        } else if( command.compare("reindex") == 0){
+            std::cout << " Reindex: " << std::endl;
+            
+            CBlockDB blockDB;
+            
            
         } else if(command.compare("requestblock") == 0){
             std::cout << " Request block... " << std::endl;

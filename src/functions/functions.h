@@ -10,6 +10,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <map>
 #include <ctime>
 
 
@@ -52,11 +53,14 @@ public:
     
     struct user_structure {
         std::string public_key;
+        std::string name;                   // Todo: optional public name.
         double balance;
         long start_date;
         long last_date;
     };
-    std::vector<CFunctions::user_structure> users;
+    std::vector<CFunctions::user_structure> users; // Depricate for map based struct.
+    std::map<std::string, CFunctions::user_structure> users_map;
+    
     
     struct record_structure {
         std::string network;                // name of network this record belongs to
