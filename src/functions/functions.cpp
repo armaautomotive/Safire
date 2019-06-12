@@ -335,6 +335,8 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     long scannedBlockId = blockDB.getScannedBlockId();
     //std::cout << "scannedBlockId " << scannedBlockId << " \n";
     
+    bool chainValid = true;
+    
     if(firstBlockId > -1){
         CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
         //CFunctions::block_structure previous_block = block;
@@ -385,8 +387,14 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     //std::cout << " sent " << std::endl;
                 }
                 
-                // collect fees
-                if(record.transaction_type == CFunctions::TRANSFER_CURRENCY || record.transaction_type == CFunctions::VOTE){
+                // miner collects record fees
+                if(block.creator_key.compare(my_public_key) == 0 &&
+                   (
+                    record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
+                    record.transaction_type == CFunctions::VOTE
+                    )
+                ){
+                    
                     updatedBalance += record.fee;
                 }
                 
@@ -395,12 +403,40 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     currency_circulation += record.amount;
                 }
                 
+                
                 //
                 // calculate balance for all users.
                 // Because this is expensive, store this in the db, and only process from a checkpoint.
                 //
+                /*
+                CFunctions::user_structure user;
+                user.public_key = "";
+                for(int i = 0; i < users.size(); i++){
+                    CFunctions::user_structure curr_user = users.at(i);
+                    if( curr_user.public_key.compare( record.recipient_public_key ) == 0 ){
+                        user = curr_user;
+                        //user.balance += record.amount;
+                        //users[i] = user;
+                        i = users.size(); // Break
+                    }
+                }
+                if(user.public_key.compare("") == 0){
+                    user.public_key = record.recipient_public_key;
+                }
+                users.push_back(user);
+                 */
+                
                 if((record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
                     record.transaction_type == CFunctions::ISSUE_CURRENCY)){        // Update receiver balance
+                    
+                    // Validate
+                    // 1 If ISSUE_CURRENCY, is the value between 0 and 1.0
+                    if(record.transaction_type == CFunctions::ISSUE_CURRENCY && (record.amount > 1.0 || record.amount < 0.0)){
+                        record.amount = 1.0;
+                    }
+                    // 2 if TRANSFER_CURRENCY, does the sender have the balance.
+                    // TODO: create a cached user lookup facility. Too much code is required to find and update user stats.
+                    
                     CFunctions::user_structure user;
                     user.public_key = "";
                     for(int i = 0; i < users.size(); i++){
@@ -415,6 +451,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     if(user.public_key.compare("") == 0){
                         user.public_key = record.recipient_public_key;
                         user.balance += record.amount;
+                        
                         users.push_back(user);
                     }
                 }
@@ -425,7 +462,8 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                         CFunctions::user_structure curr_user = users.at(i);
                         if( curr_user.public_key.compare( record.sender_public_key ) == 0 ){
                             user = curr_user;
-                            user.balance += record.amount;
+                            user.balance -= record.amount;
+                            user.balance -= record.fee;
                             users[i] = user;
                             i = users.size(); // Break
                         }
@@ -437,6 +475,31 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                         users.push_back(user);
                     }
                 }
+                // CARRY_FORWARD
+                // TODO
+                
+                
+                // Update block fee reward
+                if(record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
+                    record.transaction_type == CFunctions::VOTE ){
+                    CFunctions::user_structure user;
+                    user.public_key = "";
+                    for(int i = 0; i < users.size(); i++){
+                        CFunctions::user_structure curr_user = users.at(i);
+                        if( curr_user.public_key.compare(block.creator_key) == 0 ){
+                            user = curr_user;
+                            user.balance += record.fee;
+                            users[i] = user;
+                            i = users.size(); // Break
+                        }
+                    }
+                    if(user.public_key.compare("") == 0){
+                        user.public_key = record.sender_public_key;
+                        user.balance += record.fee;
+                        users.push_back(user);
+                    }
+                }
+                
                 
                 
                 if(debug ){ // && block.number > latestBlockId - 10
