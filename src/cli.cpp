@@ -287,7 +287,9 @@ void CCLI::processUserInput(){
             std::cout << " Reindex: " << std::endl;
             
             CBlockDB blockDB;
+            blockDB.DeleteIndex();
             
+            functions.scanChain(publicKey, false);
            
         } else if(command.compare("requestblock") == 0){
             std::cout << " Request block... " << std::endl;

@@ -2,6 +2,9 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+// Rename chainDB ???
+// Add indexDB ???
+
 #include "blockdb.h"
 #include <sstream>
 #include <unistd.h>   // open and close
@@ -9,6 +12,7 @@
 #include "platform.h"
 #include "log.h";
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 using namespace std;
 
@@ -444,6 +448,8 @@ long CBlockDB::getScannedBlockId(){
  * Description: Add a user record to store membership, key and current balance for all users.
  *  Used to verify transfer payments have sufficient balance
  *  as well as verification of destination addresses before sending funds.
+ *
+ * TODO: add to /dao/UserDB ???
  */
 void CBlockDB::AddUser(CFunctions::user_structure user){
     CFunctions functions;
@@ -458,12 +464,64 @@ void CBlockDB::AddUser(CFunctions::user_structure user){
     
     // Insert block record into leveldb
     ostringstream keyStream;
-    keyStream << "b_" << boost::lexical_cast<std::string>(user.public_key);
+    keyStream << "u_" << user.public_key;
     ostringstream valueStream;
-    valueStream << ""; //functions.blockJSON(block);
+    valueStream << functions.userJSON(user);
     
     db->Put(writeOptions, keyStream.str(), valueStream.str());
 }
 
+/**
+ * getUser
+ *
+ * Description:
+ */
+CFunctions::user_structure CBlockDB::getUser(std::string public_key){
+    CFunctions::user_structure user;
+    user.public_key = -1;
+    
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    
+    std::string key = "u_" + boost::lexical_cast<std::string>(public_key);
+    std::string userJson;
+    db->Get(leveldb::ReadOptions(), key, &userJson);
+    
+    CFunctions functions;
+    user = functions.parseUserJson(userJson);
+    
+    // Close the database
+    //delete db;
+    return user;
+}
 
+/**
+ * DeleteIndex
+ *
+ * Description:
+ */
+void CBlockDB::DeleteIndex(){
+    // Delete index data
+     leveldb::WriteOptions writeOptions;
+     leveldb::DB* db = getDatabase();
+     // Iterate over each item in the database and print them
+     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+     for (it->SeekToFirst(); it->Valid(); it->Next())
+     {
+         //cout << it->key().ToString() << " : " << it->value().ToString() << endl;
+         if( boost::starts_with(it->key().ToString(), "u_") ){
+            //db->Delete(leveldb::WriteOptions(), it->key().ToString());
+            //cout << "Delete: " << it->key().ToString() << "\n";
+         }
+     }
+     if (false == it->status().ok())
+     {
+         cerr << "An error was found during the scan" << endl;
+         cerr << it->status().ToString() << endl;
+     }
+     delete it;
+    
+    // reset scan index.
+    setScannedBlockId(0);
+}
 

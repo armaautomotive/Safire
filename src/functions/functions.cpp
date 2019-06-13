@@ -188,6 +188,26 @@ std::string CFunctions::blockJSON(CFunctions::block_structure block){
     return json;
 }
 
+
+/**
+ * userJSON
+ *
+ * Description: Encode user structure data in json string.
+ */
+std::string CFunctions::userJSON(CFunctions::user_structure user){
+    std::stringstream ss;
+    ss << "{\"user\":{" <<
+    "\"public_key\":\"" << user.public_key << "\","  <<
+    "\"name\":\"" << user.name << "\"," <<
+    "\"balance\":\"" << boost::lexical_cast<std::string>(user.balance) << "\"," << // There may be a rounding issue here to validate for.
+    "\"start_date\":\"" << user.start_date + "\"," <<
+    "\"last_date\":\"" << user.last_date + "\"";
+    ss << "}}}\n";
+    std::string json = ss.str();
+    return json;
+}
+
+
 /**
 * addToBlockFile *** DEPRICATE ***
 *
@@ -313,12 +333,16 @@ std::string CFunctions::parseSectionBlock(std::string & content, std::string sta
 
 
 /**
- * loadChain
+ * scanChain
  *
  * Description: parse the block chain stored in levelDB managed by CBlockDB.
+ *  Keep track of an index into the chain that has allready been processed to start at as
+ *  the scan process is required frequently for up to date information and the chain will be very long.
+ *
+ * @param string current users public key used to identify blocks and records affecting them.
+ * @param bool debug true prints debug info.
  */
 void CFunctions::scanChain(std::string my_public_key, bool debug){
-    //std::cout << "scanChain \n";
     CECDSACrypto ecdsa;
     CSelector selector;
     CBlockDB blockDB;
@@ -342,15 +366,15 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     if(firstBlockId > -1){
         CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
         //CFunctions::block_structure previous_block = block;
-        while(block.number > 0 ){ // && i < 50
+        while(block.number > 0){
             
-            if(debug ){ // && block.number > latestBlockId - 10
+            // TODO: the chain will become too large to be useful when printed like this.
+            if(debug){ // && block.number > latestBlockId - 10
                 std::cout << "\n";
                 std::cout << "Block " << i << " \n";
                 std::cout << "  previous block: " << block.previous_block_id << "\n";
                 std::cout << "  number: " << block.number << "\n";
                 std::cout << "  creator: " << block.creator_key << "\n";
-
             }
             latest_block = block;
             
@@ -360,9 +384,12 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             for(int r = 0; r < records.size(); r++){
                 CFunctions::record_structure record = records[r];
                 //std::cout << "   record \n";
-                
                 //std::cout << " pub " << record.sender_public_key << " mykey " << my_public_key << "\n";
                 //std::cout << " pubtype " << record.transaction_type << " mykey " << CFunctions::JOIN_NETWORK << "\n";
+                
+                //
+                // Current user state
+                //
                 if(record.sender_public_key.compare(my_public_key) == 0 &&
                    record.transaction_type == CFunctions::JOIN_NETWORK){ // TODO: and network name matches
                     joined = true;
@@ -407,7 +434,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 
                 
                 //
-                // calculate balance for all users.
+                // All user state. Calculate balance for all users.
                 // Because this is expensive, store this in the db, and only process from a checkpoint.
                 //
                 
@@ -426,7 +453,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     // auto search = example.find(2);
                     //CFunctions::user_structure user = users_map.find( record.recipient_public_key );
                     
-                    CFunctions::user_structure user;
+                    CFunctions::user_structure user = blockDB.getUser(record.recipient_public_key);
+                    
+                    
                     user.public_key = "";
                     for(int i = 0; i < users.size(); i++){
                         CFunctions::user_structure curr_user = users.at(i);
@@ -1047,6 +1076,47 @@ std::string CFunctions::getRecordSignature(record_structure record){
 std::string CFunctions::getBlockSignature(block_structure block){
 
 	return "";
+}
+
+/**
+ * parseUserJson
+ *
+ * Description: Parse JSON string information into a user struct object.
+ *  Should this be moved to a JSON_User class?
+ *
+ */
+CFunctions::user_structure CFunctions::parseUserJson(std::string user_json){
+    CFunctions::user_structure user;
+    
+    std::string content = user_json;
+    int parenDepth = 0;
+    std::size_t start_i = content.find("{");
+    if(start_i!=std::string::npos){
+        //CFunctions::user_structure latest_user;
+        
+        for(int i = 0; i < content.length(); i++){
+            if(content[start_i + i] == '{'){
+                parenDepth++;
+                //std::cout << "  +:  " << " " << i << " d: " << parenDepth  << std::endl;
+            }
+            if(content[start_i + i] == '}'){
+                parenDepth--;
+                //std::cout << "  -:  " << " " << i << " d: " << parenDepth  << std::endl;
+            }
+            if(parenDepth == 0){
+                std::string user_section = content.substr(start_i, i + 1);
+                
+                user.public_key = parseSectionString(user_section, "\"public_key\":\"", "\"");
+                user.name = parseSectionString(user_section, "\"name\":\"", "\"");
+                user.balance = parseSectionDouble(user_section, "\"balance\":\"", "\"");
+                user.start_date = parseSectionLong(user_section, "\"start_date\":\"", "\"");
+                user.last_date = parseSectionLong(user_section, "\"last_date\":\"", "\"");
+               
+                content = content.substr(start_i + i, content.length()); // strip out processed block
+            }
+        }
+    }
+    return user;
 }
 
 /**

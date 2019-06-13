@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Jon Taylor
+// Copyright (c) 2016, 2019 Jon Taylor
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,7 +12,6 @@
 #include <vector>
 #include <map>
 #include <ctime>
-
 
 class CFunctions
 {
@@ -133,6 +132,9 @@ public:
     
     bool IsChainUpToDate();
     double SyncProgress();
+    
+    std::string userJSON(CFunctions::user_structure user);
+    CFunctions::user_structure parseUserJson(std::string user_json);
  
     CFunctions::block_structure latest_block;
     double balance; // wallet balance
@@ -140,8 +142,5 @@ public:
     double currency_circulation;
     double user_count;
 };
-
-
-
 
 #endif // SAFIRE_FUNCTIONS_H
