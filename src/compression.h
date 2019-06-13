@@ -13,6 +13,10 @@
 #include <map>
 #include <ctime>
 
+#include <stdexcept>
+#include <iomanip>
+#include <zlib.h>
+
 class CCompression
 {
 private:
@@ -32,8 +36,8 @@ public:
     std::string string_compress_encode(const std::string &data);
     std::string string_decompress_decode(const std::string &data);
     
-    
-  
+    std::string compress_string(const std::string& str); // , int compressionlevel = Z_BEST_COMPRESSION);
+    std::string decompress_string(const std::string& str);
     
     
 };

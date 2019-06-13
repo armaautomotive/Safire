@@ -200,8 +200,9 @@ std::string CFunctions::userJSON(CFunctions::user_structure user){
     "\"public_key\":\"" << user.public_key << "\","  <<
     "\"name\":\"" << user.name << "\"," <<
     "\"balance\":\"" << boost::lexical_cast<std::string>(user.balance) << "\"," << // There may be a rounding issue here to validate for.
-    "\"start_date\":\"" << user.start_date + "\"," <<
-    "\"last_date\":\"" << user.last_date + "\"";
+    "\"start_date\":\"" << boost::lexical_cast<std::string>(user.start_date) << "\"," <<
+    "\"last_date\":\"" << boost::lexical_cast<std::string>(user.last_date) + "\"" <<
+    "";
     ss << "}}}\n";
     std::string json = ss.str();
     return json;
@@ -359,7 +360,10 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     // TODO: only start scanning at unprocessed sections of the chain.
     //firstBlockId = blockDB.getScannedBlockId();
     long scannedBlockId = blockDB.getScannedBlockId();
-    //std::cout << "scannedBlockId " << scannedBlockId << " \n";
+    if(scannedBlockId > 0){
+        firstBlockId = scannedBlockId;
+        //std::cout << "scannedBlockId " << scannedBlockId << " \n";
+    }
     
     bool chainValid = true;
     
@@ -454,8 +458,15 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     //CFunctions::user_structure user = users_map.find( record.recipient_public_key );
                     
                     CFunctions::user_structure user = blockDB.getUser(record.recipient_public_key);
+                    if(user.public_key.compare(record.recipient_public_key) != 0){
+                        user.public_key = record.recipient_public_key;
+                    }
+                    user.balance += record.amount;
+                    blockDB.setUser(user);
                     
                     
+                    // DEPRICATE
+                    /*
                     user.public_key = "";
                     for(int i = 0; i < users.size(); i++){
                         CFunctions::user_structure curr_user = users.at(i);
@@ -469,9 +480,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     if(user.public_key.compare("") == 0){
                         user.public_key = record.recipient_public_key;
                         user.balance += record.amount;
-                        
                         users.push_back(user);
                     }
+                     */
                 }
                 if(record.transaction_type == CFunctions::TRANSFER_CURRENCY ){  // Update sender balance
                     CFunctions::user_structure user;

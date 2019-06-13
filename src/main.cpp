@@ -40,6 +40,8 @@
 #include "cli.h"
 #include <unistd.h>		// sleep
 #include <ctime>
+#include "compression.h"
+#include "heartbeat.h"
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
@@ -48,7 +50,7 @@ volatile bool buildingBlocks = true;
 
 int main(int argc, char* argv[])
 {
-    std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.02" << ANSI_COLOR_RESET << std::endl;
+    std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.03" << ANSI_COLOR_RESET << std::endl;
     std::cout << std::endl;
     
     //std::cout << "a \n";
@@ -84,6 +86,7 @@ int main(int argc, char* argv[])
 
     CFunctions functions;
     CBlockBuilder blockBuilder;
+    CHeartbeat heartbeat;
     /*
     CFunctions::record_structure record;
     record.time = "2017/06/03";
@@ -131,6 +134,10 @@ int main(int argc, char* argv[])
     std::cout <<
         //"  private  " << privateKey << "\n  " <<
         " Your public address: " << publicKey << std::endl;
+    
+    //CCompression compression;
+    //std::string keyCompressed = compression.compress_string(publicKey);
+    //std::cout << " Your public address compressed: " << keyCompressed << std::endl;
 
     //functions.parseBlockFile( publicKey, false );
     functions.scanChain(publicKey, false);
@@ -226,14 +233,18 @@ int main(int argc, char* argv[])
     //std::thread p2pNetworkThread(&CP2P::p2pNetworkThread, p2p, argc, argv); // TODO: implement a main class to pass into threads instead of 'p2p' instance. For communication.
     std::thread relayNetworkThread(&CRelayClient::relayNetworkThread, relayClient, argc, argv); 
 
+    std::thread heartbeatThread(&CHeartbeat::heartbeatThread, heartbeat, argc, argv);
+    
     CCLI cli;
     std::cout << std::endl; // Line break
     cli.processUserInput();    
 
     std::cout << "Shutting down... " << std::endl;
     chain.writeFile();
+    heartbeat.stop();
     blockBuilder.stop();
     blockThread.join();
+    heartbeatThread.join();
     //p2p.exit();
     relayClient.exit();
     //p2pNetworkThread.join();

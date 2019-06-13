@@ -51,7 +51,7 @@ public:
     void setScannedBlockId(long number);
     long getScannedBlockId();
     
-    void AddUser(CFunctions::user_structure user);
+    void setUser(CFunctions::user_structure user);
     CFunctions::user_structure getUser(std::string public_key);
     void DeleteIndex();
     

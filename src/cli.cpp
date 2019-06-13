@@ -62,7 +62,7 @@ void CCLI::processUserInput(){
 	bool running = true;
 	CECDSACrypto ecdsa;
 	CFunctions functions;
-        CRelayClient relayClient;
+    CRelayClient relayClient;
 	std::string privateKey;
 	std::string publicKey;
 	CWallet wallet;
@@ -122,16 +122,16 @@ void CCLI::processUserInput(){
 				joinRecord.time = ts;
 				joinRecord.transaction_type = CFunctions::JOIN_NETWORK;
 				joinRecord.amount = 0.0;
-                                joinRecord.fee = 0.0;
+                joinRecord.fee = 0.0;
 				joinRecord.sender_public_key = publicKey;
 				joinRecord.recipient_public_key = "";
 				joinRecord.hash = functions.getRecordHash(joinRecord);
-                                std::string message_siganture = "";
+                std::string message_siganture = "";
 				ecdsa.SignMessage(privateKey, joinRecord.hash, message_siganture);
 				joinRecord.signature = message_siganture;	
 				
-                                //functions.addToQueue( joinRecord );
-                                relayClient.sendRecord(joinRecord);
+                //functions.addToQueue( joinRecord );
+                relayClient.sendRecord(joinRecord);
 	
 				// TODO: send request or say allready sent. 	
 			}
@@ -289,7 +289,7 @@ void CCLI::processUserInput(){
             CBlockDB blockDB;
             blockDB.DeleteIndex();
             
-            functions.scanChain(publicKey, false);
+            functions.scanChain(publicKey, true); // debug true to show progress. perhaps add a progress bar/percentage output option later.
            
         } else if(command.compare("requestblock") == 0){
             std::cout << " Request block... " << std::endl;

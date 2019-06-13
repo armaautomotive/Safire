@@ -451,14 +451,14 @@ long CBlockDB::getScannedBlockId(){
  *
  * TODO: add to /dao/UserDB ???
  */
-void CBlockDB::AddUser(CFunctions::user_structure user){
+void CBlockDB::setUser(CFunctions::user_structure user){
     CFunctions functions;
     CFileLogger log;
     
     leveldb::WriteOptions writeOptions;
     leveldb::DB * db = getDatabase();
     if(!db){
-        std::cout << "Error: CBlockDB::AddUser \n";
+        std::cout << "Error: CBlockDB::setUser \n";
         return;
     }
     
@@ -466,8 +466,9 @@ void CBlockDB::AddUser(CFunctions::user_structure user){
     ostringstream keyStream;
     keyStream << "u_" << user.public_key;
     ostringstream valueStream;
-    valueStream << functions.userJSON(user);
     
+    std::string json = functions.userJSON(user);
+    valueStream << json;
     db->Put(writeOptions, keyStream.str(), valueStream.str());
 }
 
