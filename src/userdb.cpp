@@ -10,6 +10,7 @@
 #include "log.h";
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include "functions/functions.h"
 
 using namespace std;
 
@@ -53,18 +54,6 @@ leveldb::DB * CUserDB::getDatabase(){
     
     return ldb;
 }
-
-/*
-leveldb::DB * CUserDB::getDatabase2(){
-    leveldb::DB* ldb;
-    CPlatform platform;
-    std::string dbPath = platform.getSafirePath();
-    leveldb::Options options;
-    options.create_if_missing = true;
-    leveldb::Status status = leveldb::DB::Open(options, "./userdb", &ldb);
-    return ldb;
-}
-*/
 
 
 /**
@@ -168,9 +157,40 @@ CFunctions::user_structure CUserDB::getUser(std::string public_key){
 }
 
 /**
+ * getUsers
+ *
+ * Description: Return a list of user structs in a vector.
+ */
+std::vector<CFunctions::user_structure> CUserDB::getUsers(){
+    std::vector<CFunctions::user_structure> users;
+    
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    
+    CFunctions functions;
+    
+    // Iterate over each item in the database and print them
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next())
+    {
+        //cout << it->key().ToString() << " : " << it->value().ToString() << endl;
+        CFunctions::user_structure user;
+        user = functions.parseUserJson(it->value().ToString());
+        users.push_back(user);
+    }
+    if (false == it->status().ok())
+    {
+        cerr << "An error was found during the scan" << endl;
+        cerr << it->status().ToString() << endl;
+    }
+    return users;
+}
+
+/**
  * DeleteIndex
  *
- * Description:
+ * Description: Delete index data containing user values accumulated
+ *  from the chain.
  */
 void CUserDB::DeleteIndex(){
     // Delete index data
@@ -182,8 +202,8 @@ void CUserDB::DeleteIndex(){
     {
         //cout << it->key().ToString() << " : " << it->value().ToString() << endl;
         if( boost::starts_with(it->key().ToString(), "u_") ){
-            //db->Delete(leveldb::WriteOptions(), it->key().ToString());
-            //cout << "Delete: " << it->key().ToString() << "\n";
+            db->Delete(leveldb::WriteOptions(), it->key().ToString());
+            cout << "Delete: " << it->key().ToString() << "\n";
         }
     }
     if (false == it->status().ok())
@@ -197,6 +217,25 @@ void CUserDB::DeleteIndex(){
     setScannedBlockId(0);
 }
 
+
+/**
+ * GetUserCount
+ *
+ * Description: retrieve user count.
+ */
+long CUserDB::getUserCount(){
+    
+    
+    return 0;
+}
+
+/**
+ *
+ *
+ */
+void CUserDB::setUserCount(long count){
+    
+}
 
 
 /**
@@ -305,11 +344,5 @@ void CUserDB::GetUsers()
 
     // Close the database
     delete db; 
-}
-
-
-int CUserDB::GetUsersCount(){
-
-	return 0;
 }
  */

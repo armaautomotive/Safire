@@ -308,12 +308,21 @@ void CCLI::processUserInput(){
         } else if(command.compare("users") == 0){
             std::cout << "Users: " << std::endl;
             
+            CUserDB userDB;
+            
+            
+            std::vector<CFunctions::user_structure> users = userDB.getUsers();
+            for(int i = 0; i < users.size(); i++){
+                CFunctions::user_structure user = users.at(i);
+                std::cout << "  user: " << user.public_key << " " << user.balance << " sfr " << std::endl;
+            }
+            /*
             for(int i = 0; i < functions.users.size(); i++){
                 CFunctions::user_structure user = functions.users.at(i);
                 std::cout << "  user: " << user.public_key << " " << user.balance << " sfr " << std::endl;
                 // if current user publicKey mark
             }
-
+             */
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;
 	

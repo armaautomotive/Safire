@@ -41,7 +41,13 @@ public:
     
     void setUser(CFunctions::user_structure user);
     CFunctions::user_structure getUser(std::string public_key);
+    
+    std::vector<CFunctions::user_structure> getUsers();
+    
     void DeleteIndex();
+    
+    long getUserCount();
+    void setUserCount(long count);
     
     // depricate
     /*

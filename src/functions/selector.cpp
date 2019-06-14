@@ -14,6 +14,7 @@
 #include "global.h"
 #include <ctime>
 #include <curl/curl.h>
+#include "userdb.h"
 
 std::vector< std::string > CSelector::users;
 
@@ -59,6 +60,10 @@ void CSelector::syncronizeTime(){
     }
 }
 
+/**
+ *
+ *
+ */
 long CSelector::getCurrentTimeBlock(){
     time_t  timev;
     time(&timev);
@@ -70,10 +75,16 @@ long CSelector::getCurrentTimeBlock(){
 * isSelected
 *
 * Description: is a given user designated for the current time period.
+*       - a user can only be selected if they have a recent heartbeat, or there would be no other user?
+*
+* @param string users public key for identification.
 */
 bool CSelector::isSelected(std::string publicKey){
     //std::cout << " X " << users.size() <<  std::endl;
 
+    CUserDB userDb;
+    // userDb.GetUserCount();
+    
     if(users.size() == 0){ // not loaded yet
         return false;
     }
