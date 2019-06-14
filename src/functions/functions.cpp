@@ -10,6 +10,7 @@
 #include <sstream>
 #include "functions/selector.h"
 #include "blockdb.h"
+#include "userdb.h"
 #include "functions/chain.h"
 #include <boost/filesystem.hpp>
 #include <boost/range/iterator_range.hpp>
@@ -347,6 +348,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     CECDSACrypto ecdsa;
     CSelector selector;
     CBlockDB blockDB;
+    CUserDB userDB;
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
     int i = 1;
@@ -359,7 +361,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     
     // TODO: only start scanning at unprocessed sections of the chain.
     //firstBlockId = blockDB.getScannedBlockId();
-    long scannedBlockId = blockDB.getScannedBlockId();
+    long scannedBlockId = userDB.getScannedBlockId();
     if(scannedBlockId > 0){
         firstBlockId = scannedBlockId;
         //std::cout << "scannedBlockId " << scannedBlockId << " \n";
@@ -457,12 +459,12 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     // auto search = example.find(2);
                     //CFunctions::user_structure user = users_map.find( record.recipient_public_key );
                     
-                    CFunctions::user_structure user = blockDB.getUser(record.recipient_public_key);
+                    CFunctions::user_structure user = userDB.getUser(record.recipient_public_key);
                     if(user.public_key.compare(record.recipient_public_key) != 0){
                         user.public_key = record.recipient_public_key;
                     }
                     user.balance += record.amount;
-                    blockDB.setUser(user);
+                    userDB.setUser(user);
                     
                     
                     // DEPRICATE
@@ -604,7 +606,6 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 
                 
                 
-                
                 if(false){
                     std::cout << ANSI_COLOR_GREEN << "    [OK]" << ANSI_COLOR_RESET;
                 } else {
@@ -614,7 +615,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             }
             
             // Save in the DB an index to the last processed block.
-            blockDB.setScannedBlockId(block.number);
+            userDB.setScannedBlockId(block.number);
             
             block = blockDB.getNextBlock(block);
             

@@ -15,6 +15,7 @@
 #include "network/p2p.h"
 #include "network/relayclient.h"
 #include "blockdb.h"
+#include "userdb.h"
 
 /**
 * printCommands 
@@ -287,7 +288,8 @@ void CCLI::processUserInput(){
             std::cout << " Reindex: " << std::endl;
             
             CBlockDB blockDB;
-            blockDB.DeleteIndex();
+            CUserDB userDB;
+            userDB.DeleteIndex();
             
             functions.scanChain(publicKey, true); // debug true to show progress. perhaps add a progress bar/percentage output option later.
            

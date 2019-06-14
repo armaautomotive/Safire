@@ -17,6 +17,7 @@
 #include "functions/chain.h"
 #include "wallet.h"
 #include "blockdb.h"
+#include "userdb.h"
 #include "log.h"
 
 volatile bool isBuildingBlocks = true;
@@ -32,6 +33,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     CECDSACrypto ecdsa;
     CFunctions functions;
     CBlockDB blockDB;
+    CUserDB userDB;
     CRelayClient relayClient;
     CSelector selector;
     selector.syncronizeTime();
