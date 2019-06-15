@@ -72,16 +72,48 @@ long CSelector::getCurrentTimeBlock(){
 }
 
 /**
-* isSelected
-*
-* Description: is a given user designated for the current time period.
-*       - a user can only be selected if they have a recent heartbeat, or there would be no other user?
-*
-* @param string users public key for identification.
-*/
-bool CSelector::isSelected(std::string publicKey){
-    //std::cout << " X " << users.size() <<  std::endl;
+ * getSelectedUser
+ *
+ * Description: for a given time block, calculate and return the user key
+ *  assigned to generate the block.
+ *  Used to determine if a user is the current block creator and to validate past
+ *  block creators.
+ *
+ *  The selected user is a function of the block time as a hash to index from the
+ *  available users. Available users have a membership record in the chain and a heartbeat
+ *  record with a recent (DEFINE) block index indicating they are up to date and able to build
+ *  blocks.
+ *
+ * @param long time, defines which time block is being requested.
+ *          (current for new blocks and past for chain validation.)
+ * @return std::string user public key.
+ */
+std::string CSelector::getSelectedUser(long time){
+    CUserDB userDb;
+    long userCount = userDb.getUserCount();
+    
 
+    time_t timev;
+    //time(&timev);
+    
+    //long timeBlock = (long)(timev / 15); // 30 second blocks
+    //long userIndex = timeBlock % users.size();
+    
+    //std::string selectedUser = users.at(userIndex);
+    
+    return "";
+}
+
+/**
+ * isSelected -
+ *  DEPRICATE replace with or call getSelectedUser(time)
+ *
+ * Description: is a given user designated for the current time period.
+ *       - a user can only be selected if they have a recent heartbeat, or there would be no other user?
+ *
+ * @param string users public key for identification.
+ */
+bool CSelector::isSelected(std::string publicKey){
     CUserDB userDb;
     // userDb.GetUserCount();
     

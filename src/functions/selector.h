@@ -30,6 +30,7 @@ public:
 
     void syncronizeTime();
     bool isSelected(std::string publicKey);
+    std::string getSelectedUser(long time);
     long getCurrentTimeBlock();
     void addUser(std::string user);
 

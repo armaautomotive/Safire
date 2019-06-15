@@ -127,6 +127,13 @@ void CUserDB::setUser(CFunctions::user_structure user){
     keyStream << "u_" << user.public_key;
     ostringstream valueStream;
     
+    // If user does not exist count new one
+    std::string userJson;
+    db->Get(leveldb::ReadOptions(), keyStream.str(), &userJson);
+    if(userJson.length() == 0){
+        setUserCount(getUserCount() + 1);
+    }
+    
     std::string json = functions.userJSON(user);
     valueStream << json;
     db->Put(writeOptions, keyStream.str(), valueStream.str());
@@ -201,10 +208,10 @@ void CUserDB::DeleteIndex(){
     for (it->SeekToFirst(); it->Valid(); it->Next())
     {
         //cout << it->key().ToString() << " : " << it->value().ToString() << endl;
-        if( boost::starts_with(it->key().ToString(), "u_") ){
+        //if( boost::starts_with(it->key().ToString(), "u_") ){
             db->Delete(leveldb::WriteOptions(), it->key().ToString());
             cout << "Delete: " << it->key().ToString() << "\n";
-        }
+        //}
     }
     if (false == it->status().ok())
     {
@@ -215,6 +222,8 @@ void CUserDB::DeleteIndex(){
     
     // reset scan index.
     setScannedBlockId(0);
+    
+    setUserCount(0);
 }
 
 
@@ -224,17 +233,32 @@ void CUserDB::DeleteIndex(){
  * Description: retrieve user count.
  */
 long CUserDB::getUserCount(){
-    
-    
-    return 0;
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    std::string key = "user_count"; // boost::lexical_cast<std::string>(number);
+    std::string scannedBlockIdString;
+    db->Get(leveldb::ReadOptions(), key, &scannedBlockIdString);
+    long result = 0;
+    //std::stol(firstBlockId);
+    if(scannedBlockIdString.length() > 0){
+        result = boost::lexical_cast<long>(scannedBlockIdString);
+    }
+    return result;
 }
 
 /**
+ * setUserCount
  *
- *
+ * Description:
  */
 void CUserDB::setUserCount(long count){
-    
+    leveldb::WriteOptions writeOptions;
+    leveldb::DB* db = getDatabase();
+    ostringstream keyStream;
+    keyStream << "user_count";
+    ostringstream valueStream;
+    valueStream << boost::lexical_cast<std::string>(count);
+    db->Put(writeOptions, keyStream.str(), valueStream.str());
 }
 
 

@@ -310,6 +310,8 @@ void CCLI::processUserInput(){
             
             CUserDB userDB;
             
+            long count = userDB.getUserCount();
+            std::cout << "User count: " << count << std::endl;
             
             std::vector<CFunctions::user_structure> users = userDB.getUsers();
             for(int i = 0; i < users.size(); i++){
