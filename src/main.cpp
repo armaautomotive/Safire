@@ -42,6 +42,7 @@
 #include <ctime>
 #include "compression.h"
 #include "heartbeat.h"
+#include "carryforward.h"
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
@@ -87,6 +88,7 @@ int main(int argc, char* argv[])
     CFunctions functions;
     CBlockBuilder blockBuilder;
     CHeartbeat heartbeat;
+    CCarryforward carryforward;
     /*
     CFunctions::record_structure record;
     record.time = "2017/06/03";
@@ -234,6 +236,7 @@ int main(int argc, char* argv[])
     std::thread relayNetworkThread(&CRelayClient::relayNetworkThread, relayClient, argc, argv); 
 
     std::thread heartbeatThread(&CHeartbeat::heartbeatThread, heartbeat, argc, argv);
+    std::thread carryforwardThread(&CCarryforward::carryforwardThread, carryforward, argc, argv);
     
     CCLI cli;
     std::cout << std::endl; // Line break
@@ -243,8 +246,10 @@ int main(int argc, char* argv[])
     chain.writeFile();
     heartbeat.stop();
     blockBuilder.stop();
+    carryforward.stop();
     blockThread.join();
     heartbeatThread.join();
+    carryforwardThread.join();
     //p2p.exit();
     relayClient.exit();
     //p2pNetworkThread.join();

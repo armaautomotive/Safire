@@ -130,6 +130,7 @@ void CUserDB::setUser(CFunctions::user_structure user){
     // If user does not exist count new one
     std::string userJson;
     db->Get(leveldb::ReadOptions(), keyStream.str(), &userJson);
+    //std::cout << " XXX: " << userJson.length() << "\n";
     if(userJson.length() == 0){
         setUserCount(getUserCount() + 1);
     }
