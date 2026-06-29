@@ -415,6 +415,91 @@ std::map<std::string, std::string> accepted_member_names(CBlockDB& block_db)
   return names;
 }
 
+std::vector<CFunctions::record_structure> active_membership_records(CBlockDB& block_db)
+{
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  std::vector<CFunctions::record_structure> active_members;
+  if (first_block_id < 0 || latest_block_id < 0)
+  {
+    return active_members;
+  }
+
+  std::vector<CFunctions::record_structure> members;
+  std::map<std::string, long> latest_heartbeat_block_by_user;
+  std::map<std::string, std::string> name_owners;
+  bool saw_heartbeat = false;
+  CFunctions::block_structure block = block_db.getBlock(first_block_id);
+  int guard = 0;
+  while (block.number > 0 && guard < 100000)
+  {
+    for (int i = 0; i < block.records.size(); ++i)
+    {
+      CFunctions::record_structure record = block.records.at(i);
+      if (record.transaction_type == CFunctions::JOIN_NETWORK)
+      {
+        bool exists = false;
+        for (int m = 0; m < members.size(); ++m)
+        {
+          if (members.at(m).sender_public_key.compare(record.sender_public_key) == 0)
+          {
+            exists = true;
+          }
+        }
+        if (exists == false)
+        {
+          std::string requested_name = record.name;
+          record.name = "";
+          members.push_back(record);
+          if (requested_name.length() > 0)
+          {
+            claim_public_name(members, name_owners, record.sender_public_key, requested_name);
+          }
+        }
+      }
+      if (record.transaction_type == CFunctions::UPDATE_NAME &&
+          record.sender_public_key.length() > 0 &&
+          record.name.length() > 0)
+      {
+        claim_public_name(members, name_owners, record.sender_public_key, record.name);
+      }
+      if (record.transaction_type == CFunctions::HEART_BEAT &&
+          record.sender_public_key.length() > 0)
+      {
+        saw_heartbeat = true;
+        latest_heartbeat_block_by_user[record.sender_public_key] = block.number;
+      }
+    }
+
+    if (block.number == latest_block_id)
+    {
+      break;
+    }
+    CFunctions::block_structure next_block = block_db.getNextBlock(block);
+    if (next_block.number <= 0 || next_block.number == block.number)
+    {
+      break;
+    }
+    block = next_block;
+    ++guard;
+  }
+
+  CNetworkTime net_time;
+  long heartbeat_cutoff = (net_time.getEpoch() / 15) - CFunctions::HEARTBEAT_VALID_BLOCKS;
+  for (int i = 0; i < members.size(); ++i)
+  {
+    std::string member_key = members.at(i).sender_public_key;
+    if (saw_heartbeat == false ||
+        (latest_heartbeat_block_by_user.find(member_key) != latest_heartbeat_block_by_user.end() &&
+         latest_heartbeat_block_by_user[member_key] >= heartbeat_cutoff))
+    {
+      active_members.push_back(members.at(i));
+    }
+  }
+
+  return active_members;
+}
+
 bool public_name_available_for_owner(CBlockDB& block_db, const std::string& name, const std::string& owner_public_key)
 {
   std::string normalized = normalized_public_name(name);
@@ -878,11 +963,36 @@ void request_handler::handle_request(const request& req, reply& rep)
     CNetworkTime netTime;
     std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
     std::map<std::string, std::string> memberNames = accepted_member_names(blockDB);
+    std::vector<CFunctions::record_structure> activeMembers = active_membership_records(blockDB);
+    long currentTimeBlock = netTime.getEpoch() / 15;
+    long nextTimeBlock = currentTimeBlock + 1;
+    std::string currentCreator = "";
+    std::string nextCreator = "";
+    if (activeMembers.size() > 0)
+    {
+      currentCreator = activeMembers.at(currentTimeBlock % activeMembers.size()).sender_public_key;
+      nextCreator = activeMembers.at(nextTimeBlock % activeMembers.size()).sender_public_key;
+    }
+    long secondsUntilNextBlock = (nextTimeBlock * 15) - netTime.getEpoch();
+    if (secondsUntilNextBlock < 0)
+    {
+      secondsUntilNextBlock = 0;
+    }
 
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
     ss << "\"public_key\":\"" << publicKey << "\",";
     ss << "\"public_name\":\"" << json_escape(name_for_key(memberNames, publicKey)) << "\",";
+    ss << "\"active_member_count\":\"" << activeMembers.size() << "\",";
+    ss << "\"current_block_id\":\"" << currentTimeBlock << "\",";
+    ss << "\"current_block_creator\":\"" << json_escape(currentCreator) << "\",";
+    ss << "\"current_block_creator_name\":\"" << json_escape(name_for_key(memberNames, currentCreator)) << "\",";
+    ss << "\"current_block_creator_is_wallet\":\"" << (currentCreator.compare(publicKey) == 0 ? "yes" : "no") << "\",";
+    ss << "\"next_block_id\":\"" << nextTimeBlock << "\",";
+    ss << "\"next_block_creator\":\"" << json_escape(nextCreator) << "\",";
+    ss << "\"next_block_creator_name\":\"" << json_escape(name_for_key(memberNames, nextCreator)) << "\",";
+    ss << "\"next_block_creator_is_wallet\":\"" << (nextCreator.compare(publicKey) == 0 ? "yes" : "no") << "\",";
+    ss << "\"seconds_until_next_block\":\"" << secondsUntilNextBlock << "\",";
     ss << "\"balance\":\"" << functions.balance << "\",";
     ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
     ss << "\"joined\":\"" << (functions.joined ? "yes" : "no") << "\",";

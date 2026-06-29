@@ -158,6 +158,10 @@ MainWindow::MainWindow(QWidget *parent)
       m_syncLabel(0),
       m_syncProgressBar(0),
       m_peerLabel(0),
+      m_membershipJoinedLabel(0),
+      m_membershipHeartbeatLabel(0),
+      m_currentCreatorLabel(0),
+      m_nextCreatorLabel(0),
       m_supplyLabel(0),
       m_userCountLabel(0),
       m_blockCountLabel(0),
@@ -423,14 +427,25 @@ QWidget *MainWindow::createBalancePage()
     connect(historyNow, SIGNAL(clicked()), this, SLOT(showHistory()));
     connect(setNameNow, SIGNAL(clicked()), this, SLOT(setWalletName()));
 
-    QHBoxLayout *cards = new QHBoxLayout;
-    cards->setSpacing(14);
-    cards->addWidget(createAccountCard(tr("Main Account"), tr("0.9877 SFR"), tr("Default wallet account")));
-    cards->addWidget(createAccountCard(tr("Membership"), tr("Active"), tr("Eligible for future block selection")));
+    QFrame *membershipPanel = makePanel("AccountCard");
+    QGridLayout *membershipLayout = new QGridLayout(membershipPanel);
+    membershipLayout->setContentsMargins(18, 18, 18, 18);
+    membershipLayout->setSpacing(8);
+    membershipLayout->setColumnStretch(0, 1);
+    membershipLayout->setColumnStretch(1, 1);
+    membershipLayout->addWidget(makeLabel(tr("Membership"), "SmallTitle"), 0, 0, 1, 2);
+    m_membershipJoinedLabel = makeLabel(tr("Joined: -"), "Muted");
+    membershipLayout->addWidget(m_membershipJoinedLabel, 1, 0);
+    m_membershipHeartbeatLabel = makeLabel(tr("Heartbeat: -"), "Muted");
+    membershipLayout->addWidget(m_membershipHeartbeatLabel, 1, 1);
+    m_currentCreatorLabel = makeLabel(tr("Current block: -"), "Muted");
+    membershipLayout->addWidget(m_currentCreatorLabel, 2, 0, 1, 2);
+    m_nextCreatorLabel = makeLabel(tr("Next block: -"), "Muted");
+    membershipLayout->addWidget(m_nextCreatorLabel, 3, 0, 1, 2);
 
     layout->addWidget(summary);
     layout->addWidget(networkPanel);
-    layout->addLayout(cards);
+    layout->addWidget(membershipPanel);
     layout->addWidget(networkInfoPanel);
     layout->addStretch();
     return page;
@@ -1084,6 +1099,13 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString userCount = object.value("user_count").toString();
     QString blockCount = object.value("block_count").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
+    QString currentCreator = object.value("current_block_creator").toString();
+    QString currentCreatorName = object.value("current_block_creator_name").toString();
+    QString currentCreatorIsWallet = object.value("current_block_creator_is_wallet").toString();
+    QString nextCreator = object.value("next_block_creator").toString();
+    QString nextCreatorName = object.value("next_block_creator_name").toString();
+    QString nextCreatorIsWallet = object.value("next_block_creator_is_wallet").toString();
+    QString secondsUntilNext = object.value("seconds_until_next_block").toString();
     if (!publicKey.isEmpty()) {
         m_publicKey = publicKey;
     }
@@ -1111,7 +1133,31 @@ void MainWindow::applyWalletStatus(const QString &json)
         m_walletTitleLabel->setText(walletLabel.isEmpty() ? tr("Wallet") : tr("Wallet: %1").arg(walletLabel));
     }
     if (m_networkLabel) {
-        m_networkLabel->setText(tr("Joined: %1  Heartbeat: %2").arg(joined).arg(heartbeat));
+        m_networkLabel->setText(tr("Network up to date: %1").arg(sync));
+    }
+    if (m_membershipJoinedLabel) {
+        m_membershipJoinedLabel->setText(tr("Joined: %1").arg(joined));
+    }
+    if (m_membershipHeartbeatLabel) {
+        m_membershipHeartbeatLabel->setText(tr("Heartbeat: %1").arg(heartbeat));
+    }
+    if (m_currentCreatorLabel) {
+        if (currentCreator.isEmpty()) {
+            m_currentCreatorLabel->setText(tr("Current block: no active creator"));
+        } else if (currentCreatorIsWallet == "yes") {
+            m_currentCreatorLabel->setText(tr("Current block: this wallet"));
+        } else {
+            m_currentCreatorLabel->setText(tr("Current block: %1").arg(namedAccount(currentCreatorName, currentCreator)));
+        }
+    }
+    if (m_nextCreatorLabel) {
+        if (nextCreator.isEmpty()) {
+            m_nextCreatorLabel->setText(tr("Next block: no active creator"));
+        } else if (nextCreatorIsWallet == "yes") {
+            m_nextCreatorLabel->setText(tr("Next block: this wallet in %1s").arg(secondsUntilNext));
+        } else {
+            m_nextCreatorLabel->setText(tr("Next block: %1 in %2s").arg(namedAccount(nextCreatorName, nextCreator)).arg(secondsUntilNext));
+        }
     }
     if (m_syncLabel) {
         if (progressOk) {

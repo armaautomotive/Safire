@@ -107,6 +107,10 @@ private:
     QLabel *m_syncLabel;
     QProgressBar *m_syncProgressBar;
     QLabel *m_peerLabel;
+    QLabel *m_membershipJoinedLabel;
+    QLabel *m_membershipHeartbeatLabel;
+    QLabel *m_currentCreatorLabel;
+    QLabel *m_nextCreatorLabel;
     QLabel *m_supplyLabel;
     QLabel *m_userCountLabel;
     QLabel *m_blockCountLabel;
