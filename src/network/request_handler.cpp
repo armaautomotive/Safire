@@ -211,7 +211,7 @@ void request_handler::handle_request(const request& req, reply& rep)
       CFunctions::block_structure block = blocks.at(i);
       if (block.number > 0)
       {
-        blockDB.AddBlock(block);
+        bool blockAdded = blockDB.AddBlock(block);
         if (blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
         {
           blockDB.setFirstBlockId(block.number);
@@ -221,7 +221,7 @@ void request_handler::handle_request(const request& req, reply& rep)
         {
           blockDB.setLatestBlockId(connectedLatestBlockId);
         }
-        added = true;
+        added = blockAdded || added;
       }
     }
 

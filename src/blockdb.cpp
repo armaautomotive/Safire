@@ -133,7 +133,16 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         valueStream << block.number;
         std::string existingNextBlockId;
         db->Get(leveldb::ReadOptions(), keyStream.str(), &existingNextBlockId);
-        if(existingNextBlockId.length() == 0 || existingNextBlockId.compare(valueStream.str()) == 0){
+        bool shouldWriteNextIndex = existingNextBlockId.length() == 0 || existingNextBlockId.compare(valueStream.str()) == 0;
+        if(shouldWriteNextIndex == false){
+            long existingNextId = std::atol(existingNextBlockId.c_str());
+            CFunctions::block_structure existingNextBlock = getBlock(existingNextId);
+            if(existingNextBlock.number <= 0){
+                shouldWriteNextIndex = true;
+                log.log("Repair stale next-block index.\n");
+            }
+        }
+        if(shouldWriteNextIndex){
             db->Put(writeOptions, keyStream.str(), valueStream.str());
         }
     }
