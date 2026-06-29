@@ -162,6 +162,84 @@ std::string formatEpochTimeString(const std::string& epochString){
     return std::string(buffer);
 }
 
+std::string normalizedPublicName(const std::string& name){
+    if(name.length() < 3 || name.length() > 32){
+        return "";
+    }
+
+    std::string normalized;
+    for(int i = 0; i < name.length(); i++){
+        unsigned char ch = static_cast<unsigned char>(name.at(i));
+        if(std::isalnum(ch)){
+            normalized.push_back(static_cast<char>(std::tolower(ch)));
+        } else if(ch == '-' || ch == '_'){
+            normalized.push_back(static_cast<char>(ch));
+        } else {
+            return "";
+        }
+    }
+    return normalized;
+}
+
+bool isPublicNameValid(const std::string& name){
+    return normalizedPublicName(name).length() > 0;
+}
+
+int memberIndexByKey(const std::vector<CFunctions::record_structure>& members, const std::string& publicKey){
+    for(int i = 0; i < members.size(); i++){
+        if(members.at(i).sender_public_key.compare(publicKey) == 0){
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool claimPublicName(std::vector<CFunctions::record_structure>& members, std::map<std::string, std::string>& nameOwners, const std::string& publicKey, const std::string& name){
+    std::string normalized = normalizedPublicName(name);
+    if(normalized.length() == 0){
+        return false;
+    }
+
+    int memberIndex = memberIndexByKey(members, publicKey);
+    if(memberIndex < 0){
+        return false;
+    }
+
+    std::map<std::string, std::string>::iterator owner = nameOwners.find(normalized);
+    if(owner != nameOwners.end() && owner->second.compare(publicKey) != 0){
+        return false;
+    }
+
+    std::string previousName = normalizedPublicName(members.at(memberIndex).name);
+    if(previousName.length() > 0){
+        std::map<std::string, std::string>::iterator previousOwner = nameOwners.find(previousName);
+        if(previousOwner != nameOwners.end() && previousOwner->second.compare(publicKey) == 0){
+            nameOwners.erase(previousOwner);
+        }
+    }
+
+    members[memberIndex].name = name;
+    nameOwners[normalized] = publicKey;
+    return true;
+}
+
+bool publicNameAvailableForOwner(const std::string& name, const std::string& ownerPublicKey){
+    std::string normalized = normalizedPublicName(name);
+    if(normalized.length() == 0){
+        return false;
+    }
+
+    std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
+    for(int i = 0; i < members.size(); i++){
+        std::string memberName = normalizedPublicName(members.at(i).name);
+        if(memberName.compare(normalized) == 0 &&
+           members.at(i).sender_public_key.compare(ownerPublicKey) != 0){
+            return false;
+        }
+    }
+    return true;
+}
+
 std::map<std::string, std::string> acceptedMemberNames(){
     std::map<std::string, std::string> names;
     std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
@@ -323,6 +401,7 @@ std::vector<CFunctions::record_structure> acceptedMembershipRecords(){
     }
 
     CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    std::map<std::string, std::string> nameOwners;
     int guard = 0;
     while(block.number > 0 && guard < 100000){
         for(int i = 0; i < block.records.size(); i++){
@@ -335,17 +414,18 @@ std::vector<CFunctions::record_structure> acceptedMembershipRecords(){
                     }
                 }
                 if(exists == false){
+                    std::string requestedName = record.name;
+                    record.name = "";
                     members.push_back(record);
+                    if(requestedName.length() > 0){
+                        claimPublicName(members, nameOwners, record.sender_public_key, requestedName);
+                    }
                 }
             }
             if(record.transaction_type == CFunctions::UPDATE_NAME &&
                record.sender_public_key.length() > 0 &&
                record.name.length() > 0){
-                for(int m = 0; m < members.size(); m++){
-                    if(members.at(m).sender_public_key.compare(record.sender_public_key) == 0){
-                        members[m].name = record.name;
-                    }
-                }
+                claimPublicName(members, nameOwners, record.sender_public_key, record.name);
             }
         }
         if(block.number == latestBlockId){
@@ -592,6 +672,7 @@ std::vector<CFunctions::record_structure> activeMembershipRecords(){
     std::vector<CFunctions::record_structure> members;
     std::vector<CFunctions::record_structure> activeMembers;
     std::map<std::string, long> latestHeartbeatBlockByUser;
+    std::map<std::string, std::string> nameOwners;
     bool sawHeartbeat = false;
     if(firstBlockId < 0 || latestBlockId < 0){
         return activeMembers;
@@ -610,17 +691,18 @@ std::vector<CFunctions::record_structure> activeMembershipRecords(){
                     }
                 }
                 if(exists == false){
+                    std::string requestedName = record.name;
+                    record.name = "";
                     members.push_back(record);
+                    if(requestedName.length() > 0){
+                        claimPublicName(members, nameOwners, record.sender_public_key, requestedName);
+                    }
                 }
             }
             if(record.transaction_type == CFunctions::UPDATE_NAME &&
                record.sender_public_key.length() > 0 &&
                record.name.length() > 0){
-                for(int m = 0; m < members.size(); m++){
-                    if(members.at(m).sender_public_key.compare(record.sender_public_key) == 0){
-                        members[m].name = record.name;
-                    }
-                }
+                claimPublicName(members, nameOwners, record.sender_public_key, record.name);
             }
             if(record.transaction_type == CFunctions::HEART_BEAT &&
                record.sender_public_key.length() > 0){
@@ -1093,7 +1175,11 @@ void CCLI::processUserInput(){
             std::string userName;
             std::cin >> userName;
 
-			if(functions.joined == true){ // TODO this needs to track different networks.
+            if(isPublicNameValid(userName) == false){
+                std::cout << "Name not accepted. Use 3-32 characters: letters, numbers, dash, or underscore." << std::endl;
+            } else if(publicNameAvailableForOwner(userName, publicKey) == false){
+                std::cout << "Name not accepted. That public name is already taken." << std::endl;
+			} else if(functions.joined == true){ // TODO this needs to track different networks.
 				std::cout << "Allready joined network. \n" << std::endl;
 			} else {
 				std::cout << "Joining request sending... \n" << std::endl;
@@ -1132,8 +1218,10 @@ void CCLI::processUserInput(){
                 std::cout << "Enter new public user name: \n" << std::endl;
                 std::string userName;
                 std::cin >> userName;
-                if(userName.length() == 0){
-                    std::cout << "Name update not sent. Name is required." << std::endl;
+                if(isPublicNameValid(userName) == false){
+                    std::cout << "Name update not sent. Use 3-32 characters: letters, numbers, dash, or underscore." << std::endl;
+                } else if(publicNameAvailableForOwner(userName, publicKey) == false){
+                    std::cout << "Name update not sent. That public name is already taken." << std::endl;
                 } else {
                     CFunctions::record_structure nameRecord;
                     nameRecord.network = "main";
