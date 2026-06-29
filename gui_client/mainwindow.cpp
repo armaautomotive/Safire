@@ -465,6 +465,10 @@ MainWindow::MainWindow(QWidget *parent)
       m_historyRangeCombo(0),
       m_historyChart(0),
       m_walletHistoryRecords(),
+      m_historyPage(0),
+      m_historyPageLabel(0),
+      m_historyPrevButton(0),
+      m_historyNextButton(0),
       m_mempoolTable(0),
       m_blockchainSearchEdit(0),
       m_blockchainTable(0),
@@ -924,6 +928,12 @@ QWidget *MainWindow::createHistoryPage()
     QHBoxLayout *header = new QHBoxLayout;
     header->addWidget(createSectionTitle(tr("History")));
     header->addStretch();
+    m_historyPrevButton = createSecondaryButton(tr("Previous"));
+    m_historyPageLabel = makeLabel(tr("Page 1 of 1"), "Muted");
+    m_historyNextButton = createSecondaryButton(tr("Next"));
+    header->addWidget(m_historyPrevButton);
+    header->addWidget(m_historyPageLabel);
+    header->addWidget(m_historyNextButton);
     layout->addLayout(header);
 
     // Temporarily disabled: chart rendering is too expensive while history grows.
@@ -949,6 +959,8 @@ QWidget *MainWindow::createHistoryPage()
     layout->addWidget(m_historyTable, 1);
 
     // connect(m_historyRangeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(updateHistoryChart()));
+    connect(m_historyPrevButton, SIGNAL(clicked()), this, SLOT(previousHistoryPage()));
+    connect(m_historyNextButton, SIGNAL(clicked()), this, SLOT(nextHistoryPage()));
     return page;
 }
 
@@ -1178,7 +1190,81 @@ void MainWindow::appendHistory(const QString &date, const QString &type, const Q
         }
         m_historyTable->setItem(row, column, item);
     }
+}
+
+void MainWindow::renderHistoryPage()
+{
+    if (!m_historyTable) {
+        return;
+    }
+
+    const int pageSize = 50;
+    int totalRecords = m_walletHistoryRecords.size();
+    int pageCount = totalRecords > 0 ? ((totalRecords - 1) / pageSize) + 1 : 1;
+    if (m_historyPage < 0) {
+        m_historyPage = 0;
+    }
+    if (m_historyPage >= pageCount) {
+        m_historyPage = pageCount - 1;
+    }
+
+    m_historyTable->setUpdatesEnabled(false);
+    m_historyTable->setRowCount(0);
+    if (totalRecords == 0) {
+        appendHistory(tr("-"), tr("History"), tr("Wallet"), tr("-"), tr("No records"));
+    } else {
+        int start = totalRecords - 1 - (m_historyPage * pageSize);
+        int end = start - pageSize + 1;
+        if (end < 0) {
+            end = 0;
+        }
+
+        for (int i = start; i >= end; --i) {
+            QJsonObject record = m_walletHistoryRecords.at(i).toObject();
+
+            QString timeValue = record.value("time").toString();
+            bool timeOk = false;
+            qint64 epoch = timeValue.toLongLong(&timeOk);
+            QString date = timeValue;
+            if (timeOk && epoch > 0) {
+                date = QDateTime::fromSecsSinceEpoch(epoch).toString("yyyy-MM-dd HH:mm");
+            }
+            if (date.isEmpty()) {
+                date = tr("-");
+            }
+
+            QString direction = record.value("direction").toString();
+            QString fromAccount = namedAccount(record.value("from_name").toString(), record.value("from_key").toString());
+            QString toAccount = namedAccount(record.value("to_name").toString(), record.value("to_key").toString());
+            QString account = tr("From: %1\nTo: %2").arg(fromAccount).arg(toAccount);
+
+            bool netOk = false;
+            double netAmount = record.value("net").toString().toDouble(&netOk);
+            QString amount = netOk ? formatSfrAmount(netAmount) : record.value("net").toString();
+
+            QString block = record.value("block").toString();
+            QString index = record.value("index").toString();
+            QString status = tr("Block %1 #%2").arg(block).arg(index);
+
+            appendHistory(date, direction, account, amount, status);
+        }
+    }
+
     m_historyTable->resizeRowsToContents();
+    m_historyTable->setUpdatesEnabled(true);
+
+    if (m_historyPageLabel) {
+        m_historyPageLabel->setText(tr("Page %1 of %2 (%3 records)")
+                                    .arg(m_historyPage + 1)
+                                    .arg(pageCount)
+                                    .arg(totalRecords));
+    }
+    if (m_historyPrevButton) {
+        m_historyPrevButton->setEnabled(m_historyPage > 0);
+    }
+    if (m_historyNextButton) {
+        m_historyNextButton->setEnabled(m_historyPage + 1 < pageCount);
+    }
 }
 
 void MainWindow::appendContact(const QString &name, const QString &address)
@@ -1636,8 +1722,19 @@ void MainWindow::applyWalletHistory(const QString &json)
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         m_historyTable->setRowCount(0);
         m_walletHistoryRecords = QJsonArray();
+        m_historyPage = 0;
         // updateHistoryChart();
         appendHistory(tr("-"), tr("Error"), tr("Wallet history"), tr("-"), tr("Invalid response"));
+        if (m_historyPageLabel) {
+            m_historyPageLabel->setText(tr("Page 1 of 1 (0 records)"));
+        }
+        if (m_historyPrevButton) {
+            m_historyPrevButton->setEnabled(false);
+        }
+        if (m_historyNextButton) {
+            m_historyNextButton->setEnabled(false);
+        }
+        m_historyTable->resizeRowsToContents();
         return;
     }
 
@@ -1645,49 +1742,29 @@ void MainWindow::applyWalletHistory(const QString &json)
     if (object.value("status").toString() != "ok") {
         m_historyTable->setRowCount(0);
         m_walletHistoryRecords = QJsonArray();
+        m_historyPage = 0;
         // updateHistoryChart();
         appendHistory(tr("-"), tr("Status"), tr("Wallet history"), tr("-"), object.value("status").toString());
+        if (m_historyPageLabel) {
+            m_historyPageLabel->setText(tr("Page 1 of 1 (0 records)"));
+        }
+        if (m_historyPrevButton) {
+            m_historyPrevButton->setEnabled(false);
+        }
+        if (m_historyNextButton) {
+            m_historyNextButton->setEnabled(false);
+        }
+        m_historyTable->resizeRowsToContents();
         return;
     }
 
     QJsonArray records = object.value("records").toArray();
     m_walletHistoryRecords = records;
+    if (m_historyPage * 50 >= records.size()) {
+        m_historyPage = 0;
+    }
     // updateHistoryChart();
-    m_historyTable->setRowCount(0);
-    if (records.isEmpty()) {
-        appendHistory(tr("-"), tr("History"), tr("Wallet"), tr("-"), tr("No records"));
-        return;
-    }
-
-    for (int i = 0; i < records.size(); ++i) {
-        QJsonObject record = records.at(i).toObject();
-
-        QString timeValue = record.value("time").toString();
-        bool timeOk = false;
-        qint64 epoch = timeValue.toLongLong(&timeOk);
-        QString date = timeValue;
-        if (timeOk && epoch > 0) {
-            date = QDateTime::fromSecsSinceEpoch(epoch).toString("yyyy-MM-dd HH:mm");
-        }
-        if (date.isEmpty()) {
-            date = tr("-");
-        }
-
-        QString direction = record.value("direction").toString();
-        QString fromAccount = namedAccount(record.value("from_name").toString(), record.value("from_key").toString());
-        QString toAccount = namedAccount(record.value("to_name").toString(), record.value("to_key").toString());
-        QString account = tr("From: %1\nTo: %2").arg(fromAccount).arg(toAccount);
-
-        bool netOk = false;
-        double netAmount = record.value("net").toString().toDouble(&netOk);
-        QString amount = netOk ? formatSfrAmount(netAmount) : record.value("net").toString();
-
-        QString block = record.value("block").toString();
-        QString index = record.value("index").toString();
-        QString status = tr("Block %1 #%2").arg(block).arg(index);
-
-        appendHistory(date, direction, account, amount, status);
-    }
+    renderHistoryPage();
 }
 
 void MainWindow::applyMempool(const QString &json)
@@ -1998,6 +2075,24 @@ void MainWindow::showHistory()
     m_contentStack->setCurrentIndex(4);
     setActiveNav(m_historyButton);
     refreshWalletStatus();
+}
+
+void MainWindow::previousHistoryPage()
+{
+    if (m_historyPage > 0) {
+        --m_historyPage;
+        renderHistoryPage();
+    }
+}
+
+void MainWindow::nextHistoryPage()
+{
+    const int pageSize = 50;
+    int pageCount = m_walletHistoryRecords.size() > 0 ? ((m_walletHistoryRecords.size() - 1) / pageSize) + 1 : 1;
+    if (m_historyPage + 1 < pageCount) {
+        ++m_historyPage;
+        renderHistoryPage();
+    }
 }
 
 void MainWindow::showMempool()

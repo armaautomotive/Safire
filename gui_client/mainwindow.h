@@ -47,6 +47,8 @@ private slots:
     void copyReceiveAddress();
     void submitPayment();
     void setWalletName();
+    void previousHistoryPage();
+    void nextHistoryPage();
     void filterNetworkUsers(const QString &text);
     void filterBlockchainBlocks(const QString &text);
     void updateHistoryChart();
@@ -84,6 +86,7 @@ private:
     QLabel *createSectionTitle(const QString &text);
     void appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status);
     void appendTerminalText(const QString &text);
+    void renderHistoryPage();
     void applyWalletStatus(const QString &json);
     void applyWalletHistory(const QString &json);
     void applyMempool(const QString &json);
@@ -135,6 +138,10 @@ private:
     QComboBox *m_historyRangeCombo;
     HistoryChartWidget *m_historyChart;
     QJsonArray m_walletHistoryRecords;
+    int m_historyPage;
+    QLabel *m_historyPageLabel;
+    QPushButton *m_historyPrevButton;
+    QPushButton *m_historyNextButton;
     QTableWidget *m_mempoolTable;
     QLineEdit *m_blockchainSearchEdit;
     QTableWidget *m_blockchainTable;
