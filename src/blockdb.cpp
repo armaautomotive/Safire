@@ -33,6 +33,67 @@ bool preferBlockVariant(const CFunctions::block_structure& candidate, const CFun
     return candidate.hash.compare(current.hash) < 0;
 }
 
+bool childConnectsToParent(const CFunctions::block_structure& child, const CFunctions::block_structure& parent){
+    if(child.number <= 0 || parent.number <= 0){
+        return false;
+    }
+    if(child.previous_block_id != parent.number){
+        return false;
+    }
+    if(child.previous_block_id >= child.number){
+        return false;
+    }
+    if(child.previous_block_hash.length() == 0 || parent.hash.length() == 0){
+        return true;
+    }
+    return child.previous_block_hash.compare(parent.hash) == 0;
+}
+
+bool preferChainChild(
+    const CFunctions::block_structure& candidate,
+    const CFunctions::block_structure& current,
+    const std::map<std::string, long>& bestLengthByHash,
+    const std::map<std::string, long>& bestTipByHash
+){
+    if(current.number <= 0){
+        return true;
+    }
+
+    long candidateLength = 1;
+    std::map<std::string, long>::const_iterator candidateLengthIt = bestLengthByHash.find(candidate.hash);
+    if(candidateLengthIt != bestLengthByHash.end()){
+        candidateLength = candidateLengthIt->second;
+    }
+
+    long currentLength = 1;
+    std::map<std::string, long>::const_iterator currentLengthIt = bestLengthByHash.find(current.hash);
+    if(currentLengthIt != bestLengthByHash.end()){
+        currentLength = currentLengthIt->second;
+    }
+
+    if(candidateLength != currentLength){
+        return candidateLength > currentLength;
+    }
+
+    long candidateTip = candidate.number;
+    std::map<std::string, long>::const_iterator candidateTipIt = bestTipByHash.find(candidate.hash);
+    if(candidateTipIt != bestTipByHash.end()){
+        candidateTip = candidateTipIt->second;
+    }
+
+    long currentTip = current.number;
+    std::map<std::string, long>::const_iterator currentTipIt = bestTipByHash.find(current.hash);
+    if(currentTipIt != bestTipByHash.end()){
+        currentTip = currentTipIt->second;
+    }
+
+    if(candidateTip != currentTip){
+        return candidateTip > currentTip;
+    }
+
+    return preferBlockVariant(candidate, current);
+}
+
 std::string forkBlockKey(const CFunctions::block_structure& block){
     std::stringstream ss;
     ss << "slot:" << block.number << ":" << block.hash;
@@ -406,21 +467,36 @@ long CBlockDB::rebuildBestChainIndex(){
         return -1;
     }
 
-    std::map<long, CFunctions::block_structure> blockByNumber;
-    std::map<long, std::vector<CFunctions::block_structure> > childrenByParent;
+    std::map<std::string, CFunctions::block_structure> blockByHash;
+    std::map<std::string, std::vector<CFunctions::block_structure> > childrenByParentHash;
+    std::vector<CFunctions::block_structure> genesisCandidates;
     for(int i = 0; i < blocks.size(); i++){
         CFunctions::block_structure block = blocks.at(i);
-        if(preferBlockVariant(block, blockByNumber[block.number])){
-            blockByNumber[block.number] = block;
+        if(block.hash.length() == 0){
+            continue;
+        }
+        blockByHash[block.hash] = block;
+        if(block.number == firstBlockId && block.previous_block_id <= 0){
+            genesisCandidates.push_back(block);
         }
     }
 
-    blocks.clear();
-    for(std::map<long, CFunctions::block_structure>::iterator it = blockByNumber.begin(); it != blockByNumber.end(); ++it){
-        CFunctions::block_structure block = it->second;
-        blocks.push_back(block);
-        if(block.previous_block_id > 0 && block.previous_block_id < block.number){
-            childrenByParent[block.previous_block_id].push_back(block);
+    for(int i = 0; i < blocks.size(); i++){
+        CFunctions::block_structure block = blocks.at(i);
+        if(block.hash.length() == 0 || block.previous_block_hash.length() == 0){
+            continue;
+        }
+        std::map<std::string, CFunctions::block_structure>::iterator parent = blockByHash.find(block.previous_block_hash);
+        if(parent != blockByHash.end() && childConnectsToParent(block, parent->second)){
+            childrenByParentHash[block.previous_block_hash].push_back(block);
+        }
+    }
+
+    if(genesisCandidates.size() == 0){
+        CFunctions::block_structure firstBlock = getBlock(firstBlockId);
+        if(firstBlock.number > 0){
+            genesisCandidates.push_back(firstBlock);
+            blockByHash[firstBlock.hash] = firstBlock;
         }
     }
 
@@ -429,52 +505,69 @@ long CBlockDB::rebuildBestChainIndex(){
             return a.number > b.number;
         });
 
-    std::map<long, long> bestTipByBlock;
-    std::map<long, long> bestLengthByBlock;
-    std::map<long, long> bestChildByBlock;
+    std::map<std::string, long> bestTipByHash;
+    std::map<std::string, long> bestLengthByHash;
+    std::map<std::string, std::string> bestChildByHash;
     for(int i = 0; i < blocks.size(); i++){
         CFunctions::block_structure block = blocks.at(i);
+        if(block.hash.length() == 0){
+            continue;
+        }
         long bestTip = block.number;
         long bestLength = 1;
-        long bestChild = -1;
-        std::vector<CFunctions::block_structure> children = childrenByParent[block.number];
+        CFunctions::block_structure bestChild;
+        bestChild.number = -1;
+        std::vector<CFunctions::block_structure> children = childrenByParentHash[block.hash];
         for(int c = 0; c < children.size(); c++){
             CFunctions::block_structure child = children.at(c);
             long childTip = child.number;
-            if(bestTipByBlock.find(child.number) != bestTipByBlock.end()){
-                childTip = bestTipByBlock[child.number];
+            if(bestTipByHash.find(child.hash) != bestTipByHash.end()){
+                childTip = bestTipByHash[child.hash];
             }
             long childLength = 1;
-            if(bestLengthByBlock.find(child.number) != bestLengthByBlock.end()){
-                childLength = bestLengthByBlock[child.number];
+            if(bestLengthByHash.find(child.hash) != bestLengthByHash.end()){
+                childLength = bestLengthByHash[child.hash];
             }
             long candidateLength = childLength + 1;
             if(candidateLength > bestLength ||
                (candidateLength == bestLength && childTip > bestTip) ||
-               (candidateLength == bestLength && childTip == bestTip && (bestChild < 0 || child.number < bestChild))){
+               (candidateLength == bestLength && childTip == bestTip && preferBlockVariant(child, bestChild))){
                 bestTip = childTip;
                 bestLength = candidateLength;
-                bestChild = child.number;
+                bestChild = child;
             }
         }
-        bestTipByBlock[block.number] = bestTip;
-        bestLengthByBlock[block.number] = bestLength;
-        if(bestChild > 0){
-            bestChildByBlock[block.number] = bestChild;
+        bestTipByHash[block.hash] = bestTip;
+        bestLengthByHash[block.hash] = bestLength;
+        if(bestChild.number > 0){
+            bestChildByHash[block.hash] = bestChild.hash;
         }
     }
 
-    long latestBestBlockId = firstBlockId;
+    CFunctions::block_structure bestGenesis;
+    bestGenesis.number = -1;
+    for(int i = 0; i < genesisCandidates.size(); i++){
+        CFunctions::block_structure candidate = genesisCandidates.at(i);
+        if(preferChainChild(candidate, bestGenesis, bestLengthByHash, bestTipByHash)){
+            bestGenesis = candidate;
+        }
+    }
+    if(bestGenesis.number <= 0 || bestGenesis.hash.length() == 0){
+        return -1;
+    }
+
+    long latestBestBlockId = bestGenesis.number;
     long bestChainBlockCount = 0;
-    long currentBlockId = firstBlockId;
+    std::string currentBlockHash = bestGenesis.hash;
     int guard = 0;
-    while(currentBlockId > 0 && guard < 100000){
-        latestBestBlockId = currentBlockId;
+    while(currentBlockHash.length() > 0 && guard < 100000){
+        CFunctions::block_structure currentBlock = blockByHash[currentBlockHash];
+        latestBestBlockId = currentBlock.number;
         bestChainBlockCount++;
-        if(bestChildByBlock.find(currentBlockId) == bestChildByBlock.end()){
+        if(bestChildByHash.find(currentBlockHash) == bestChildByHash.end()){
             break;
         }
-        currentBlockId = bestChildByBlock[currentBlockId];
+        currentBlockHash = bestChildByHash[currentBlockHash];
         guard++;
     }
 
@@ -499,28 +592,28 @@ long CBlockDB::rebuildBestChainIndex(){
         db->Delete(writeOptions, nextIndexKeys.at(i));
     }
 
-    currentBlockId = firstBlockId;
+    currentBlockHash = bestGenesis.hash;
     guard = 0;
-    while(currentBlockId > 0 && guard < 100000){
-        if(blockByNumber.find(currentBlockId) != blockByNumber.end()){
-            ostringstream blockKeyStream;
-            blockKeyStream << "b_" << currentBlockId;
-            CFunctions functions;
-            CFunctions::block_structure canonicalBlock = blockByNumber[currentBlockId];
-            db->Put(writeOptions, canonicalHashKey(currentBlockId), canonicalBlock.hash);
-            db->Put(writeOptions, blockHashKey(canonicalBlock.hash), functions.blockJSON(canonicalBlock));
-            db->Put(writeOptions, blockKeyStream.str(), functions.blockJSON(canonicalBlock));
-        }
-        if(bestChildByBlock.find(currentBlockId) == bestChildByBlock.end()){
+    while(currentBlockHash.length() > 0 && guard < 100000){
+        CFunctions functions;
+        CFunctions::block_structure canonicalBlock = blockByHash[currentBlockHash];
+        ostringstream blockKeyStream;
+        blockKeyStream << "b_" << canonicalBlock.number;
+        db->Put(writeOptions, canonicalHashKey(canonicalBlock.number), canonicalBlock.hash);
+        db->Put(writeOptions, blockHashKey(canonicalBlock.hash), functions.blockJSON(canonicalBlock));
+        db->Put(writeOptions, blockKeyStream.str(), functions.blockJSON(canonicalBlock));
+
+        if(bestChildByHash.find(currentBlockHash) == bestChildByHash.end()){
             break;
         }
-        long childBlockId = bestChildByBlock[currentBlockId];
+        std::string childHash = bestChildByHash[currentBlockHash];
+        CFunctions::block_structure childBlock = blockByHash[childHash];
         ostringstream keyStream;
-        keyStream << "next_block_" << currentBlockId;
+        keyStream << "next_block_" << canonicalBlock.number;
         ostringstream valueStream;
-        valueStream << childBlockId;
+        valueStream << childBlock.number;
         db->Put(writeOptions, keyStream.str(), valueStream.str());
-        currentBlockId = childBlockId;
+        currentBlockHash = childHash;
         guard++;
     }
 
@@ -696,9 +789,30 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
  *
  * Description: get the next block in the chain.
  */
+CFunctions::block_structure CBlockDB::getNextBlockByHash(CFunctions::block_structure block){
+    CFunctions::block_structure nextBlock;
+    nextBlock.number = -1;
+    if(block.number <= 0 || block.hash.length() == 0){
+        return nextBlock;
+    }
+
+    std::vector<CFunctions::block_structure> blocks = getStoredBlocks();
+    for(int i = 0; i < blocks.size(); i++){
+        CFunctions::block_structure candidate = blocks.at(i);
+        if(childConnectsToParent(candidate, block) && preferBlockVariant(candidate, nextBlock)){
+            nextBlock = candidate;
+        }
+    }
+    return nextBlock;
+}
+
 CFunctions::block_structure CBlockDB::getNextBlock(CFunctions::block_structure block){
     long nextId = getNextBlockId(block.number);
     CFunctions::block_structure nextBlock = getBlock(nextId);
+    if(nextBlock.number > 0 && childConnectsToParent(nextBlock, block)){
+        return nextBlock;
+    }
+    nextBlock = getNextBlockByHash(block);
     return nextBlock;
 }
 

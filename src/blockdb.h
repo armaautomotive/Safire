@@ -42,6 +42,7 @@ public:
     long getConnectedLatestBlockId();
     long rebuildBestChainIndex();
     long getNextBlockId(long previousBlockId);
+    CFunctions::block_structure getNextBlockByHash(CFunctions::block_structure block);
     CFunctions::block_structure getNextBlock(CFunctions::block_structure block);
     
     void GetBlocks();

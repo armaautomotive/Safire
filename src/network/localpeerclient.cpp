@@ -103,15 +103,20 @@ bool storeBlock(const CFunctions::block_structure& block)
         return false;
     }
 
-    blockDB.AddBlock(block);
+    bool added = blockDB.AddBlock(block);
     if (blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0) {
         blockDB.setFirstBlockId(block.number);
     }
-    long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
-    if (connectedLatestBlockId > -1) {
-        blockDB.setLatestBlockId(connectedLatestBlockId);
+    if (added) {
+        long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
+        if (repairedLatestBlockId < 0) {
+            long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
+            if (connectedLatestBlockId > -1) {
+                blockDB.setLatestBlockId(connectedLatestBlockId);
+            }
+        }
     }
-    return true;
+    return added;
 }
 
 bool storeBlocks(const std::string& blockJson)
@@ -179,6 +184,58 @@ long latestBlockFromStatus(const std::string& statusJson)
     return functions.parseSectionLong(statusJson, "\"latest_block_id\":\"", "\"");
 }
 
+std::string latestBlockHashFromStatus(const std::string& statusJson)
+{
+    if (statusJson.find("\"latest_block_hash\":\"") == std::string::npos) {
+        return "";
+    }
+    CFunctions functions;
+    return functions.parseSectionString(statusJson, "\"latest_block_hash\":\"", "\"");
+}
+
+bool pullPeerCanonicalChain(const std::string& peer, long peerLatestBlockId, int maxBlocksPerSync, bool& changed)
+{
+    std::string response = httpGet(peer + "/api/blocks/first");
+    if (response.empty()) {
+        return false;
+    }
+
+    CFunctions functions;
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(response);
+    if (blocks.empty()) {
+        return false;
+    }
+
+    CFunctions::block_structure peerBlock = blocks.at(0);
+    if (peerBlock.number <= 0 || peerBlock.hash.empty()) {
+        return false;
+    }
+
+    changed = storeBlock(peerBlock) || changed;
+    int received = 1;
+    while (peerBlock.number > 0 && peerBlock.number < peerLatestBlockId && received < maxBlocksPerSync) {
+        response = httpGet(peer + "/api/blocks/after-hash/" + peerBlock.hash);
+        if (response.empty()) {
+            return received > 1;
+        }
+
+        blocks = functions.parseBlockJson(response);
+        if (blocks.empty()) {
+            return received > 1;
+        }
+
+        peerBlock = blocks.at(0);
+        if (peerBlock.number <= 0 || peerBlock.hash.empty()) {
+            return received > 1;
+        }
+
+        changed = storeBlock(peerBlock) || changed;
+        received++;
+    }
+
+    return received > 0;
+}
+
 }
 
 void CLocalPeerClient::setPeers(const std::vector<std::string>& peerUrls)
@@ -229,13 +286,20 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
-    long peerLatestBlockId = getPeerLatestBlockId(peer);
+    std::string peerStatus = httpGet(peer + "/api/status");
+    long peerLatestBlockId = latestBlockFromStatus(peerStatus);
+    std::string peerLatestBlockHash = latestBlockHashFromStatus(peerStatus);
 
     if (peerLatestBlockId < 0) {
         return false;
     }
 
     if (peerLatestBlockId > -1 && latestBlockId >= peerLatestBlockId) {
+        CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
+        if (peerLatestBlockHash.length() > 0 && latestBlock.hash.compare(peerLatestBlockHash) != 0) {
+            pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
+            return changed;
+        }
         return false;
     }
 
@@ -251,13 +315,25 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
             break;
         }
 
+        long beforeLatestBlockId = latestBlockId;
+        CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
         std::string path = "/api/blocks/after/" + boost::lexical_cast<std::string>(latestBlockId);
+        if (latestBlock.hash.length() > 0) {
+            path = "/api/blocks/after-hash/" + latestBlock.hash;
+        }
         std::string response = httpGet(peer + path);
+        if (response.empty() && latestBlock.hash.length() > 0) {
+            response = httpGet(peer + "/api/blocks/after/" + boost::lexical_cast<std::string>(latestBlockId));
+        }
         if (response.empty()) {
+            pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
+            latestBlockId = blockDB.getLatestBlockId();
+            if (latestBlockId > beforeLatestBlockId) {
+                continue;
+            }
             break;
         }
 
-        long beforeLatestBlockId = latestBlockId;
         bool sawBlock = false;
         CFunctions functions;
         std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(response);

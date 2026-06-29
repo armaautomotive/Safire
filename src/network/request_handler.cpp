@@ -150,10 +150,16 @@ void request_handler::handle_request(const request& req, reply& rep)
 
   if (request_path == "/api/status")
   {
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
+    CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
-    ss << "\"first_block_id\":\"" << blockDB.getFirstBlockId() << "\",";
-    ss << "\"latest_block_id\":\"" << blockDB.getLatestBlockId() << "\"}";
+    ss << "\"first_block_id\":\"" << firstBlockId << "\",";
+    ss << "\"first_block_hash\":\"" << firstBlock.hash << "\",";
+    ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
+    ss << "\"latest_block_hash\":\"" << latestBlock.hash << "\"}";
     text_reply(rep, reply::ok, ss.str(), "application/json");
     return;
   }
@@ -241,7 +247,9 @@ void request_handler::handle_request(const request& req, reply& rep)
   }
 
   std::string blockPrefix = "/api/blocks/";
-  if (request_path.find(blockPrefix) == 0 && request_path.find("/api/blocks/after/") != 0)
+  if (request_path.find(blockPrefix) == 0
+      && request_path.find("/api/blocks/after/") != 0
+      && request_path.find("/api/blocks/after-hash/") != 0)
   {
     std::string blockNumberString = request_path.substr(blockPrefix.length());
     long blockNumber = ::atol(blockNumberString.c_str());
@@ -269,6 +277,28 @@ void request_handler::handle_request(const request& req, reply& rep)
     }
 
     CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+    if (nextBlock.number <= 0 || nextBlock.number == block.number)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    text_reply(rep, reply::ok, functions.blockJSON(nextBlock), "application/json");
+    return;
+  }
+
+  std::string blockAfterHashPrefix = "/api/blocks/after-hash/";
+  if (request_path.find(blockAfterHashPrefix) == 0)
+  {
+    std::string blockHash = request_path.substr(blockAfterHashPrefix.length());
+    CFunctions::block_structure block = blockDB.getBlockByHash(blockHash);
+    if (block.number <= 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    CFunctions::block_structure nextBlock = blockDB.getNextBlockByHash(block);
     if (nextBlock.number <= 0 || nextBlock.number == block.number)
     {
       text_reply(rep, reply::not_found, "", "text/plain");
