@@ -18,6 +18,7 @@
 #include <iostream>
 #include <set>
 #include "log.h"
+#include "functions/ledgerstate.h"
 
 namespace {
 
@@ -921,8 +922,17 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             }
         }
 
-        // Update balance variable
-        balance = updatedBalance;
+        CLedgerState::state ledgerState = CLedgerState::build(blockDB, my_public_key);
+        balance = ledgerState.wallet_balance;
+        currency_circulation = ledgerState.issued_supply;
+        user_count = ledgerState.members.size();
+        joined = ledgerState.joined;
+        active_heartbeat = ledgerState.active_heartbeat;
+        heartbeat_renewal_due = ledgerState.heartbeat_renewal_due;
+        chain_has_heartbeat_records = ledgerState.chain_has_heartbeat_records;
+        last_heartbeat_block = ledgerState.last_heartbeat_block;
+        latest_block = ledgerState.latest_block;
+        CSelector::users = ledgerState.active_member_keys;
     }
 }
 

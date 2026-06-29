@@ -28,6 +28,7 @@
 #include "wallet.h"
 #include "blockdb.h"
 #include "functions/functions.h"
+#include "functions/ledgerstate.h"
 #include "network/localpeerclient.h"
 #include "network/relayclient.h"
 #include "networkconfig.h"
@@ -368,160 +369,37 @@ bool claim_public_name(std::vector<CFunctions::record_structure>& members,
 
 std::vector<CFunctions::record_structure> accepted_membership_records(CBlockDB& block_db)
 {
-  long first_block_id = block_db.getFirstBlockId();
-  long latest_block_id = block_db.getLatestBlockId();
   std::vector<CFunctions::record_structure> members;
-  if (first_block_id < 0 || latest_block_id < 0)
+  CLedgerState::state ledger_state = CLedgerState::build(block_db);
+  for (int i = 0; i < ledger_state.members.size(); ++i)
   {
-    return members;
-  }
-
-  CFunctions::block_structure block = block_db.getBlock(first_block_id);
-  std::map<std::string, std::string> name_owners;
-  int guard = 0;
-  while (block.number > 0 && guard < 100000)
-  {
-    for (int i = 0; i < block.records.size(); ++i)
-    {
-      CFunctions::record_structure record = block.records.at(i);
-      if (record.transaction_type == CFunctions::JOIN_NETWORK)
-      {
-        bool exists = false;
-        for (int m = 0; m < members.size(); ++m)
-        {
-          if (members.at(m).sender_public_key.compare(record.sender_public_key) == 0)
-          {
-            exists = true;
-          }
-        }
-        if (exists == false)
-        {
-          std::string requested_name = record.name;
-          record.name = "";
-          members.push_back(record);
-          if (requested_name.length() > 0)
-          {
-            claim_public_name(members, name_owners, record.sender_public_key, requested_name);
-          }
-        }
-      }
-      if (record.transaction_type == CFunctions::UPDATE_NAME &&
-          record.sender_public_key.length() > 0 &&
-          record.name.length() > 0)
-      {
-        claim_public_name(members, name_owners, record.sender_public_key, record.name);
-      }
-    }
-
-    if (block.number == latest_block_id)
-    {
-      break;
-    }
-    CFunctions::block_structure next_block = block_db.getNextBlock(block);
-    if (next_block.number <= 0 || next_block.number == block.number)
-    {
-      break;
-    }
-    block = next_block;
-    ++guard;
+    CFunctions::record_structure member;
+    member.transaction_type = CFunctions::JOIN_NETWORK;
+    member.sender_public_key = ledger_state.members.at(i).public_key;
+    member.name = ledger_state.members.at(i).name;
+    members.push_back(member);
   }
   return members;
 }
 
 std::map<std::string, std::string> accepted_member_names(CBlockDB& block_db)
 {
-  std::map<std::string, std::string> names;
-  std::vector<CFunctions::record_structure> members = accepted_membership_records(block_db);
-  for (int i = 0; i < members.size(); ++i)
-  {
-    CFunctions::record_structure member = members.at(i);
-    if (member.sender_public_key.length() > 0 && member.name.length() > 0)
-    {
-      names[member.sender_public_key] = member.name;
-    }
-  }
-  return names;
+  return CLedgerState::build(block_db).names;
 }
 
 std::vector<CFunctions::record_structure> active_membership_records(CBlockDB& block_db)
 {
-  long first_block_id = block_db.getFirstBlockId();
-  long latest_block_id = block_db.getLatestBlockId();
   std::vector<CFunctions::record_structure> active_members;
-  if (first_block_id < 0 || latest_block_id < 0)
+  CLedgerState::state ledger_state = CLedgerState::build(block_db);
+  for (int i = 0; i < ledger_state.members.size(); ++i)
   {
-    return active_members;
-  }
-
-  std::vector<CFunctions::record_structure> members;
-  std::map<std::string, long> latest_heartbeat_block_by_user;
-  std::map<std::string, std::string> name_owners;
-  bool saw_heartbeat = false;
-  CFunctions::block_structure block = block_db.getBlock(first_block_id);
-  int guard = 0;
-  while (block.number > 0 && guard < 100000)
-  {
-    for (int i = 0; i < block.records.size(); ++i)
+    if (ledger_state.members.at(i).active)
     {
-      CFunctions::record_structure record = block.records.at(i);
-      if (record.transaction_type == CFunctions::JOIN_NETWORK)
-      {
-        bool exists = false;
-        for (int m = 0; m < members.size(); ++m)
-        {
-          if (members.at(m).sender_public_key.compare(record.sender_public_key) == 0)
-          {
-            exists = true;
-          }
-        }
-        if (exists == false)
-        {
-          std::string requested_name = record.name;
-          record.name = "";
-          members.push_back(record);
-          if (requested_name.length() > 0)
-          {
-            claim_public_name(members, name_owners, record.sender_public_key, requested_name);
-          }
-        }
-      }
-      if (record.transaction_type == CFunctions::UPDATE_NAME &&
-          record.sender_public_key.length() > 0 &&
-          record.name.length() > 0)
-      {
-        claim_public_name(members, name_owners, record.sender_public_key, record.name);
-      }
-      if (record.transaction_type == CFunctions::HEART_BEAT &&
-          record.sender_public_key.length() > 0)
-      {
-        saw_heartbeat = true;
-        latest_heartbeat_block_by_user[record.sender_public_key] = block.number;
-      }
-    }
-
-    if (block.number == latest_block_id)
-    {
-      break;
-    }
-    CFunctions::block_structure next_block = block_db.getNextBlock(block);
-    if (next_block.number <= 0 || next_block.number == block.number)
-    {
-      break;
-    }
-    block = next_block;
-    ++guard;
-  }
-
-  CNetworkTime net_time;
-  long heartbeat_cutoff = (net_time.getEpoch() / 15) - CFunctions::HEARTBEAT_VALID_BLOCKS;
-  for (int i = 0; i < members.size(); ++i)
-  {
-    std::string member_key = members.at(i).sender_public_key;
-    if (saw_heartbeat == false ||
-        (latest_heartbeat_block_by_user.find(member_key) != latest_heartbeat_block_by_user.end() &&
-         latest_heartbeat_block_by_user[member_key] >= heartbeat_cutoff))
-    {
-      active_members.push_back(members.at(i));
+      CFunctions::record_structure member;
+      member.transaction_type = CFunctions::JOIN_NETWORK;
+      member.sender_public_key = ledger_state.members.at(i).public_key;
+      member.name = ledger_state.members.at(i).name;
+      active_members.push_back(member);
     }
   }
 
@@ -870,88 +748,12 @@ std::string carry_forward_unique_key(const CFunctions::record_structure& record)
 
 std::map<std::string, double> accepted_ledger_balances(CBlockDB& block_db)
 {
-  long first_block_id = block_db.getFirstBlockId();
-  long latest_block_id = block_db.getLatestBlockId();
-  std::map<std::string, double> balances;
-  if (first_block_id < 0 || latest_block_id < 0)
-  {
-    return balances;
-  }
-
-  CFunctions::block_structure block = block_db.getBlock(first_block_id);
-  std::set<std::string> accepted_record_hashes;
-  std::set<std::string> accepted_carry_forward_keys;
-  int guard = 0;
-  while (block.number > 0 && guard < 100000)
-  {
-    for (int i = 0; i < block.records.size(); ++i)
-    {
-      CFunctions::record_structure record = block.records.at(i);
-      if (record.hash.length() > 0 && accepted_record_hashes.find(record.hash) != accepted_record_hashes.end())
-      {
-        continue;
-      }
-      if (record.hash.length() > 0)
-      {
-        accepted_record_hashes.insert(record.hash);
-      }
-
-      if (record.transaction_type == CFunctions::ISSUE_CURRENCY)
-      {
-        add_balance_delta(balances, record.recipient_public_key, record.amount);
-      }
-      else if (record.transaction_type == CFunctions::TRANSFER_CURRENCY)
-      {
-        add_balance_delta(balances, record.recipient_public_key, record.amount);
-        add_balance_delta(balances, record.sender_public_key, -record.amount - record.fee);
-        add_balance_delta(balances, block.creator_key, record.fee);
-      }
-      else if (record.transaction_type == CFunctions::VOTE)
-      {
-        add_balance_delta(balances, record.sender_public_key, -record.fee);
-        add_balance_delta(balances, block.creator_key, record.fee);
-      }
-      else if (record.transaction_type == CFunctions::CARRY_FORWARD)
-      {
-        std::string carry_forward_key = carry_forward_unique_key(record);
-        if (carry_forward_key.length() > 0 &&
-            accepted_carry_forward_keys.find(carry_forward_key) == accepted_carry_forward_keys.end())
-        {
-          accepted_carry_forward_keys.insert(carry_forward_key);
-          add_balance_delta(balances, record.sender_public_key, CFunctions::CARRY_FORWARD_REWARD);
-        }
-      }
-    }
-
-    if (block.number == latest_block_id)
-    {
-      break;
-    }
-    CFunctions::block_structure next_block = block_db.getNextBlock(block);
-    if (next_block.number <= 0 || next_block.number == block.number)
-    {
-      break;
-    }
-    block = next_block;
-    ++guard;
-  }
-  return balances;
+  return CLedgerState::build(block_db).balances;
 }
 
 double accepted_member_supply(CBlockDB& block_db)
 {
-  std::vector<CFunctions::record_structure> members = accepted_membership_records(block_db);
-  std::map<std::string, double> balances = accepted_ledger_balances(block_db);
-  double supply = 0.0;
-  for (int i = 0; i < members.size(); ++i)
-  {
-    std::string public_key = members.at(i).sender_public_key;
-    if (public_key.length() > 0)
-    {
-      supply += balances[public_key];
-    }
-  }
-  return supply;
+  return CLedgerState::build(block_db).ledger_balance_total;
 }
 
 double ledger_balance_total(const std::map<std::string, double>& balances)

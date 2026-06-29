@@ -34,6 +34,7 @@
 #include "blockdb.h"
 #include "userdb.h"
 #include "guilauncher.h"
+#include "functions/ledgerstate.h"
 
 namespace {
 
@@ -309,15 +310,8 @@ bool publicNameAvailableForOwner(const std::string& name, const std::string& own
 }
 
 std::map<std::string, std::string> acceptedMemberNames(){
-    std::map<std::string, std::string> names;
-    std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
-    for(int i = 0; i < members.size(); i++){
-        CFunctions::record_structure member = members.at(i);
-        if(member.sender_public_key.length() > 0 && member.name.length() > 0){
-            names[member.sender_public_key] = member.name;
-        }
-    }
-    return names;
+    CBlockDB blockDB;
+    return CLedgerState::build(blockDB).names;
 }
 
 std::string namedAddress(const std::string& publicKey, const std::map<std::string, std::string>& names){
@@ -468,50 +462,14 @@ void printWalletHistory(const std::string& publicKey, const std::string& filter)
 
 std::vector<CFunctions::record_structure> acceptedMembershipRecords(){
     CBlockDB blockDB;
-    long firstBlockId = blockDB.getFirstBlockId();
-    long latestBlockId = blockDB.getLatestBlockId();
     std::vector<CFunctions::record_structure> members;
-    if(firstBlockId < 0 || latestBlockId < 0){
-        return members;
-    }
-
-    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
-    std::map<std::string, std::string> nameOwners;
-    int guard = 0;
-    while(block.number > 0 && guard < 100000){
-        for(int i = 0; i < block.records.size(); i++){
-            CFunctions::record_structure record = block.records.at(i);
-            if(record.transaction_type == CFunctions::JOIN_NETWORK){
-                bool exists = false;
-                for(int m = 0; m < members.size(); m++){
-                    if(members.at(m).sender_public_key.compare(record.sender_public_key) == 0){
-                        exists = true;
-                    }
-                }
-                if(exists == false){
-                    std::string requestedName = record.name;
-                    record.name = "";
-                    members.push_back(record);
-                    if(requestedName.length() > 0){
-                        claimPublicName(members, nameOwners, record.sender_public_key, requestedName);
-                    }
-                }
-            }
-            if(record.transaction_type == CFunctions::UPDATE_NAME &&
-               record.sender_public_key.length() > 0 &&
-               record.name.length() > 0){
-                claimPublicName(members, nameOwners, record.sender_public_key, record.name);
-            }
-        }
-        if(block.number == latestBlockId){
-            break;
-        }
-        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
-        if(nextBlock.number <= 0 || nextBlock.number == block.number){
-            break;
-        }
-        block = nextBlock;
-        guard++;
+    CLedgerState::state ledgerState = CLedgerState::build(blockDB);
+    for(int i = 0; i < ledgerState.members.size(); i++){
+        CFunctions::record_structure member;
+        member.transaction_type = CFunctions::JOIN_NETWORK;
+        member.sender_public_key = ledgerState.members.at(i).public_key;
+        member.name = ledgerState.members.at(i).name;
+        members.push_back(member);
     }
     return members;
 }
@@ -599,67 +557,12 @@ bool carryForwardSnapshotMatches(const CFunctions::record_structure& record){
 
 std::map<std::string, double> acceptedLedgerBalances(){
     CBlockDB blockDB;
-    long firstBlockId = blockDB.getFirstBlockId();
-    long latestBlockId = blockDB.getLatestBlockId();
-    std::map<std::string, double> balances;
-    if(firstBlockId < 0 || latestBlockId < 0){
-        return balances;
-    }
-
-    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
-    std::map<std::string, bool> acceptedCarryForwardKeys;
-    std::set<std::string> acceptedRecordHashes;
-    int guard = 0;
-    while(block.number > 0 && guard < 100000){
-        for(int i = 0; i < block.records.size(); i++){
-            CFunctions::record_structure record = block.records.at(i);
-            if(record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end()){
-                continue;
-            }
-            if(record.hash.length() > 0){
-                acceptedRecordHashes.insert(record.hash);
-            }
-            if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
-                addBalanceDelta(balances, record.recipient_public_key, record.amount);
-            } else if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
-                addBalanceDelta(balances, record.recipient_public_key, record.amount);
-                addBalanceDelta(balances, record.sender_public_key, -record.amount - record.fee);
-                addBalanceDelta(balances, block.creator_key, record.fee);
-            } else if(record.transaction_type == CFunctions::VOTE){
-                addBalanceDelta(balances, record.sender_public_key, -record.fee);
-                addBalanceDelta(balances, block.creator_key, record.fee);
-            } else if(isBasicCarryForwardRecord(record, block.number) && carryForwardSnapshotMatches(record)){
-                std::string key = carryForwardUniqueKey(record);
-                if(key.length() > 0 && acceptedCarryForwardKeys.find(key) == acceptedCarryForwardKeys.end()){
-                    acceptedCarryForwardKeys[key] = true;
-                    addBalanceDelta(balances, record.sender_public_key, CFunctions::CARRY_FORWARD_REWARD);
-                }
-            }
-        }
-        if(block.number == latestBlockId){
-            break;
-        }
-        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
-        if(nextBlock.number <= 0 || nextBlock.number == block.number){
-            break;
-        }
-        block = nextBlock;
-        guard++;
-    }
-    return balances;
+    return CLedgerState::build(blockDB).balances;
 }
 
 double acceptedMemberSupply(){
-    std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
-    std::map<std::string, double> balances = acceptedLedgerBalances();
-    double supply = 0.0;
-    for(int i = 0; i < members.size(); i++){
-        std::string publicKey = members.at(i).sender_public_key;
-        if(publicKey.length() > 0){
-            supply += balances[publicKey];
-        }
-    }
-    return supply;
+    CBlockDB blockDB;
+    return CLedgerState::build(blockDB).ledger_balance_total;
 }
 
 double ledgerBalanceTotal(const std::map<std::string, double>& balances){
@@ -672,72 +575,7 @@ double ledgerBalanceTotal(const std::map<std::string, double>& balances){
 
 double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpointBlock){
     CBlockDB blockDB;
-    long firstBlockId = blockDB.getFirstBlockId();
-    long latestBlockId = blockDB.getLatestBlockId();
-    if(accountPublicKey.length() == 0 || firstBlockId < 0 || latestBlockId < 0){
-        return 0.0;
-    }
-
-    double balance = 0.0;
-    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
-    std::map<std::string, bool> acceptedCarryForwardKeys;
-    std::set<std::string> acceptedRecordHashes;
-    int guard = 0;
-    while(block.number > 0 && guard < 100000){
-        if(block.number > checkpointBlock){
-            break;
-        }
-        for(int i = 0; i < block.records.size(); i++){
-            CFunctions::record_structure record = block.records.at(i);
-            if(record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end()){
-                continue;
-            }
-            if(record.hash.length() > 0){
-                acceptedRecordHashes.insert(record.hash);
-            }
-            if(record.transaction_type == CFunctions::ISSUE_CURRENCY &&
-               record.recipient_public_key.compare(accountPublicKey) == 0){
-                balance += record.amount;
-            } else if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
-                if(record.recipient_public_key.compare(accountPublicKey) == 0){
-                    balance += record.amount;
-                }
-                if(record.sender_public_key.compare(accountPublicKey) == 0 &&
-                   record.recipient_public_key.compare(accountPublicKey) != 0){
-                    balance -= record.amount;
-                    balance -= record.fee;
-                }
-                if(block.creator_key.compare(accountPublicKey) == 0){
-                    balance += record.fee;
-                }
-            } else if(record.transaction_type == CFunctions::VOTE){
-                if(record.sender_public_key.compare(accountPublicKey) == 0){
-                    balance -= record.fee;
-                }
-                if(block.creator_key.compare(accountPublicKey) == 0){
-                    balance += record.fee;
-                }
-            } else if(isBasicCarryForwardRecord(record, block.number)){
-                std::string key = carryForwardUniqueKey(record);
-                if(key.length() > 0 && acceptedCarryForwardKeys.find(key) == acceptedCarryForwardKeys.end()){
-                    acceptedCarryForwardKeys[key] = true;
-                    if(record.sender_public_key.compare(accountPublicKey) == 0){
-                        balance += CFunctions::CARRY_FORWARD_REWARD;
-                    }
-                }
-            }
-        }
-        if(block.number == latestBlockId){
-            break;
-        }
-        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
-        if(nextBlock.number <= 0 || nextBlock.number == block.number){
-            break;
-        }
-        block = nextBlock;
-        guard++;
-    }
-    return balance;
+    return CLedgerState::balanceAtBlock(blockDB, accountPublicKey, checkpointBlock);
 }
 
 bool acceptedCarryForwardExists(const std::string& accountPublicKey, long period){
