@@ -47,6 +47,32 @@ std::string httpGet(const std::string& url)
     return readBuffer;
 }
 
+std::string httpPost(const std::string& url, const std::string& body)
+{
+    std::string readBuffer;
+    curl_global_init(CURL_GLOBAL_ALL);
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        return readBuffer;
+    }
+
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, body.size());
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+    curl_easy_perform(curl);
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return readBuffer;
+}
+
 std::string urlEncode(const std::string& value)
 {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -101,6 +127,11 @@ bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structur
 {
     CFunctions functions;
     std::string blockJson = functions.blockJSON(block);
+    response = httpPost(peer + "/api/blocks/submit", blockJson);
+    if (response.find("accepted") != std::string::npos) {
+        return true;
+    }
+
     std::string encodedBlock = urlEncode(blockJson);
     if (encodedBlock.empty()) {
         response = "unable to encode block";
@@ -335,13 +366,16 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
 
     CFunctions functions;
     std::string recordJson = functions.recordJSON(record);
-    std::string encodedRecord = urlEncode(recordJson);
-    if (encodedRecord.empty()) {
-        return;
-    }
-
     for (int i = 0; i < peers.size(); ++i) {
-        httpGet(peers.at(i) + "/api/records/submit?record=" + encodedRecord);
+        std::string response = httpPost(peers.at(i) + "/api/records/submit", recordJson);
+        if (response.find("accepted") != std::string::npos) {
+            continue;
+        }
+
+        std::string encodedRecord = urlEncode(recordJson);
+        if (!encodedRecord.empty()) {
+            httpGet(peers.at(i) + "/api/records/submit?record=" + encodedRecord);
+        }
     }
 }
 
@@ -353,12 +387,15 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
 
     CFunctions functions;
     std::string blockJson = functions.blockJSON(block);
-    std::string encodedBlock = urlEncode(blockJson);
-    if (encodedBlock.empty()) {
-        return;
-    }
-
     for (int i = 0; i < peers.size(); ++i) {
-        httpGet(peers.at(i) + "/api/blocks/submit?block=" + encodedBlock);
+        std::string response = httpPost(peers.at(i) + "/api/blocks/submit", blockJson);
+        if (response.find("accepted") != std::string::npos) {
+            continue;
+        }
+
+        std::string encodedBlock = urlEncode(blockJson);
+        if (!encodedBlock.empty()) {
+            httpGet(peers.at(i) + "/api/blocks/submit?block=" + encodedBlock);
+        }
     }
 }

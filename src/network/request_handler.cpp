@@ -52,6 +52,70 @@ std::string query_value(const std::string& path, const std::string& key)
   return path.substr(value_start, value_end - value_start);
 }
 
+bool form_url_decode(const std::string& in, std::string& out)
+{
+  out.clear();
+  out.reserve(in.size());
+  for (std::size_t i = 0; i < in.size(); ++i)
+  {
+    if (in[i] == '%')
+    {
+      if (i + 3 > in.size())
+      {
+        return false;
+      }
+
+      int value;
+      std::istringstream is(in.substr(i + 1, 2));
+      if (!(is >> std::hex >> value))
+      {
+        return false;
+      }
+      out += static_cast<char>(value);
+      i += 2;
+    }
+    else if (in[i] == '+')
+    {
+      out += ' ';
+    }
+    else
+    {
+      out += in[i];
+    }
+  }
+  return true;
+}
+
+std::string submitted_value(const request& req, const std::string& request_path, const std::string& key)
+{
+  if (req.method == "POST" && !req.body.empty())
+  {
+    std::string token = key + "=";
+    std::size_t value_start = req.body.find(token);
+    if (value_start != std::string::npos)
+    {
+      value_start += token.length();
+      std::size_t value_end = req.body.find("&", value_start);
+      if (value_end == std::string::npos)
+      {
+        value_end = req.body.length();
+      }
+
+      std::string encoded_value = req.body.substr(value_start, value_end - value_start);
+      std::string decoded_value;
+      if (form_url_decode(encoded_value, decoded_value))
+      {
+        return decoded_value;
+      }
+      return encoded_value;
+    }
+
+    return req.body;
+  }
+
+  return query_value(request_path, key);
+}
+
 void text_reply(reply& rep, reply::status_type status, const std::string& content, const std::string& content_type)
 {
   rep.status = status;
@@ -161,9 +225,10 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
-  if (request_path.find("/api/blocks/submit?") == 0)
+  if (request_path.find("/api/blocks/submit?") == 0
+      || (req.method == "POST" && request_path == "/api/blocks/submit"))
   {
-    std::string blockJson = query_value(request_path, "block");
+    std::string blockJson = submitted_value(req, request_path, "block");
     std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
     bool added = false;
     for (int i = 0; i < blocks.size(); ++i)
@@ -188,9 +253,10 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
-  if (request_path.find("/api/records/submit?") == 0)
+  if (request_path.find("/api/records/submit?") == 0
+      || (req.method == "POST" && request_path == "/api/records/submit"))
   {
-    std::string recordJson = query_value(request_path, "record");
+    std::string recordJson = submitted_value(req, request_path, "record");
     CFunctions::record_structure record = functions.parseRecordJson(recordJson);
     if (record.sender_public_key.empty() && record.recipient_public_key.empty())
     {

@@ -9,6 +9,7 @@
 //
 
 #include "connection.h"
+#include <cstdlib>
 #include <vector>
 #include <boost/bind.hpp>
 #include "request_handler.h"
@@ -20,7 +21,9 @@ connection::connection(boost::asio::io_service& io_service,
     request_handler& handler)
   : strand_(io_service),
     socket_(io_service),
-    request_handler_(handler)
+    request_handler_(handler),
+    reading_body_(false),
+    content_length_(0)
 {
 }
 
@@ -43,17 +46,48 @@ void connection::handle_read(const boost::system::error_code& e,
 {
   if (!e)
   {
+    if (reading_body_)
+    {
+      request_.body.append(buffer_.data(), bytes_transferred);
+      if (request_.body.size() >= content_length_)
+      {
+        process_request();
+      }
+      else
+      {
+        socket_.async_read_some(boost::asio::buffer(buffer_),
+            strand_.wrap(
+              boost::bind(&connection::handle_read, shared_from_this(),
+                boost::asio::placeholders::error,
+                boost::asio::placeholders::bytes_transferred)));
+      }
+      return;
+    }
+
     boost::tribool result;
-    boost::tie(result, boost::tuples::ignore) = request_parser_.parse(
+    char* parse_end;
+    boost::tie(result, parse_end) = request_parser_.parse(
         request_, buffer_.data(), buffer_.data() + bytes_transferred);
 
     if (result)
     {
-      request_handler_.handle_request(request_, reply_);
-      boost::asio::async_write(socket_, reply_.to_buffers(),
-          strand_.wrap(
-            boost::bind(&connection::handle_write, shared_from_this(),
-              boost::asio::placeholders::error)));
+      content_length_ = request_content_length();
+      if (content_length_ > 0)
+      {
+        request_.body.append(parse_end, buffer_.data() + bytes_transferred);
+        if (request_.body.size() < content_length_)
+        {
+          reading_body_ = true;
+          socket_.async_read_some(boost::asio::buffer(buffer_),
+              strand_.wrap(
+                boost::bind(&connection::handle_read, shared_from_this(),
+                  boost::asio::placeholders::error,
+                  boost::asio::placeholders::bytes_transferred)));
+          return;
+        }
+      }
+
+      process_request();
     }
     else if (!result)
     {
@@ -79,6 +113,28 @@ void connection::handle_read(const boost::system::error_code& e,
   // handler returns. The connection class's destructor closes the socket.
 }
 
+std::size_t connection::request_content_length() const
+{
+  for (std::size_t i = 0; i < request_.headers.size(); ++i)
+  {
+    if (request_.headers[i].name == "Content-Length"
+        || request_.headers[i].name == "content-length")
+    {
+      return static_cast<std::size_t>(std::atol(request_.headers[i].value.c_str()));
+    }
+  }
+  return 0;
+}
+
+void connection::process_request()
+{
+  request_handler_.handle_request(request_, reply_);
+  boost::asio::async_write(socket_, reply_.to_buffers(),
+      strand_.wrap(
+        boost::bind(&connection::handle_write, shared_from_this(),
+          boost::asio::placeholders::error)));
+}
+
 void connection::handle_write(const boost::system::error_code& e)
 {
   if (!e)
@@ -96,4 +152,3 @@ void connection::handle_write(const boost::system::error_code& e)
 
 } // namespace server3
 } // namespace http
-

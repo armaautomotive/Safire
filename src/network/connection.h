@@ -48,6 +48,12 @@ private:
   /// Handle completion of a write operation.
   void handle_write(const boost::system::error_code& e);
 
+  /// Return the Content-Length header, or 0 when the request has no body.
+  std::size_t request_content_length() const;
+
+  /// Dispatch the parsed request and write its reply.
+  void process_request();
+
   /// Strand to ensure the connection's handlers are not called concurrently.
   boost::asio::io_service::strand strand_;
 
@@ -68,6 +74,12 @@ private:
 
   /// The reply to be sent back to the client.
   reply reply_;
+
+  /// True after headers are parsed and the request body is still arriving.
+  bool reading_body_;
+
+  /// Expected request body size.
+  std::size_t content_length_;
 };
 
 typedef boost::shared_ptr<connection> connection_ptr;
@@ -76,4 +88,3 @@ typedef boost::shared_ptr<connection> connection_ptr;
 } // namespace http
 
 #endif // HTTP_SERVER3_CONNECTION_HPP
-

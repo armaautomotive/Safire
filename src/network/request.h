@@ -23,6 +23,7 @@ struct request
 {
   std::string method;
   std::string uri;
+  std::string body;
   int http_version_major;
   int http_version_minor;
   std::vector<header> headers;
@@ -32,4 +33,3 @@ struct request
 } // namespace http
 
 #endif // HTTP_SERVER3_REQUEST_HPP
-
