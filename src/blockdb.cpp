@@ -87,6 +87,9 @@ leveldb::DB * CBlockDB::getDatabase(){
     {
         cerr << "Unable to open/create database './blockdb'" << endl;
         cerr << status.ToString() << endl;
+        if(status.ToString().find("LOCK") != std::string::npos){
+            cerr << "Another Safire process is probably already using this blockdb. Stop it before starting another node in this directory." << endl;
+        }
         //return 0;
         //CBlockDB::db = 0;
         ldb = 0;
@@ -246,6 +249,10 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
 void CBlockDB::setFirstBlockId(long number){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::setFirstBlockId \n";
+        return;
+    }
     ostringstream keyStream;
     keyStream << "first_block_id";
     ostringstream valueStream;
@@ -298,6 +305,10 @@ long CBlockDB::getFirstBlockId(){
 void CBlockDB::setLatestBlockId(long number){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::setLatestBlockId \n";
+        return;
+    }
     ostringstream keyStream;
     keyStream << "latest_block_id";
     ostringstream valueStream;
@@ -317,6 +328,10 @@ long CBlockDB::getLatestBlockId(){
     //std::cout << " a \n ";
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::getLatestBlockId \n";
+        return -1;
+    }
     std::string key = "latest_block_id"; // boost::lexical_cast<std::string>(number);
     std::string latestBlockIdString;
     db->Get(leveldb::ReadOptions(), key, &latestBlockIdString);
@@ -525,6 +540,10 @@ long CBlockDB::rebuildBestChainIndex(){
 long CBlockDB::getNextBlockId(long previousBlockId){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::getNextBlockId \n";
+        return -1;
+    }
     ostringstream keyStream;
     keyStream << "next_block_" << previousBlockId;
     std::string nextBlockIdString;
@@ -549,6 +568,10 @@ long CBlockDB::getNextBlockId(long previousBlockId){
 void CBlockDB::GetBlocks(){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::GetBlocks \n";
+        return;
+    }
 
     // Iterate over each item in the database and print them
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
@@ -610,6 +633,10 @@ CFunctions::block_structure CBlockDB::getBlockByHash(std::string hash){
     }
 
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::getBlockByHash \n";
+        return block;
+    }
     std::string blockJson;
     db->Get(leveldb::ReadOptions(), blockHashKey(hash), &blockJson);
 
@@ -634,6 +661,10 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
     block.number = -1;
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::getBlock \n";
+        return block;
+    }
 
     std::string canonicalHash;
     db->Get(leveldb::ReadOptions(), canonicalHashKey(number), &canonicalHash);
@@ -684,8 +715,13 @@ CFunctions::block_structure CBlockDB::getNextBlock(CFunctions::block_structure b
  */
 CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key, int index ){
     CFunctions::block_structure block;
+    block.number = -1;
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::GetBlockWithSender \n";
+        return block;
+    }
     
     // todo:
     
@@ -701,6 +737,10 @@ CFunctions::block_structure CBlockDB::GetBlockWithSender( std::string sender_key
 void CBlockDB::DeleteAll(){
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+    if(!db){
+        std::cout << "Error: CBlockDB::DeleteAll \n";
+        return;
+    }
     // Iterate over each item in the database and print them
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
     for (it->SeekToFirst(); it->Valid(); it->Next())
