@@ -689,7 +689,7 @@ QWidget *MainWindow::createBalancePage()
     m_walletTitleLabel = createSectionTitle(tr("Wallet"));
     summaryLayout->addWidget(m_walletTitleLabel, 0, 0);
     summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 1, 0);
-    m_balanceLabel = makeLabel(tr("0.9877 SFR"), "Balance");
+    m_balanceLabel = makeLabel(tr("-"), "Balance");
     summaryLayout->addWidget(m_balanceLabel, 2, 0);
 
     QHBoxLayout *actions = new QHBoxLayout;
