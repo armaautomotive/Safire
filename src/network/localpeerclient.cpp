@@ -153,20 +153,13 @@ std::vector<CFunctions::block_structure> connectedBlocksAfter(long blockNumber)
         return blocks;
     }
 
-    CFunctions::block_structure block;
-    if (blockNumber > 0) {
-        block = blockDB.getBlock(blockNumber);
-        if (block.number <= 0) {
-            return blocks;
-        }
-        block = blockDB.getNextBlock(block);
-    } else {
-        block = blockDB.getBlock(firstBlockId);
-    }
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
 
     int guard = 0;
     while (block.number > 0 && guard < 100000) {
-        blocks.push_back(block);
+        if (block.number > blockNumber) {
+            blocks.push_back(block);
+        }
         CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
         if (nextBlock.number <= 0 || nextBlock.number == block.number) {
             break;
