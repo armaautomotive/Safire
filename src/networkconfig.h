@@ -15,6 +15,7 @@ public:
     std::string network;
     long genesisBlock;
     std::string genesisHash;
+    std::string defaultPeer;
     bool strictGenesis;
 
     CNetworkConfig()
@@ -22,6 +23,7 @@ public:
         network = "main";
         genesisBlock = -1;
         genesisHash = "";
+        defaultPeer = "";
         strictGenesis = true;
     }
 
@@ -47,6 +49,7 @@ public:
         outfile << "network=" << network << "\n";
         outfile << "genesis_block=" << genesisBlock << "\n";
         outfile << "genesis_hash=" << genesisHash << "\n";
+        outfile << "default_peer=" << defaultPeer << "\n";
         outfile << "strict_genesis=" << (strictGenesis ? "1" : "0") << "\n";
         outfile.close();
         return true;
@@ -74,6 +77,8 @@ public:
                 config.genesisBlock = std::atol(value.c_str());
             } else if(key.compare("genesis_hash") == 0){
                 config.genesisHash = value;
+            } else if(key.compare("default_peer") == 0){
+                config.defaultPeer = value;
             } else if(key.compare("strict_genesis") == 0){
                 config.strictGenesis = value.compare("0") != 0 &&
                     value.compare("false") != 0 &&

@@ -74,6 +74,15 @@ static std::vector<std::string> getArgValues(int argc, char* argv[], const std::
     return values;
 }
 
+static bool hasArg(int argc, char* argv[], const std::string& name){
+    for(int i = 1; i < argc; i++){
+        if(name.compare(argv[i]) == 0){
+            return true;
+        }
+    }
+    return false;
+}
+
 int main(int argc, char* argv[])
 {
     std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.03" << ANSI_COLOR_RESET << std::endl;
@@ -144,7 +153,15 @@ int main(int argc, char* argv[])
 
     std::string privateKey;
     std::string publicKey;
+    CNetworkConfig startupConfig = CNetworkConfig::load();
+    std::string localNodePort = getArgValue(argc, argv, "--node-port");
     std::vector<std::string> localPeers = getArgValues(argc, argv, "--peer");
+    if(localPeers.size() == 0 &&
+       hasArg(argc, argv, "--peer") == false &&
+       localNodePort.length() == 0 &&
+       startupConfig.defaultPeer.length() > 0){
+        localPeers.push_back(startupConfig.defaultPeer);
+    }
     CLocalPeerClient::setPeers(localPeers);
     CLocalPeerClient::syncNetworkTime();
 
@@ -181,6 +198,7 @@ int main(int argc, char* argv[])
         bool peerSynced = peerLatestBlockId > -1 && statusBlockDB.getLatestBlockId() >= peerLatestBlockId;
         std::cout << " Peer sync: " << (peerSynced == true ? "yes" : "no") << std::endl;
         std::cout << " Peer latest block: " << peerLatestBlockId << std::endl;
+        std::cout << " Peer source: " << localPeers.at(0) << std::endl;
     } else {
         std::cout << " Sync Progress: " << functions.SyncProgress() << "% " << std::endl;
     }
@@ -226,7 +244,6 @@ int main(int argc, char* argv[])
     CRelayClient relayClient;
     relayClient.getNewNetworkPeer(publicKey);
 
-    std::string localNodePort = getArgValue(argc, argv, "--node-port");
     boost::shared_ptr<http::server3::server> localNodeServer;
     boost::shared_ptr<std::thread> localNodeThread;
     if(localNodePort.length() > 0){

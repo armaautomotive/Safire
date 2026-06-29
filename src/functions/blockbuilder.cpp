@@ -200,7 +200,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //functions.addToBlockFile(block);
         
         //blockDB.addFirstBlock(block); // depricate
-        CNetworkConfig config;
+        CNetworkConfig config = CNetworkConfig::load();
         config.network = networkName;
         config.genesisBlock = block.number;
         config.genesisHash = block.hash;
