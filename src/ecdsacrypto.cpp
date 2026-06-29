@@ -10,6 +10,40 @@
 #include <time.h>
 #include "global.h"
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+static int safire_ECDSA_SIG_set0(ECDSA_SIG *signature, BIGNUM *r, BIGNUM *s)
+{
+    if (signature == NULL || r == NULL || s == NULL) {
+        return 0;
+    }
+    BN_free(signature->r);
+    BN_free(signature->s);
+    signature->r = r;
+    signature->s = s;
+    return 1;
+}
+
+static void safire_ECDSA_SIG_get0(const ECDSA_SIG *signature, const BIGNUM **r, const BIGNUM **s)
+{
+    if (r != NULL) {
+        *r = signature->r;
+    }
+    if (s != NULL) {
+        *s = signature->s;
+    }
+}
+#else
+static int safire_ECDSA_SIG_set0(ECDSA_SIG *signature, BIGNUM *r, BIGNUM *s)
+{
+    return ECDSA_SIG_set0(signature, r, s);
+}
+
+static void safire_ECDSA_SIG_get0(const ECDSA_SIG *signature, const BIGNUM **r, const BIGNUM **s)
+{
+    ECDSA_SIG_get0(signature, r, s);
+}
+#endif
+
 static std::string bnToPaddedHex(const BIGNUM *value)
 {
     char *hex = BN_bn2hex(value);
@@ -32,7 +66,7 @@ static ECDSA_SIG *signatureFromHex(const std::string &rHex, const std::string &s
     }
 
     ECDSA_SIG *signature = ECDSA_SIG_new();
-    if (signature == NULL || ECDSA_SIG_set0(signature, r, s) != 1) {
+    if (signature == NULL || safire_ECDSA_SIG_set0(signature, r, s) != 1) {
         BN_free(r);
         BN_free(s);
         ECDSA_SIG_free(signature);
@@ -200,7 +234,7 @@ int CECDSACrypto::SignMessage(std::string privateKey, std::string message, std::
   
         const BIGNUM *r = NULL;
         const BIGNUM *s = NULL;
-        ECDSA_SIG_get0(e_signature, &r, &s);
+        safire_ECDSA_SIG_get0(e_signature, &r, &s);
         signature = bnToPaddedHex(r) + bnToPaddedHex(s);
         ECDSA_SIG_free(e_signature);
     }
