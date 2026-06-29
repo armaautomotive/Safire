@@ -175,7 +175,7 @@ void CCLI::printCommands(){
 	" sent                    - print sent transaction list details.\n" <<
 	" received                - print received transaction list details.\n" <<
 	" network                 - print network stats including currency and volumes.\n" <<
-    " messages                - print the last 10 blockchain records.\n" <<
+    " blockchain              - print the last 10 blockchain records.\n" <<
     " memberships             - print blockchain membership records.\n" <<
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
@@ -392,7 +392,7 @@ void CCLI::processUserInput(){
             //std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
                     //p2p.sendData("DATA DATA DATA 123 \0");
 
-        } else if ( command.compare("messages") == 0 ){
+        } else if ( command.compare("blockchain") == 0 || command.compare("messages") == 0 ){
 
             printRecentBlockchainRecords(10);
 
