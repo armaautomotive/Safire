@@ -12,6 +12,7 @@
 #include <time.h>
 #include "ecdsacrypto.h"
 #include "functions/functions.h"
+#include "functions/selector.h"
 #include "wallet.h"
 #include "network/p2p.h"
 #include "network/relayclient.h"
@@ -54,6 +55,94 @@ std::string shortKey(const std::string& key){
         return key;
     }
     return key.substr(0, 12) + "...";
+}
+
+std::string formatSlotTime(long timeBlock){
+    time_t slotTime = (time_t)(timeBlock * 15);
+    struct tm * timeInfo = localtime(&slotTime);
+    if(timeInfo == NULL){
+        return "-";
+    }
+
+    char buffer[32];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeInfo);
+    return std::string(buffer);
+}
+
+std::vector<CFunctions::record_structure> acceptedMembershipRecords(){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    std::vector<CFunctions::record_structure> members;
+    if(firstBlockId < 0 || latestBlockId < 0){
+        return members;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::JOIN_NETWORK){
+                bool exists = false;
+                for(int m = 0; m < members.size(); m++){
+                    if(members.at(m).sender_public_key.compare(record.sender_public_key) == 0){
+                        exists = true;
+                    }
+                }
+                if(exists == false){
+                    members.push_back(record);
+                }
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+    return members;
+}
+
+void printSelectedBlockCreator(const std::vector<CFunctions::record_structure>& members, long timeBlock, const std::string& label, const std::string& localPublicKey){
+    std::cout << " " << label << " block: " << timeBlock << std::endl;
+    std::cout << " Time: " << formatSlotTime(timeBlock) << std::endl;
+    if(members.size() == 0){
+        std::cout << " Creator: none selected; no accepted membership records loaded." << std::endl;
+        return;
+    }
+
+    long userIndex = timeBlock % members.size();
+    CFunctions::record_structure member = members.at(userIndex);
+    std::string name = member.name;
+    std::cout << " Creator: " << member.sender_public_key << std::endl;
+    std::cout << " Name: " << (name.length() > 0 ? name : "-") << std::endl;
+    if(label.compare("Current") == 0){
+        std::cout << " This node: " << (member.sender_public_key.compare(localPublicKey) == 0 ? "yes" : "no") << std::endl;
+    }
+}
+
+void printNextBlockSelection(const std::string& localPublicKey){
+    CSelector selector;
+    long currentBlock = selector.getCurrentTimeBlock();
+    long nextBlock = currentBlock + 1;
+    std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
+    time_t now;
+    time(&now);
+    long secondsUntilNextBlock = (nextBlock * 15) - now;
+    if(secondsUntilNextBlock < 0){
+        secondsUntilNextBlock = 0;
+    }
+
+    std::cout << " Block creator selection:" << std::endl;
+    std::cout << " Accepted members: " << members.size() << std::endl;
+    printSelectedBlockCreator(members, currentBlock, "Current", localPublicKey);
+    std::cout << " Seconds until next block: " << secondsUntilNextBlock << std::endl;
+    printSelectedBlockCreator(members, nextBlock, "Next", localPublicKey);
 }
 
 std::string recordSummary(long blockNumber, int recordIndex, CFunctions::record_structure record, bool fullKeys){
@@ -215,6 +304,7 @@ void CCLI::printCommands(){
 	" received                - print received transaction list details.\n" <<
 	" network                 - print network stats including currency and volumes.\n" <<
     " mempool                 - print pending records not yet in the blockchain.\n" <<
+    " nextblock               - print current and upcoming selected block creators.\n" <<
     " blockchain              - print the last 10 blockchain records.\n" <<
     " memberships             - print blockchain membership records.\n" <<
 	" send                    - send a payment to another user address.\n" <<
@@ -434,6 +524,10 @@ void CCLI::processUserInput(){
         } else if ( command.compare("mempool") == 0 || command.compare("pending") == 0 ){
 
             printMempoolRecords();
+
+        } else if ( command.compare("nextblock") == 0 ){
+
+            printNextBlockSelection(publicKey);
 
         } else if ( command.compare("memberships") == 0 || command.compare("members") == 0 ){
 

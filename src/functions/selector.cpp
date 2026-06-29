@@ -97,19 +97,12 @@ long CSelector::getCurrentTimeBlock(){
  * @return std::string user public key.
  */
 std::string CSelector::getSelectedUser(long time){
-    CUserDB userDb;
-    long userCount = userDb.getUserCount();
-    
+    if(users.size() == 0){
+        return "";
+    }
 
-    time_t timev;
-    //time(&timev);
-    
-    //long timeBlock = (long)(timev / 15); // 30 second blocks
-    //long userIndex = timeBlock % users.size();
-    
-    //std::string selectedUser = users.at(userIndex);
-    
-    return "";
+    long userIndex = time % users.size();
+    return users.at(userIndex);
 }
 
 /**
