@@ -1064,9 +1064,11 @@ void CCLI::processUserInput(){
 
             for(int i = 0; i < members.size(); i++){
                 CFunctions::record_structure member = members.at(i);
-                std::string name = member.name.length() > 0 ? member.name : "-";
                 std::cout << "  user: " << member.sender_public_key << " " << balances[member.sender_public_key] << " sfr";
-                std::cout << " name " << name << std::endl;
+                if(member.name.length() > 0){
+                    std::cout << " name \"" << member.name << "\"";
+                }
+                std::cout << std::endl;
             }
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;
