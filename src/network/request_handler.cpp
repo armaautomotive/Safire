@@ -827,15 +827,14 @@ std::map<std::string, double> accepted_ledger_balances(CBlockDB& block_db)
 double accepted_member_supply(CBlockDB& block_db)
 {
   std::vector<CFunctions::record_structure> members = accepted_membership_records(block_db);
+  std::map<std::string, double> balances = accepted_ledger_balances(block_db);
   double supply = 0.0;
   for (int i = 0; i < members.size(); ++i)
   {
     std::string public_key = members.at(i).sender_public_key;
     if (public_key.length() > 0)
     {
-      CFunctions member_functions;
-      member_functions.scanChain(public_key, false);
-      supply += member_functions.balance;
+      supply += balances[public_key];
     }
   }
   return supply;
@@ -1128,7 +1127,6 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
     std::map<std::string, std::string> memberNames = accepted_member_names(blockDB);
     std::vector<CFunctions::record_structure> acceptedMembers = accepted_membership_records(blockDB);
-    double memberSupply = accepted_member_supply(blockDB);
     std::vector<CFunctions::record_structure> activeMembers = active_membership_records(blockDB);
     long currentTimeBlock = netTime.getEpoch() / 15;
     long nextTimeBlock = currentTimeBlock + 1;
@@ -1165,7 +1163,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"active_heartbeat\":\"" << (functions.active_heartbeat ? "yes" : "no") << "\",";
     ss << "\"heartbeat_renewal_due\":\"" << (functions.heartbeat_renewal_due ? "yes" : "no") << "\",";
     ss << "\"last_heartbeat_block\":\"" << functions.last_heartbeat_block << "\",";
-    ss << "\"currency_supply\":\"" << memberSupply << "\",";
+    ss << "\"currency_supply\":\"" << functions.currency_circulation << "\",";
     ss << "\"user_count\":\"" << acceptedMembers.size() << "\",";
     ss << "\"network_up_to_date\":\"" << (functions.IsChainUpToDate() ? "yes" : "no") << "\",";
     ss << "\"sync_progress\":\"" << sync_progress_percent(firstBlockId, latestBlockId, localPeers) << "\",";

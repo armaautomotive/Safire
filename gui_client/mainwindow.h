@@ -4,6 +4,7 @@
 #include <QJsonArray>
 #include <QMainWindow>
 #include <QProcess>
+#include <QStringList>
 
 class QLabel;
 class QComboBox;
@@ -96,6 +97,7 @@ private:
     void refreshContactDropdown();
     void appendContact(const QString &name, const QString &address);
     void setActiveNav(QPushButton *activeButton);
+    void requestJson(const QString &path);
     QString receiveAddress() const;
     QString coreBinaryPath() const;
     bool ensureBackendRunning();
@@ -105,6 +107,7 @@ private:
     QProcess *m_terminalProcess;
     QTimer *m_statusTimer;
     QNetworkAccessManager *m_networkManager;
+    QStringList m_pendingRequests;
     int m_backendPort;
     bool m_backendStartBlocked;
     bool m_backendLockDetected;

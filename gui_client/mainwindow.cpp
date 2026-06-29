@@ -437,6 +437,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_terminalProcess(0),
       m_statusTimer(new QTimer(this)),
       m_networkManager(new QNetworkAccessManager(this)),
+      m_pendingRequests(),
       m_backendPort(4899),
       m_backendStartBlocked(false),
       m_backendLockDetected(false),
@@ -1969,6 +1970,7 @@ void MainWindow::showBalance()
 {
     m_contentStack->setCurrentIndex(0);
     setActiveNav(m_balanceButton);
+    refreshWalletStatus();
 }
 
 void MainWindow::showSend()
@@ -2426,29 +2428,36 @@ void MainWindow::refreshWalletStatus()
         return;
     }
 
-    QUrl url(QString("http://127.0.0.1:%1/api/wallet/status").arg(m_backendPort));
+    requestJson("/api/wallet/status");
+
+    if (!m_contentStack) {
+        return;
+    }
+
+    int page = m_contentStack->currentIndex();
+    if (page == 3) {
+        requestJson("/api/network/users");
+    } else if (page == 4) {
+        requestJson("/api/wallet/history");
+    } else if (page == 5) {
+        requestJson("/api/mempool");
+    } else if (page == 6) {
+        requestJson("/api/blockchain/recent");
+    } else if (page == 7) {
+        requestJson("/api/peers");
+    }
+}
+
+void MainWindow::requestJson(const QString &path)
+{
+    if (m_pendingRequests.contains(path)) {
+        return;
+    }
+
+    m_pendingRequests.append(path);
+    QUrl url(QString("http://127.0.0.1:%1%2").arg(m_backendPort).arg(path));
     QNetworkRequest request(url);
     m_networkManager->get(request);
-
-    QUrl historyUrl(QString("http://127.0.0.1:%1/api/wallet/history").arg(m_backendPort));
-    QNetworkRequest historyRequest(historyUrl);
-    m_networkManager->get(historyRequest);
-
-    QUrl usersUrl(QString("http://127.0.0.1:%1/api/network/users").arg(m_backendPort));
-    QNetworkRequest usersRequest(usersUrl);
-    m_networkManager->get(usersRequest);
-
-    QUrl mempoolUrl(QString("http://127.0.0.1:%1/api/mempool").arg(m_backendPort));
-    QNetworkRequest mempoolRequest(mempoolUrl);
-    m_networkManager->get(mempoolRequest);
-
-    QUrl blockchainUrl(QString("http://127.0.0.1:%1/api/blockchain/recent").arg(m_backendPort));
-    QNetworkRequest blockchainRequest(blockchainUrl);
-    m_networkManager->get(blockchainRequest);
-
-    QUrl peersUrl(QString("http://127.0.0.1:%1/api/peers").arg(m_backendPort));
-    QNetworkRequest peersRequest(peersUrl);
-    m_networkManager->get(peersRequest);
 }
 
 void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
@@ -2459,6 +2468,7 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
 
     QByteArray body = reply->readAll();
     QString path = reply->url().path();
+    m_pendingRequests.removeAll(path);
     if (reply->error() != QNetworkReply::NoError) {
         if (path == "/api/wallet/send") {
             applySendPaymentResult(QString::fromUtf8(body), true);
