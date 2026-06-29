@@ -10,6 +10,37 @@
 #include <time.h>
 #include "global.h"
 
+static std::string bnToPaddedHex(const BIGNUM *value)
+{
+    char *hex = BN_bn2hex(value);
+    std::string result(hex);
+    OPENSSL_free(hex);
+    if (result.length() < 64) {
+        result.insert(0, 64 - result.length(), '0');
+    }
+    return result;
+}
+
+static ECDSA_SIG *signatureFromHex(const std::string &rHex, const std::string &sHex)
+{
+    BIGNUM *r = NULL;
+    BIGNUM *s = NULL;
+    if (BN_hex2bn(&r, rHex.c_str()) == 0 || BN_hex2bn(&s, sHex.c_str()) == 0) {
+        BN_free(r);
+        BN_free(s);
+        return NULL;
+    }
+
+    ECDSA_SIG *signature = ECDSA_SIG_new();
+    if (signature == NULL || ECDSA_SIG_set0(signature, r, s) != 1) {
+        BN_free(r);
+        BN_free(s);
+        ECDSA_SIG_free(signature);
+        return NULL;
+    }
+    return signature;
+}
+
 /**
 * RandomPrivateKey
 *
@@ -53,14 +84,11 @@ int CECDSACrypto::GetPublicKey(std::string privateKey, std::string & publicKey, 
     EC_KEY *eckey = NULL;
     EC_POINT *pub_key = NULL;
     const EC_GROUP *group = NULL;
-    BIGNUM start;
-    BIGNUM *res;
+    BIGNUM *res = NULL;
     BN_CTX *ctx;
 
-    BN_init(&start);
     ctx = BN_CTX_new(); // ctx is an optional buffer to save time from allocating and deallocating memory whenever required
 
-    res = &start;
     //     BN_hex2bn(&res,"3D79F601620A6D05DB7FED883AB8BCD08A9101B166BC60166869DA5FC08D936E");
     BN_hex2bn(&res, privateKey.c_str());
     eckey = EC_KEY_new_by_curve_name(NID_secp256k1);
@@ -109,7 +137,11 @@ int CECDSACrypto::GetPublicKey(std::string privateKey, std::string & publicKey, 
 
 
     BN_CTX_free(ctx);
-    free(cc);
+    OPENSSL_free(cc);
+    OPENSSL_free(compressed_cc);
+    EC_POINT_free(pub_key);
+    EC_KEY_free(eckey);
+    BN_free(res);
     return 1;
 }
 
@@ -152,7 +184,7 @@ int CECDSACrypto::SignMessage(std::string privateKey, std::string message, std::
     EC_KEY *eckey = NULL;
     eckey = EC_KEY_new_by_curve_name(NID_secp256k1);
 
-    BIGNUM *res = new BIGNUM();
+    BIGNUM *res = NULL;
     BN_hex2bn(&res, (const char *) std::string(privateKey).c_str());
     EC_KEY_set_private_key(eckey, res);
 
@@ -166,21 +198,14 @@ int CECDSACrypto::SignMessage(std::string privateKey, std::string message, std::
         //printf(" GENERATED SIG \n ");
         //printf("    (sig->r, sig->s): (%s, %s)\n", BN_bn2hex(e_signature->r), BN_bn2hex(e_signature->s));
   
-        char *r = BN_bn2hex(e_signature->r);
-        char *s = BN_bn2hex(e_signature->s);  
-        char * csig = (char *)malloc(129);
-        for(int i = 0; i < 64; i++){
-            csig[i] = r[i];
-        }
-        for(int i = 0; i < 64; i++){
-            csig[i + 64] =  s[i];
-        }
-        csig[128] = 0;
-        signature = std::string(csig);
-        free(csig);
-        OPENSSL_free(r);
-        OPENSSL_free(s);
+        const BIGNUM *r = NULL;
+        const BIGNUM *s = NULL;
+        ECDSA_SIG_get0(e_signature, &r, &s);
+        signature = bnToPaddedHex(r) + bnToPaddedHex(s);
+        ECDSA_SIG_free(e_signature);
     }
+    BN_free(res);
+    EC_KEY_free(eckey);
     return 1;
 } 
 
@@ -229,13 +254,19 @@ int CECDSACrypto::VerifyMessage(std::string  message, std::string  signature, st
     //std::cout << " beep " << sr << " " << ss << std::endl;
     //printf(" Verify %s  %s   \n", r, s);
 
-    ECDSA_SIG *e_signature = ECDSA_SIG_new();
-    int len = BN_hex2bn(&e_signature->r, (const char *) std::string(sr).c_str() );
-    len = BN_hex2bn(&e_signature->s, (const char *) std::string(ss).c_str() );
+    ECDSA_SIG *e_signature = signatureFromHex(sr, ss);
+    if (e_signature == NULL) {
+        return 0;
+    }
     //printf("    Verify (sig->r, sig->s): (%s, %s)\n", BN_bn2hex(e_signature->r), BN_bn2hex(e_signature->s)); 
 
     //printf("    len: %d \n", digest_length );
     int verify_status = ECDSA_do_verify(c_digest, digest_length, e_signature, eckey);
+    ECDSA_SIG_free(e_signature);
+    OPENSSL_free(verify_point);
+    EC_POINT_free(pub_key);
+    EC_KEY_free(eckey);
+    BN_CTX_free(ctx);
     const int verify_success = 1;
     if (verify_success != verify_status)
     {
@@ -301,13 +332,19 @@ int CECDSACrypto::VerifyMessageCompressed(std::string  message, std::string  sig
     //std::cout << " beep " << sr << " " << ss << std::endl;
     //printf(" Verify %s  %s   \n", r, s);
 
-    ECDSA_SIG *e_signature = ECDSA_SIG_new();
-    int len = BN_hex2bn(&e_signature->r, (const char *) std::string(sr).c_str() );
-    len = BN_hex2bn(&e_signature->s, (const char *) std::string(ss).c_str() );
+    ECDSA_SIG *e_signature = signatureFromHex(sr, ss);
+    if (e_signature == NULL) {
+        return 0;
+    }
     //printf("    Verify (sig->r, sig->s): (%s, %s)\n", BN_bn2hex(e_signature->r), BN_bn2hex(e_signature->s));
 
     //printf("    len: %d \n", digest_length );
     int verify_status = ECDSA_do_verify(c_digest, digest_length, e_signature, eckey);
+    ECDSA_SIG_free(e_signature);
+    OPENSSL_free(verify_point);
+    EC_POINT_free(pub_key);
+    EC_KEY_free(eckey);
+    BN_CTX_free(ctx);
     const int verify_success = 1;
     if (verify_success != verify_status)
     {

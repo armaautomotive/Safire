@@ -24,7 +24,8 @@ SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 
 #  gcc -o yourname -Bstatic -L<dir-of-libcrypto.a> -lcrypto . . . yourfile.c
 # MacOS Doesn’t support static linking.
-CFLAGS_MAC= -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lboost_filesystem -lleveldb -lcurl -lz   -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w    `pkg-config --cflags --libs nice`  
+CFLAGS_MAC= -arch x86_64 -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w    `pkg-config --cflags nice`
+LIBS_MAC= -L/usr/local/opt/openssl/lib -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lboost_filesystem -lleveldb -lcurl -lz   `pkg-config --libs nice`
 # -lsecp256k1
 # -lboost_system -lboost_asio
 # -L./usr/local/Cellar/boost/1.62.0/lib
@@ -32,7 +33,8 @@ CFLAGS_MAC= -L/usr/local/opt/openssl/lib -Bstatic -L/usr/local/lib -L./src/level
 #  /usr/local/lib/libsecp256k1.a
 # -Bstatic
 # -lboost_system-mt not found
-CFLAGS_LINUX= -L/usr/local/lib/  -L./src/leveldb  -L/usr/lib/x86_64-linux-gnu/ -pthread  -lboost_system  -lssl -lcrypto -lboost_filesystem -lleveldb -lcurl -lz -Wdeprecated -w  `pkg-config --cflags --libs nice` 
+CFLAGS_LINUX= -pthread -Wdeprecated -w  `pkg-config --cflags nice`
+LIBS_LINUX= -L/usr/local/lib/  -L./src/leveldb  -L/usr/lib/x86_64-linux-gnu/ -pthread  -lboost_system  -lssl -lcrypto -lboost_filesystem -lleveldb -lcurl -lz  `pkg-config --libs nice`
 # -L/usr/lib/
 # -lsecp256k1
 # -Weverything  
@@ -41,15 +43,15 @@ CFLAGS_LINUX= -L/usr/local/lib/  -L./src/leveldb  -L/usr/lib/x86_64-linux-gnu/ -
 
 all:
 	mkdir -p ${OUT_PATH}
-	${CC_MAC} ${CFLAGS_MAC} ${SRC_PATH_MAC} ${FILES_MAC} -o ${OUT_PATH}/Safire	
+	${CC_MAC} ${CFLAGS_MAC} ${SRC_PATH_MAC} ${FILES_MAC} ${LIBS_MAC} -o ${OUT_PATH}/Safire	
 
 mac:
 	mkdir -p ${OUT_PATH}	
-	${CC_MAC} ${CFLAGS_MAC} ${SRC_PATH_MAC} ${FILES_MAC} -o ${OUT_PATH}/Safire 
+	${CC_MAC} ${CFLAGS_MAC} ${SRC_PATH_MAC} ${FILES_MAC} ${LIBS_MAC} -o ${OUT_PATH}/Safire 
 
 linux:
 	mkdir -p ${OUT_PATH}
-	${CC_MAC} ${CFLAGS_LINUX} -std=c++11 ${SRC_PATH_LINUX} ${FILES_LINUX} -o ${OUT_PATH}/Safire	
+	${CC_MAC} ${CFLAGS_LINUX} -std=c++11 ${SRC_PATH_LINUX} ${FILES_LINUX} ${LIBS_LINUX} -o ${OUT_PATH}/Safire	
 
 linux2: 
 	clang++ ${CFLAGS_LINUX} -std=c++11 ${SRC_PATH_LINUX} ${FILES_LINUX2} -lssl -o ${OUT_PATH}/Safire	

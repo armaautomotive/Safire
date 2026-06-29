@@ -108,14 +108,17 @@ std::string CCompression::compress_string(const std::string& str) // int compres
 /** Decompress an STL string using zlib and return the original data. */
 std::string CCompression::decompress_string(const std::string& str)
 {
+    std::vector<BYTE> decoded = base64_decode(str);
+    std::string compressed(decoded.begin(), decoded.end());
+
     z_stream zs;                        // z_stream is zlib's control structure
     memset(&zs, 0, sizeof(zs));
     
     if (inflateInit(&zs) != Z_OK)
         throw(std::runtime_error("inflateInit failed while decompressing."));
     
-    zs.next_in = (Bytef*)str.data();
-    zs.avail_in = str.size();
+    zs.next_in = (Bytef*)compressed.data();
+    zs.avail_in = compressed.size();
     
     int ret;
     char outbuffer[32768];

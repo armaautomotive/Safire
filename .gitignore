@@ -1,0 +1,31 @@
+# macOS metadata
+.DS_Store
+
+# Build outputs
+*.o
+*.app/
+*.zip
+/bin/Safire
+/relay/simple-example
+
+# qmake generated files
+.qmake.stash
+*.pro.user
+moc_*.cpp
+moc_*.o
+moc_predefs.h
+
+# Local runtime data
+accounts.txt
+chain.index
+queue.dat
+wallet.dat
+safire_*.log
+/bin/chain.index
+/bin/wallet.dat
+/blockdb/
+/blockdb1/
+/userdb/
+
+# JavaScript dependencies
+node_modules/
