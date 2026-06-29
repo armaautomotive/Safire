@@ -152,7 +152,7 @@ std::string readCommandLine(std::string& lastCommand){
 #endif
 
     std::string command;
-    std::cin >> command;
+    std::getline(std::cin, command);
     if(command.length() > 0){
         lastCommand = command;
     }

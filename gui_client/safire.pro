@@ -9,6 +9,7 @@ CONFIG += c++11
 
 QT    += core gui
 QT    += widgets
+QT    += network
 #QT    += gui
 #win32:RC_ICONS += safire.ico
 ICON = safire.ico

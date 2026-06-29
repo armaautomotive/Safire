@@ -18,6 +18,9 @@
 #include <QLinearGradient>
 #include <QList>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPen>
@@ -27,6 +30,10 @@
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTimer>
+#include <QUrl>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QStringList>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -92,12 +99,19 @@ MainWindow::MainWindow(QWidget *parent)
       m_rootStack(new QStackedWidget(this)),
       m_contentStack(0),
       m_terminalProcess(0),
+      m_statusTimer(new QTimer(this)),
+      m_networkManager(new QNetworkAccessManager(this)),
+      m_backendPort(4899),
+      m_backendStartBlocked(false),
       m_userEdit(0),
       m_passwordEdit(0),
       m_loginMessage(0),
       m_userLabel(0),
       m_balanceLabel(0),
       m_networkLabel(0),
+      m_syncLabel(0),
+      m_peerLabel(0),
+      m_supplyLabel(0),
       m_historyTable(0),
       m_sendToEdit(0),
       m_sendAmountEdit(0),
@@ -149,6 +163,10 @@ MainWindow::MainWindow(QWidget *parent)
     m_rootStack->addWidget(createLoginPage());
     m_rootStack->addWidget(createShellPage());
     setCentralWidget(m_rootStack);
+
+    m_statusTimer->setInterval(3000);
+    connect(m_statusTimer, SIGNAL(timeout()), this, SLOT(refreshWalletStatus()));
+    connect(m_networkManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(handleWalletStatusReply(QNetworkReply*)));
 }
 
 MainWindow::~MainWindow()
@@ -291,6 +309,12 @@ QWidget *MainWindow::createBalancePage()
     summaryLayout->addWidget(m_balanceLabel, 2, 0);
     m_networkLabel = makeLabel(tr("Network: not joined"), "StatusGood");
     summaryLayout->addWidget(m_networkLabel, 3, 0);
+    m_syncLabel = makeLabel(tr("Sync: waiting for backend"), "Muted");
+    summaryLayout->addWidget(m_syncLabel, 4, 0);
+    m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
+    summaryLayout->addWidget(m_peerLabel, 5, 0);
+    m_supplyLabel = makeLabel(tr("Supply: -"), "Muted");
+    summaryLayout->addWidget(m_supplyLabel, 6, 0);
 
     QHBoxLayout *actions = new QHBoxLayout;
     QPushButton *sendNow = createPrimaryButton(tr("Send"));
@@ -300,7 +324,7 @@ QWidget *MainWindow::createBalancePage()
     actions->addWidget(receiveNow);
     actions->addWidget(historyNow);
     actions->addStretch();
-    summaryLayout->addLayout(actions, 4, 0);
+    summaryLayout->addLayout(actions, 7, 0);
 
     connect(sendNow, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
@@ -581,6 +605,66 @@ QString MainWindow::coreBinaryPath() const
     return QString();
 }
 
+bool MainWindow::ensureBackendRunning()
+{
+    if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
+        return true;
+    }
+    if (m_backendStartBlocked) {
+        return false;
+    }
+
+    QString corePath = coreBinaryPath();
+    if (corePath.isEmpty()) {
+        if (m_balanceLabel) {
+            m_balanceLabel->setText(tr("-"));
+        }
+        if (m_networkLabel) {
+            m_networkLabel->setText(tr("Backend: core binary not found"));
+        }
+        appendTerminalText(tr("\nUnable to find bin/Safire. Build the core app first.\n"));
+        return false;
+    }
+
+    if (!m_terminalProcess) {
+        m_terminalProcess = new QProcess(this);
+        m_terminalProcess->setProcessChannelMode(QProcess::MergedChannels);
+        connect(m_terminalProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(readTerminalOutput()));
+        connect(m_terminalProcess, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(terminalFinished(int,QProcess::ExitStatus)));
+        connect(m_terminalProcess, SIGNAL(errorOccurred(QProcess::ProcessError)), this, SLOT(terminalError(QProcess::ProcessError)));
+    }
+
+    QFileInfo coreInfo(corePath);
+    m_terminalProcess->setWorkingDirectory(coreInfo.absoluteDir().absolutePath() + "/..");
+    QStringList args;
+    args << "--api-port" << QString::number(m_backendPort);
+    appendTerminalText(tr("\nStarting console backend: %1\n").arg(corePath));
+    m_terminalProcess->start(corePath, args);
+
+    if (!m_terminalProcess->waitForStarted(2000)) {
+        appendTerminalText(tr("Unable to start console backend: %1\n").arg(m_terminalProcess->errorString()));
+        m_backendStartBlocked = true;
+        if (m_terminalStatusLabel) {
+            m_terminalStatusLabel->setText(tr("Start failed"));
+        }
+        if (m_networkLabel) {
+            m_networkLabel->setText(tr("Backend: start failed"));
+        }
+        return false;
+    }
+
+    if (m_terminalStatusLabel) {
+        m_terminalStatusLabel->setText(tr("Running"));
+    }
+    if (m_terminalStartButton) {
+        m_terminalStartButton->setEnabled(false);
+    }
+    if (m_terminalStopButton) {
+        m_terminalStopButton->setEnabled(true);
+    }
+    return true;
+}
+
 void MainWindow::appendTerminalText(const QString &text)
 {
     if (!m_terminalOutput || text.isEmpty()) {
@@ -595,6 +679,55 @@ void MainWindow::appendTerminalText(const QString &text)
     m_terminalOutput->moveCursor(QTextCursor::End);
 }
 
+void MainWindow::applyWalletStatus(const QString &json)
+{
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        if (m_syncLabel) {
+            m_syncLabel->setText(tr("Sync: invalid status response"));
+        }
+        return;
+    }
+
+    QJsonObject object = document.object();
+    if (object.value("status").toString() != "ok") {
+        if (m_networkLabel) {
+            m_networkLabel->setText(tr("Backend: %1").arg(object.value("status").toString()));
+        }
+        return;
+    }
+
+    QString balance = object.value("balance").toString();
+    QString joined = object.value("joined").toString();
+    QString sync = object.value("network_up_to_date").toString();
+    QString latestBlock = object.value("latest_block_id").toString();
+    QString peerCount = object.value("local_peers").toString();
+    QString supply = object.value("currency_supply").toString();
+    QString heartbeat = object.value("active_heartbeat").toString();
+
+    if (m_balanceLabel) {
+        m_balanceLabel->setText(tr("%1 SFR").arg(balance));
+    }
+    if (m_networkLabel) {
+        m_networkLabel->setText(tr("Joined: %1  Heartbeat: %2").arg(joined).arg(heartbeat));
+    }
+    if (m_syncLabel) {
+        m_syncLabel->setText(tr("Sync: %1  Latest block: %2").arg(sync).arg(latestBlock));
+    }
+    if (m_peerLabel) {
+        m_peerLabel->setText(tr("Peers: %1").arg(peerCount));
+    }
+    if (m_supplyLabel) {
+        m_supplyLabel->setText(tr("Supply: %1 SFR").arg(supply));
+    }
+
+    QString publicKey = object.value("public_key").toString();
+    if (m_receiveAddressLabel && !publicKey.isEmpty()) {
+        m_receiveAddressLabel->setText(publicKey);
+    }
+}
+
 void MainWindow::signIn()
 {
     if (m_userEdit->text().trimmed().isEmpty() || m_passwordEdit->text().isEmpty()) {
@@ -606,10 +739,16 @@ void MainWindow::signIn()
     m_userLabel->setText(tr("Signed in as %1").arg(m_userEdit->text().trimmed()));
     m_passwordEdit->clear();
     m_rootStack->setCurrentIndex(1);
+    m_backendStartBlocked = false;
+    ensureBackendRunning();
+    refreshWalletStatus();
+    m_statusTimer->start();
 }
 
 void MainWindow::signOut()
 {
+    m_statusTimer->stop();
+    stopTerminal();
     m_rootStack->setCurrentIndex(0);
     m_passwordEdit->setFocus();
 }
@@ -675,51 +814,8 @@ void MainWindow::submitPayment()
 
 void MainWindow::startTerminal()
 {
-    if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
-        appendTerminalText(tr("\nConsole is already running.\n"));
-        return;
-    }
-
-    QString corePath = coreBinaryPath();
-    if (corePath.isEmpty()) {
-        appendTerminalText(tr("\nUnable to find bin/Safire. Build the core app first.\n"));
-        if (m_terminalStatusLabel) {
-            m_terminalStatusLabel->setText(tr("Core binary not found"));
-        }
-        return;
-    }
-
-    if (!m_terminalProcess) {
-        m_terminalProcess = new QProcess(this);
-        m_terminalProcess->setProcessChannelMode(QProcess::MergedChannels);
-        connect(m_terminalProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(readTerminalOutput()));
-        connect(m_terminalProcess, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(terminalFinished(int,QProcess::ExitStatus)));
-        connect(m_terminalProcess, SIGNAL(errorOccurred(QProcess::ProcessError)), this, SLOT(terminalError(QProcess::ProcessError)));
-    }
-
-    QFileInfo coreInfo(corePath);
-    m_terminalProcess->setWorkingDirectory(coreInfo.absoluteDir().absolutePath() + "/..");
-    appendTerminalText(tr("\nStarting console backend: %1\n").arg(corePath));
-    m_terminalProcess->start(corePath);
-
-    if (!m_terminalProcess->waitForStarted(2000)) {
-        appendTerminalText(tr("Unable to start console backend: %1\n").arg(m_terminalProcess->errorString()));
-        if (m_terminalStatusLabel) {
-            m_terminalStatusLabel->setText(tr("Start failed"));
-        }
-        return;
-    }
-
-    if (m_terminalStatusLabel) {
-        m_terminalStatusLabel->setText(tr("Running"));
-    }
-    if (m_terminalStartButton) {
-        m_terminalStartButton->setEnabled(false);
-    }
-    if (m_terminalStopButton) {
-        m_terminalStopButton->setEnabled(true);
-    }
-    if (m_terminalInput) {
+    m_backendStartBlocked = false;
+    if (ensureBackendRunning() && m_terminalInput) {
         m_terminalInput->setFocus();
     }
 }
@@ -786,6 +882,9 @@ void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
         appendTerminalText(QString::fromLocal8Bit(bytes));
     }
     appendTerminalText(tr("\nConsole backend stopped with exit code %1.\n").arg(exitCode));
+    if (exitCode != 0) {
+        m_backendStartBlocked = true;
+    }
     if (m_terminalStatusLabel) {
         m_terminalStatusLabel->setText(tr("Stopped"));
     }
@@ -794,6 +893,9 @@ void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
     }
     if (m_terminalStopButton) {
         m_terminalStopButton->setEnabled(false);
+    }
+    if (m_networkLabel) {
+        m_networkLabel->setText(tr("Backend: stopped"));
     }
 }
 
@@ -813,4 +915,37 @@ void MainWindow::terminalError(QProcess::ProcessError error)
     if (m_terminalStopButton) {
         m_terminalStopButton->setEnabled(false);
     }
+}
+
+void MainWindow::refreshWalletStatus()
+{
+    if (!ensureBackendRunning()) {
+        if (m_syncLabel) {
+            m_syncLabel->setText(tr("Sync: backend unavailable"));
+        }
+        return;
+    }
+
+    QUrl url(QString("http://127.0.0.1:%1/api/wallet/status").arg(m_backendPort));
+    QNetworkRequest request(url);
+    m_networkManager->get(request);
+}
+
+void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
+{
+    if (!reply) {
+        return;
+    }
+
+    QByteArray body = reply->readAll();
+    if (reply->error() != QNetworkReply::NoError) {
+        if (m_syncLabel) {
+            m_syncLabel->setText(tr("Sync: waiting for backend API"));
+        }
+        reply->deleteLater();
+        return;
+    }
+
+    applyWalletStatus(QString::fromUtf8(body));
+    reply->deleteLater();
 }

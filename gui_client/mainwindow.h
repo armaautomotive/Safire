@@ -6,11 +6,14 @@
 
 class QLabel;
 class QLineEdit;
+class QNetworkAccessManager;
+class QNetworkReply;
 class QPlainTextEdit;
 class QPushButton;
 class QStackedWidget;
 class QTableWidget;
 class QTextEdit;
+class QTimer;
 class QWidget;
 class QCloseEvent;
 
@@ -39,6 +42,8 @@ private slots:
     void readTerminalOutput();
     void terminalFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void terminalError(QProcess::ProcessError error);
+    void refreshWalletStatus();
+    void handleWalletStatusReply(QNetworkReply *reply);
 
 private:
     void closeEvent(QCloseEvent *event);
@@ -57,19 +62,28 @@ private:
     QLabel *createSectionTitle(const QString &text);
     void appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status);
     void appendTerminalText(const QString &text);
+    void applyWalletStatus(const QString &json);
     void setActiveNav(QPushButton *activeButton);
     QString receiveAddress() const;
     QString coreBinaryPath() const;
+    bool ensureBackendRunning();
 
     QStackedWidget *m_rootStack;
     QStackedWidget *m_contentStack;
     QProcess *m_terminalProcess;
+    QTimer *m_statusTimer;
+    QNetworkAccessManager *m_networkManager;
+    int m_backendPort;
+    bool m_backendStartBlocked;
     QLineEdit *m_userEdit;
     QLineEdit *m_passwordEdit;
     QLabel *m_loginMessage;
     QLabel *m_userLabel;
     QLabel *m_balanceLabel;
     QLabel *m_networkLabel;
+    QLabel *m_syncLabel;
+    QLabel *m_peerLabel;
+    QLabel *m_supplyLabel;
     QTableWidget *m_historyTable;
     QLineEdit *m_sendToEdit;
     QLineEdit *m_sendAmountEdit;

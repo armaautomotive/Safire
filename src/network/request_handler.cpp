@@ -226,6 +226,47 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
+  if (request_path == "/api/wallet/status")
+  {
+    CWallet wallet;
+    if (wallet.fileExists("wallet.dat") == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\"}", "application/json");
+      return;
+    }
+
+    std::string privateKey;
+    std::string publicKey;
+    wallet.read(privateKey, publicKey);
+    functions.scanChain(publicKey, false);
+
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    CNetworkConfig config = CNetworkConfig::load();
+    CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
+    CNetworkTime netTime;
+    std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
+
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"public_key\":\"" << publicKey << "\",";
+    ss << "\"balance\":\"" << functions.balance << "\",";
+    ss << "\"joined\":\"" << (functions.joined ? "yes" : "no") << "\",";
+    ss << "\"active_heartbeat\":\"" << (functions.active_heartbeat ? "yes" : "no") << "\",";
+    ss << "\"heartbeat_renewal_due\":\"" << (functions.heartbeat_renewal_due ? "yes" : "no") << "\",";
+    ss << "\"last_heartbeat_block\":\"" << functions.last_heartbeat_block << "\",";
+    ss << "\"currency_supply\":\"" << functions.currency_circulation << "\",";
+    ss << "\"user_count\":\"" << functions.user_count << "\",";
+    ss << "\"network_up_to_date\":\"" << (functions.IsChainUpToDate() ? "yes" : "no") << "\",";
+    ss << "\"first_block_id\":\"" << firstBlockId << "\",";
+    ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
+    ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
+    ss << "\"network_time_offset\":\"" << netTime.getOffset() << "\",";
+    ss << "\"local_peers\":\"" << localPeers.size() << "\"}";
+    text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
   if (request_path == "/api/time")
   {
     CNetworkTime netTime;

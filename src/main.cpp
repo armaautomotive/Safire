@@ -104,6 +104,10 @@ int main(int argc, char* argv[])
     
     //leveldb::DB * db = blockDB.getDatabase();
     //long x = blockDB.getFirstBlockId();
+    if(blockDB.getDatabase() == NULL){
+        std::cout << " Error: unable to open block database. Another Safire process may already be running." << std::endl;
+        return 1;
+    }
     
     //std::cout << " getDB2 \n";
     
@@ -162,11 +166,15 @@ int main(int argc, char* argv[])
     std::string privateKey;
     std::string publicKey;
     CNetworkConfig startupConfig = CNetworkConfig::load();
-    std::string localNodePort = getArgValue(argc, argv, "--node-port");
+    std::string serverNodePort = getArgValue(argc, argv, "--node-port");
+    std::string localNodePort = serverNodePort;
+    if(localNodePort.length() == 0){
+        localNodePort = getArgValue(argc, argv, "--api-port");
+    }
     std::vector<std::string> localPeers = getArgValues(argc, argv, "--peer");
     if(localPeers.size() == 0 &&
        hasArg(argc, argv, "--peer") == false &&
-       localNodePort.length() == 0 &&
+       serverNodePort.length() == 0 &&
        startupConfig.defaultPeer.length() > 0){
         localPeers.push_back(startupConfig.defaultPeer);
     }
