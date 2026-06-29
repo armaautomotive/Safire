@@ -74,6 +74,7 @@ private:
     void applyWalletStatus(const QString &json);
     void applyWalletHistory(const QString &json);
     void applyNetworkUsers(const QString &json);
+    void applySendPaymentResult(const QString &json, bool transportError);
     void loadContacts();
     void saveContacts();
     void refreshContactDropdown();
@@ -90,6 +91,7 @@ private:
     QNetworkAccessManager *m_networkManager;
     int m_backendPort;
     bool m_backendStartBlocked;
+    double m_transactionFee;
     QLineEdit *m_userEdit;
     QLineEdit *m_passwordEdit;
     QLabel *m_loginMessage;

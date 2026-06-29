@@ -36,6 +36,7 @@
 #include <QStyle>
 #include <QTimer>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -142,6 +143,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_networkManager(new QNetworkAccessManager(this)),
       m_backendPort(4899),
       m_backendStartBlocked(false),
+      m_transactionFee(0.0),
       m_userEdit(0),
       m_passwordEdit(0),
       m_loginMessage(0),
@@ -826,6 +828,49 @@ void MainWindow::applyNetworkUsers(const QString &json)
     filterNetworkUsers(m_contactSearchEdit ? m_contactSearchEdit->text() : QString());
 }
 
+void MainWindow::applySendPaymentResult(const QString &json, bool transportError)
+{
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    QString status;
+    QString message;
+    QString hash;
+    if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+        QJsonObject object = document.object();
+        status = object.value("status").toString();
+        message = object.value("message").toString();
+        hash = object.value("hash").toString();
+    }
+
+    if (message.isEmpty()) {
+        message = transportError ? tr("Unable to send transfer request.") : tr("Transfer response was not understood.");
+    }
+
+    if (!transportError && status == "ok") {
+        if (!hash.isEmpty()) {
+            message += tr("\n\nRecord hash: %1").arg(shortAddress(hash));
+        }
+        QMessageBox::information(this, tr("Payment Sent"), message);
+        if (m_sendContactCombo) {
+            m_sendContactCombo->setCurrentIndex(0);
+        }
+        if (m_sendToEdit) {
+            m_sendToEdit->clear();
+        }
+        if (m_sendAmountEdit) {
+            m_sendAmountEdit->clear();
+        }
+        if (m_sendMemoEdit) {
+            m_sendMemoEdit->clear();
+        }
+        refreshWalletStatus();
+        showHistory();
+        return;
+    }
+
+    QMessageBox::warning(this, tr("Payment Not Sent"), message);
+}
+
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
@@ -970,6 +1015,11 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString peerCount = object.value("local_peers").toString();
     QString supply = object.value("currency_supply").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
+    bool feeOk = false;
+    double parsedFee = object.value("transaction_fee").toString().toDouble(&feeOk);
+    if (feeOk) {
+        m_transactionFee = parsedFee;
+    }
     bool progressOk = false;
     double syncProgress = object.value("sync_progress").toString().toDouble(&progressOk);
     int progressValue = progressOk ? static_cast<int>(syncProgress + 0.5) : 0;
@@ -1257,12 +1307,37 @@ void MainWindow::submitPayment()
         return;
     }
 
-    appendHistory(tr("Draft"), tr("Send"), tr("Main Account"), tr("-%1 SFR").arg(amount), tr("Needs review"));
-    QMessageBox::information(this, tr("Safire"), tr("Payment draft added to history."));
-    m_sendToEdit->clear();
-    m_sendAmountEdit->clear();
-    m_sendMemoEdit->clear();
-    showHistory();
+    bool amountOk = false;
+    double amountValue = amount.toDouble(&amountOk);
+    if (!amountOk || amountValue <= 0.0) {
+        QMessageBox::warning(this, tr("Safire"), tr("Enter an amount greater than zero."));
+        return;
+    }
+
+    double totalDebit = amountValue + m_transactionFee;
+    QString confirmMessage = tr("Send %1 SFR to:\n%2\n\nFee: %3 SFR\nTotal debit: %4 SFR")
+        .arg(QString::number(amountValue, 'f', 4))
+        .arg(recipient)
+        .arg(QString::number(m_transactionFee, 'f', 4))
+        .arg(QString::number(totalDebit, 'f', 4));
+    int answer = QMessageBox::question(this, tr("Confirm Payment"), confirmMessage, QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+
+    if (!ensureBackendRunning()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Backend is unavailable."));
+        return;
+    }
+
+    QUrl url(QString("http://127.0.0.1:%1/api/wallet/send").arg(m_backendPort));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery form;
+    form.addQueryItem("recipient", recipient);
+    form.addQueryItem("amount", amount);
+    m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
 void MainWindow::startTerminal()
@@ -1402,7 +1477,13 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
     }
 
     QByteArray body = reply->readAll();
+    QString path = reply->url().path();
     if (reply->error() != QNetworkReply::NoError) {
+        if (path == "/api/wallet/send") {
+            applySendPaymentResult(QString::fromUtf8(body), true);
+            reply->deleteLater();
+            return;
+        }
         if (m_syncLabel) {
             m_syncLabel->setText(tr("Sync: waiting for backend API"));
         }
@@ -1413,11 +1494,12 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         return;
     }
 
-    QString path = reply->url().path();
     if (path == "/api/wallet/history") {
         applyWalletHistory(QString::fromUtf8(body));
     } else if (path == "/api/network/users") {
         applyNetworkUsers(QString::fromUtf8(body));
+    } else if (path == "/api/wallet/send") {
+        applySendPaymentResult(QString::fromUtf8(body), false);
     } else {
         applyWalletStatus(QString::fromUtf8(body));
     }

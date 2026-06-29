@@ -10,6 +10,7 @@
 
 #include "request_handler.h"
 #include <cctype>
+#include <cstdlib>
 #include <deque>
 #include <fstream>
 #include <map>
@@ -21,10 +22,12 @@
 #include "mime_types.h"
 #include "reply.h"
 #include "request.h"
+#include "ecdsacrypto.h"
 #include "wallet.h"
 #include "blockdb.h"
 #include "functions/functions.h"
 #include "network/localpeerclient.h"
+#include "network/relayclient.h"
 #include "networkconfig.h"
 
 #include "networktime.h"
@@ -33,6 +36,10 @@ namespace http {
 namespace server3 {
 
 namespace {
+
+const double API_DEFAULT_TRANSACTION_FEE = 0.0;
+const double API_MAX_TRANSACTION_FEE = 0.1;
+const char* API_SETTINGS_FILE = "settings.dat";
 
 std::string json_escape(const std::string& value)
 {
@@ -158,6 +165,62 @@ void text_reply(reply& rep, reply::status_type status, const std::string& conten
   rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
   rep.headers[1].name = "Content-Type";
   rep.headers[1].value = content_type;
+}
+
+bool parse_amount_value(const std::string& value, double& amount)
+{
+  char* end = NULL;
+  amount = std::strtod(value.c_str(), &end);
+  return end != value.c_str() && *end == '\0';
+}
+
+bool parse_fee_amount(const std::string& value, double& fee)
+{
+  if (parse_amount_value(value, fee) == false)
+  {
+    return false;
+  }
+  return fee >= 0.0 && fee <= API_MAX_TRANSACTION_FEE;
+}
+
+double api_default_transaction_fee()
+{
+  std::ifstream infile(API_SETTINGS_FILE);
+  std::string line;
+  while (std::getline(infile, line))
+  {
+    std::size_t start = line.find("fee:");
+    if (start == 0)
+    {
+      std::string value = line.substr(4);
+      double fee = API_DEFAULT_TRANSACTION_FEE;
+      if (parse_fee_amount(value, fee))
+      {
+        return fee;
+      }
+    }
+  }
+  return API_DEFAULT_TRANSACTION_FEE;
+}
+
+bool queue_and_broadcast_record(CFunctions& functions, CFunctions::record_structure record, std::string& error)
+{
+  if (functions.isRecordSizeValid(record) == false)
+  {
+    error = functions.recordSizeError(record);
+    return false;
+  }
+
+  if (functions.addToQueue(record) == 0)
+  {
+    error = "unable to queue record";
+    return false;
+  }
+
+  CRelayClient relay_client;
+  relay_client.sendRecord(record);
+  CLocalPeerClient::broadcastRecord(record);
+  return true;
 }
 
 std::string normalized_public_name(const std::string& name)
@@ -754,6 +817,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "{\"status\":\"ok\",";
     ss << "\"public_key\":\"" << publicKey << "\",";
     ss << "\"balance\":\"" << functions.balance << "\",";
+    ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
     ss << "\"joined\":\"" << (functions.joined ? "yes" : "no") << "\",";
     ss << "\"active_heartbeat\":\"" << (functions.active_heartbeat ? "yes" : "no") << "\",";
     ss << "\"heartbeat_renewal_due\":\"" << (functions.heartbeat_renewal_due ? "yes" : "no") << "\",";
@@ -784,6 +848,86 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::string publicKey;
     wallet.read(privateKey, publicKey);
     text_reply(rep, reply::ok, wallet_history_json(blockDB, publicKey), "application/json");
+    return;
+  }
+
+  if (request_path.find("/api/wallet/send?") == 0
+      || (req.method == "POST" && request_path == "/api/wallet/send"))
+  {
+    CWallet wallet;
+    if (wallet.fileExists("wallet.dat") == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet file not found.\"}", "application/json");
+      return;
+    }
+
+    std::string recipient = submitted_value(req, request_path, "recipient");
+    std::string amount_value = submitted_value(req, request_path, "amount");
+    double amount = 0.0;
+    if (recipient.length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Recipient address is required.\"}", "application/json");
+      return;
+    }
+    if (parse_amount_value(amount_value, amount) == false || amount <= 0.0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Amount must be greater than zero.\"}", "application/json");
+      return;
+    }
+
+    std::string privateKey;
+    std::string publicKey;
+    wallet.read(privateKey, publicKey);
+    functions.scanChain(publicKey, false);
+
+    double transaction_fee = api_default_transaction_fee();
+    double total_debit = amount + transaction_fee;
+    if (total_debit > functions.balance)
+    {
+      std::stringstream error;
+      error << "{\"status\":\"error\",\"message\":\"Insufficient balance. Amount plus fee is "
+            << total_debit << " SFR.\"}";
+      text_reply(rep, reply::bad_request, error.str(), "application/json");
+      return;
+    }
+
+    CFunctions::record_structure sendRecord;
+    sendRecord.network = "main";
+    CNetworkTime netTime;
+    std::stringstream time_stream;
+    time_stream << netTime.getEpoch();
+    sendRecord.time = time_stream.str();
+    sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
+    sendRecord.amount = amount;
+    sendRecord.fee = transaction_fee;
+    sendRecord.sender_public_key = publicKey;
+    sendRecord.recipient_public_key = recipient;
+    sendRecord.hash = functions.getRecordHash(sendRecord);
+
+    CECDSACrypto ecdsa;
+    std::string signature = "";
+    ecdsa.SignMessage(privateKey, sendRecord.hash, signature);
+    sendRecord.signature = signature;
+
+    std::string queue_error;
+    if (queue_and_broadcast_record(functions, sendRecord, queue_error) == false)
+    {
+      std::stringstream error;
+      error << "{\"status\":\"error\",\"message\":\"Unable to send transfer: "
+            << json_escape(queue_error) << ".\"}";
+      text_reply(rep, reply::bad_request, error.str(), "application/json");
+      return;
+    }
+
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"message\":\"Transfer request queued and broadcast.\",";
+    ss << "\"amount\":\"" << amount << "\",";
+    ss << "\"fee\":\"" << transaction_fee << "\",";
+    ss << "\"total\":\"" << total_debit << "\",";
+    ss << "\"recipient\":\"" << json_escape(recipient) << "\",";
+    ss << "\"hash\":\"" << json_escape(sendRecord.hash) << "\"}";
+    text_reply(rep, reply::accepted, ss.str(), "application/json");
     return;
   }
 
