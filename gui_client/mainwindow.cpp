@@ -241,6 +241,17 @@ QString namedAccount(const QString &name, const QString &address)
     return shortAddress(address);
 }
 
+QString blockchainAccountLabel(const QString &name, const QString &address)
+{
+    if (address.isEmpty()) {
+        return QString("-");
+    }
+    if (!name.isEmpty()) {
+        return QString("%1 (%2)").arg(name).arg(shortAddress(address));
+    }
+    return shortAddress(address);
+}
+
 QString formatSfrAmount(double value)
 {
     QString amount = QString::number(value, 'f', 4);
@@ -290,6 +301,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_blockCountLabel(0),
       m_historyTable(0),
       m_mempoolTable(0),
+      m_blockchainSearchEdit(0),
+      m_blockchainTable(0),
       m_peerMap(0),
       m_peersTable(0),
       m_contactSearchEdit(0),
@@ -311,6 +324,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_contactsButton(0),
       m_historyButton(0),
       m_mempoolButton(0),
+      m_blockchainButton(0),
       m_peersButton(0),
       m_terminalButton(0),
       m_optionsButton(0)
@@ -445,6 +459,7 @@ QWidget *MainWindow::createShellPage()
     m_contactsButton = createNavButton(tr("Contacts"));
     m_historyButton = createNavButton(tr("History"));
     m_mempoolButton = createNavButton(tr("Mempool"));
+    m_blockchainButton = createNavButton(tr("Blockchain"));
     m_peersButton = createNavButton(tr("Peers"));
     m_terminalButton = createNavButton(tr("Terminal"));
     m_optionsButton = createNavButton(tr("Options"));
@@ -455,6 +470,7 @@ QWidget *MainWindow::createShellPage()
     nav->addWidget(m_contactsButton);
     nav->addWidget(m_historyButton);
     nav->addWidget(m_mempoolButton);
+    nav->addWidget(m_blockchainButton);
     nav->addWidget(m_peersButton);
     nav->addWidget(m_terminalButton);
     nav->addWidget(m_optionsButton);
@@ -470,6 +486,7 @@ QWidget *MainWindow::createShellPage()
     m_contentStack->addWidget(createContactsPage());
     m_contentStack->addWidget(createHistoryPage());
     m_contentStack->addWidget(createMempoolPage());
+    m_contentStack->addWidget(createBlockchainPage());
     m_contentStack->addWidget(createPeersPage());
     m_contentStack->addWidget(createTerminalPage());
     m_contentStack->addWidget(createOptionsPage());
@@ -480,6 +497,7 @@ QWidget *MainWindow::createShellPage()
     connect(m_contactsButton, SIGNAL(clicked()), this, SLOT(showContacts()));
     connect(m_historyButton, SIGNAL(clicked()), this, SLOT(showHistory()));
     connect(m_mempoolButton, SIGNAL(clicked()), this, SLOT(showMempool()));
+    connect(m_blockchainButton, SIGNAL(clicked()), this, SLOT(showBlockchain()));
     connect(m_peersButton, SIGNAL(clicked()), this, SLOT(showPeers()));
     connect(m_terminalButton, SIGNAL(clicked()), this, SLOT(showTerminal()));
     connect(m_optionsButton, SIGNAL(clicked()), this, SLOT(showOptions()));
@@ -782,6 +800,40 @@ QWidget *MainWindow::createMempoolPage()
     m_mempoolTable->setWordWrap(true);
     layout->addWidget(m_mempoolTable, 1);
 
+    return page;
+}
+
+QWidget *MainWindow::createBlockchainPage()
+{
+    QFrame *page = makePanel("Panel");
+    QVBoxLayout *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(26, 24, 26, 24);
+    layout->setSpacing(14);
+
+    layout->addWidget(createSectionTitle(tr("Blockchain")));
+    layout->addWidget(makeLabel(tr("Most recent 50 connected blocks."), "Muted"));
+
+    m_blockchainSearchEdit = new QLineEdit;
+    m_blockchainSearchEdit->setPlaceholderText(tr("Search block, creator, hash, record type, name, or address"));
+    layout->addWidget(m_blockchainSearchEdit);
+
+    m_blockchainTable = new QTableWidget(0, 6);
+    QStringList headers;
+    headers << tr("Block") << tr("Time") << tr("Creator") << tr("Records") << tr("Hash") << tr("Previous");
+    m_blockchainTable->setHorizontalHeaderLabels(headers);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    m_blockchainTable->verticalHeader()->setVisible(false);
+    m_blockchainTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_blockchainTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_blockchainTable->setWordWrap(true);
+    layout->addWidget(m_blockchainTable, 1);
+
+    connect(m_blockchainSearchEdit, SIGNAL(textChanged(QString)), this, SLOT(filterBlockchainBlocks(QString)));
     return page;
 }
 
@@ -1151,7 +1203,7 @@ void MainWindow::applySetNameResult(const QString &json, bool transportError)
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
-    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_peersButton << m_terminalButton << m_optionsButton;
+    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_blockchainButton << m_peersButton << m_terminalButton << m_optionsButton;
     for (int i = 0; i < buttons.size(); ++i) {
         QPushButton *button = buttons.at(i);
         if (!button) {
@@ -1531,6 +1583,116 @@ void MainWindow::applyMempool(const QString &json)
     m_mempoolTable->resizeRowsToContents();
 }
 
+void MainWindow::applyBlockchain(const QString &json)
+{
+    if (!m_blockchainTable) {
+        return;
+    }
+
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        m_blockchainTable->setRowCount(0);
+        return;
+    }
+
+    QJsonObject object = document.object();
+    if (object.value("status").toString() != "ok") {
+        m_blockchainTable->setRowCount(0);
+        return;
+    }
+
+    QJsonArray blocks = object.value("blocks").toArray();
+    m_blockchainTable->setRowCount(0);
+    for (int i = 0; i < blocks.size(); ++i) {
+        QJsonObject block = blocks.at(i).toObject();
+        QString number = block.value("number").toString();
+        QString creatorKey = block.value("creator_key").toString();
+        QString creatorName = block.value("creator_name").toString();
+        QString hash = block.value("hash").toString();
+        QString previous = block.value("previous_block_id").toString();
+        QString previousHash = block.value("previous_hash").toString();
+
+        QString timeValue = block.value("time").toString();
+        bool timeOk = false;
+        qint64 epoch = timeValue.toLongLong(&timeOk);
+        QString timeDisplay = timeValue;
+        if (timeOk && epoch > 0) {
+            timeDisplay = QDateTime::fromSecsSinceEpoch(epoch).toString("yyyy-MM-dd HH:mm");
+        }
+        if (timeDisplay.isEmpty()) {
+            timeDisplay = tr("-");
+        }
+
+        QStringList recordLines;
+        QString searchBlob = number + QString(" ") + timeValue + QString(" ") + creatorKey + QString(" ") + creatorName + QString(" ") + hash + QString(" ") + previous + QString(" ") + previousHash;
+        QJsonArray records = block.value("records").toArray();
+        for (int r = 0; r < records.size(); ++r) {
+            QJsonObject record = records.at(r).toObject();
+            QString type = record.value("type").toString();
+            QString amount = record.value("amount").toString();
+            QString fee = record.value("fee").toString();
+            QString fromKey = record.value("from_key").toString();
+            QString fromName = record.value("from_name").toString();
+            QString toKey = record.value("to_key").toString();
+            QString toName = record.value("to_name").toString();
+            QString name = record.value("name").toString();
+            QString value = record.value("value").toString();
+            QString recordHash = record.value("hash").toString();
+
+            QString line = tr("#%1 %2").arg(record.value("index").toString(QString::number(r))).arg(type);
+            if (type == "TRANSFER_CURRENCY" || type == "ISSUE_CURRENCY") {
+                line += tr(" %1 SFR").arg(amount);
+                line += tr(" from %1").arg(blockchainAccountLabel(fromName, fromKey));
+                line += tr(" to %1").arg(blockchainAccountLabel(toName, toKey));
+            } else if (type == "JOIN_NETWORK" || type == "UPDATE_NAME") {
+                line += tr(" %1").arg(blockchainAccountLabel(fromName, fromKey));
+                if (!name.isEmpty()) {
+                    line += tr(" name \"%1\"").arg(name);
+                }
+            } else if (type == "VOTE") {
+                line += tr(" %1").arg(blockchainAccountLabel(fromName, fromKey));
+                if (!name.isEmpty() || !value.isEmpty()) {
+                    line += tr(" %1=%2").arg(name).arg(value);
+                }
+            } else if (!fromKey.isEmpty() || !toKey.isEmpty()) {
+                line += tr(" from %1").arg(blockchainAccountLabel(fromName, fromKey));
+                if (!toKey.isEmpty()) {
+                    line += tr(" to %1").arg(blockchainAccountLabel(toName, toKey));
+                }
+            }
+            if (fee != "0" && !fee.isEmpty()) {
+                line += tr(" fee %1").arg(fee);
+            }
+            recordLines << line;
+            searchBlob += QString(" ") + type + QString(" ") + amount + QString(" ") + fee + QString(" ") +
+                          fromKey + QString(" ") + fromName + QString(" ") + toKey + QString(" ") + toName + QString(" ") +
+                          name + QString(" ") + value + QString(" ") + recordHash;
+        }
+
+        QString recordsDisplay = recordLines.isEmpty() ? tr("No records") : recordLines.join("\n");
+        int row = m_blockchainTable->rowCount();
+        m_blockchainTable->insertRow(row);
+        QStringList values;
+        values << number
+               << timeDisplay
+               << blockchainAccountLabel(creatorName, creatorKey)
+               << recordsDisplay
+               << shortAddress(hash)
+               << tr("%1\n%2").arg(previous).arg(shortAddress(previousHash));
+        for (int column = 0; column < values.size(); ++column) {
+            QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
+            item->setData(Qt::UserRole, searchBlob);
+            if (column == 3) {
+                item->setToolTip(recordsDisplay);
+            }
+            m_blockchainTable->setItem(row, column, item);
+        }
+    }
+    m_blockchainTable->resizeRowsToContents();
+    filterBlockchainBlocks(m_blockchainSearchEdit ? m_blockchainSearchEdit->text() : QString());
+}
+
 void MainWindow::applyPeers(const QString &json)
 {
     if (!m_peersTable || !m_peerMap) {
@@ -1658,22 +1820,29 @@ void MainWindow::showMempool()
     refreshWalletStatus();
 }
 
-void MainWindow::showPeers()
+void MainWindow::showBlockchain()
 {
     m_contentStack->setCurrentIndex(6);
+    setActiveNav(m_blockchainButton);
+    refreshWalletStatus();
+}
+
+void MainWindow::showPeers()
+{
+    m_contentStack->setCurrentIndex(7);
     setActiveNav(m_peersButton);
     refreshWalletStatus();
 }
 
 void MainWindow::showTerminal()
 {
-    m_contentStack->setCurrentIndex(7);
+    m_contentStack->setCurrentIndex(8);
     setActiveNav(m_terminalButton);
 }
 
 void MainWindow::showOptions()
 {
-    m_contentStack->setCurrentIndex(8);
+    m_contentStack->setCurrentIndex(9);
     setActiveNav(m_optionsButton);
 }
 
@@ -1699,6 +1868,26 @@ void MainWindow::filterNetworkUsers(const QString &text)
             }
         }
         m_networkUsersTable->setRowHidden(row, !needle.isEmpty() && !haystack.contains(needle));
+    }
+}
+
+void MainWindow::filterBlockchainBlocks(const QString &text)
+{
+    if (!m_blockchainTable) {
+        return;
+    }
+
+    QString needle = text.trimmed().toLower();
+    for (int row = 0; row < m_blockchainTable->rowCount(); ++row) {
+        QString haystack;
+        for (int column = 0; column < m_blockchainTable->columnCount(); ++column) {
+            QTableWidgetItem *item = m_blockchainTable->item(row, column);
+            if (item) {
+                haystack += item->text().toLower() + QString(" ");
+                haystack += item->data(Qt::UserRole).toString().toLower() + QString(" ");
+            }
+        }
+        m_blockchainTable->setRowHidden(row, !needle.isEmpty() && !haystack.contains(needle));
     }
 }
 
@@ -2013,6 +2202,10 @@ void MainWindow::refreshWalletStatus()
     QNetworkRequest mempoolRequest(mempoolUrl);
     m_networkManager->get(mempoolRequest);
 
+    QUrl blockchainUrl(QString("http://127.0.0.1:%1/api/blockchain/recent").arg(m_backendPort));
+    QNetworkRequest blockchainRequest(blockchainUrl);
+    m_networkManager->get(blockchainRequest);
+
     QUrl peersUrl(QString("http://127.0.0.1:%1/api/peers").arg(m_backendPort));
     QNetworkRequest peersRequest(peersUrl);
     m_networkManager->get(peersRequest);
@@ -2051,6 +2244,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         applyWalletHistory(QString::fromUtf8(body));
     } else if (path == "/api/mempool") {
         applyMempool(QString::fromUtf8(body));
+    } else if (path == "/api/blockchain/recent") {
+        applyBlockchain(QString::fromUtf8(body));
     } else if (path == "/api/peers") {
         applyPeers(QString::fromUtf8(body));
     } else if (path == "/api/network/users") {

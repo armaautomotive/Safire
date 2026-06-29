@@ -37,6 +37,7 @@ private slots:
     void showContacts();
     void showHistory();
     void showMempool();
+    void showBlockchain();
     void showPeers();
     void showTerminal();
     void showOptions();
@@ -44,6 +45,7 @@ private slots:
     void submitPayment();
     void setWalletName();
     void filterNetworkUsers(const QString &text);
+    void filterBlockchainBlocks(const QString &text);
     void addSelectedNetworkUserToContacts();
     void removeSelectedContact();
     void useSelectedContactForSend();
@@ -67,6 +69,7 @@ private:
     QWidget *createContactsPage();
     QWidget *createHistoryPage();
     QWidget *createMempoolPage();
+    QWidget *createBlockchainPage();
     QWidget *createPeersPage();
     QWidget *createTerminalPage();
     QWidget *createOptionsPage();
@@ -80,6 +83,7 @@ private:
     void applyWalletStatus(const QString &json);
     void applyWalletHistory(const QString &json);
     void applyMempool(const QString &json);
+    void applyBlockchain(const QString &json);
     void applyPeers(const QString &json);
     void applyNetworkUsers(const QString &json);
     void applySendPaymentResult(const QString &json, bool transportError);
@@ -123,6 +127,8 @@ private:
     QLabel *m_blockCountLabel;
     QTableWidget *m_historyTable;
     QTableWidget *m_mempoolTable;
+    QLineEdit *m_blockchainSearchEdit;
+    QTableWidget *m_blockchainTable;
     PeerMapWidget *m_peerMap;
     QTableWidget *m_peersTable;
     QLineEdit *m_contactSearchEdit;
@@ -144,6 +150,7 @@ private:
     QPushButton *m_contactsButton;
     QPushButton *m_historyButton;
     QPushButton *m_mempoolButton;
+    QPushButton *m_blockchainButton;
     QPushButton *m_peersButton;
     QPushButton *m_terminalButton;
     QPushButton *m_optionsButton;

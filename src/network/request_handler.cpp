@@ -623,6 +623,97 @@ std::string mempool_json()
   return ss.str();
 }
 
+std::string recent_blockchain_json(CBlockDB& block_db)
+{
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  if (first_block_id < 0 || latest_block_id < 0)
+  {
+    return "{\"status\":\"ok\",\"limit\":\"50\",\"blocks\":[]}";
+  }
+
+  const int limit = 50;
+  std::deque<CFunctions::block_structure> recent_blocks;
+  CFunctions::block_structure block = block_db.getBlock(first_block_id);
+  int guard = 0;
+  while (block.number > 0 && guard < 100000)
+  {
+    recent_blocks.push_back(block);
+    if (recent_blocks.size() > limit)
+    {
+      recent_blocks.pop_front();
+    }
+
+    if (block.number == latest_block_id)
+    {
+      break;
+    }
+
+    CFunctions::block_structure next_block = block_db.getNextBlock(block);
+    if (next_block.number <= 0 || next_block.number == block.number)
+    {
+      break;
+    }
+    block = next_block;
+    ++guard;
+  }
+
+  std::map<std::string, std::string> names = accepted_member_names(block_db);
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"limit\":\"" << limit << "\",";
+  ss << "\"blocks\":[";
+  for (std::deque<CFunctions::block_structure>::reverse_iterator it = recent_blocks.rbegin();
+       it != recent_blocks.rend();
+       ++it)
+  {
+    if (it != recent_blocks.rbegin())
+    {
+      ss << ",";
+    }
+    CFunctions::block_structure current_block = *it;
+    ss << "{";
+    ss << "\"number\":\"" << current_block.number << "\",";
+    ss << "\"time\":\"" << json_escape(current_block.time) << "\",";
+    ss << "\"previous_block_id\":\"" << current_block.previous_block_id << "\",";
+    ss << "\"creator_key\":\"" << json_escape(current_block.creator_key) << "\",";
+    ss << "\"creator_name\":\"" << json_escape(name_for_key(names, current_block.creator_key)) << "\",";
+    ss << "\"hash\":\"" << json_escape(current_block.hash) << "\",";
+    ss << "\"previous_hash\":\"" << json_escape(current_block.previous_block_hash) << "\",";
+    ss << "\"record_count\":\"" << current_block.records.size() << "\",";
+    ss << "\"records\":[";
+    for (int r = 0; r < current_block.records.size(); ++r)
+    {
+      if (r > 0)
+      {
+        ss << ",";
+      }
+      CFunctions::record_structure record = current_block.records.at(r);
+      ss << "{";
+      ss << "\"index\":\"" << r << "\",";
+      ss << "\"type\":\"" << record_type_name(record.transaction_type) << "\",";
+      ss << "\"network\":\"" << json_escape(record.network) << "\",";
+      ss << "\"time\":\"" << json_escape(record.time) << "\",";
+      ss << "\"amount\":\"" << record.amount << "\",";
+      ss << "\"fee\":\"" << record.fee << "\",";
+      ss << "\"from_key\":\"" << json_escape(record.sender_public_key) << "\",";
+      ss << "\"from_name\":\"" << json_escape(name_for_key(names, record.sender_public_key)) << "\",";
+      ss << "\"to_key\":\"" << json_escape(record.recipient_public_key) << "\",";
+      ss << "\"to_name\":\"" << json_escape(name_for_key(names, record.recipient_public_key)) << "\",";
+      ss << "\"member_key\":\"" << json_escape(record.sender_public_key) << "\",";
+      ss << "\"member_name\":\"" << json_escape(name_for_key(names, record.sender_public_key)) << "\",";
+      ss << "\"name\":\"" << json_escape(record.name) << "\",";
+      ss << "\"value\":\"" << json_escape(record.value) << "\",";
+      ss << "\"hash\":\"" << json_escape(record.hash) << "\"";
+      ss << "}";
+    }
+    ss << "]";
+    ss << "}";
+  }
+  ss << "]}";
+  return ss.str();
+}
+
 void add_balance_delta(std::map<std::string, double>& balances, const std::string& public_key, double amount)
 {
   if (public_key.length() == 0)
@@ -1244,6 +1335,12 @@ void request_handler::handle_request(const request& req, reply& rep)
   if (request_path == "/api/mempool")
   {
     text_reply(rep, reply::ok, mempool_json(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/blockchain/recent")
+  {
+    text_reply(rep, reply::ok, recent_blockchain_json(blockDB), "application/json");
     return;
   }
 
