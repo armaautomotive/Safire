@@ -70,7 +70,7 @@ int CFunctions::addToQueue(record_structure record){
 }
 
 void CFunctions::printQueue(){
-    std::vector<record_structure> records = parseQueueRecords(); 
+    std::vector<record_structure> records = peekQueueRecords();
     for(int i = 0; i < records.size(); i++){
         CFunctions::record_structure record = records.at(i);
         std::cout << recordJSON(record);
@@ -78,9 +78,31 @@ void CFunctions::printQueue(){
 }
 
 /**
+ * peekQueueRecords
+ *
+ * Description: Read queued records without removing them from the local mempool.
+ * @return vector of record_structures
+ */
+std::vector<CFunctions::record_structure> CFunctions::peekQueueRecords(){
+    std::vector<record_structure> records;
+    std::ifstream infile("queue.dat");
+    std::string line;
+    while (std::getline(infile, line))
+    {
+        CFunctions::record_structure record;
+        record = parseRecordJson(line);
+        if(record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0){
+            records.push_back(record);
+        }
+    }
+    return records;
+}
+
+/**
  * parseQueueRecords
  *
- * Description: Read queued records from file into a vector of structures.
+ * Description: Read queued records from file into a vector of structures and clear the queue.
+ * This is the consuming path used when pending records are included in a block.
  * @return vector or record_structures
  */
 std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){

@@ -81,6 +81,45 @@ std::string recordSummary(long blockNumber, int recordIndex, CFunctions::record_
     return ss.str();
 }
 
+std::string mempoolRecordSummary(int recordIndex, CFunctions::record_structure record, bool fullKeys){
+    std::stringstream ss;
+    ss << " mempool #" << recordIndex << " " << recordTypeName(record.transaction_type);
+    ss << " time " << (record.time.length() > 0 ? record.time : "-");
+    ss << " net " << (record.network.length() > 0 ? record.network : "-");
+    ss << " amt " << record.amount;
+    ss << " fee " << record.fee;
+    if(record.transaction_type == CFunctions::JOIN_NETWORK){
+        ss << " member " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
+    } else {
+        ss << " from " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
+        ss << " to " << (fullKeys ? record.recipient_public_key : shortKey(record.recipient_public_key));
+    }
+    if(record.name.length() > 0){
+        ss << " name \"" << record.name << "\"";
+    }
+    if(record.value.length() > 0){
+        ss << " value \"" << record.value << "\"";
+    }
+    if(record.hash.length() > 0){
+        ss << " hash " << shortKey(record.hash);
+    }
+    return ss.str();
+}
+
+void printMempoolRecords(){
+    CFunctions functions;
+    std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
+    if(records.size() == 0){
+        std::cout << " Mempool is empty." << std::endl;
+        return;
+    }
+
+    std::cout << " Mempool records: " << records.size() << std::endl;
+    for(int i = 0; i < records.size(); i++){
+        std::cout << "  " << mempoolRecordSummary(i, records.at(i), true) << std::endl;
+    }
+}
+
 void printRecentBlockchainRecords(int limit){
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
@@ -175,6 +214,7 @@ void CCLI::printCommands(){
 	" sent                    - print sent transaction list details.\n" <<
 	" received                - print received transaction list details.\n" <<
 	" network                 - print network stats including currency and volumes.\n" <<
+    " mempool                 - print pending records not yet in the blockchain.\n" <<
     " blockchain              - print the last 10 blockchain records.\n" <<
     " memberships             - print blockchain membership records.\n" <<
 	" send                    - send a payment to another user address.\n" <<
@@ -193,7 +233,7 @@ void CCLI::printAdvancedCommands(){
     " tests                  - Run tests to verify this build is functioning correctly.\n" <<
     " chain                  - Scan the complete blockchain for verification. Reports findings.\n" <<
     " printchain             - Print the blockchain summary and validation.\n" <<
-    " printqueue             - Print the record queue.\n" <<
+    " printqueue             - Print the local mempool queue.\n" <<
     " resetall               - Delete node data.\n" <<
     " requestblock           - Send network request for block data. \n" <<
     " sync                   - Pull blocks from configured local peers. \n" <<
@@ -391,6 +431,10 @@ void CCLI::processUserInput(){
 
             printRecentBlockchainRecords(10);
 
+        } else if ( command.compare("mempool") == 0 || command.compare("pending") == 0 ){
+
+            printMempoolRecords();
+
         } else if ( command.compare("memberships") == 0 || command.compare("members") == 0 ){
 
             printMembershipRecords();
@@ -434,9 +478,7 @@ void CCLI::processUserInput(){
 
 
         } else if( command.compare("printqueue") == 0){
-            std::cout << " Record Queue: " << std::endl;
-            //std::cout << "     Not implemented " << std::endl; 
-            functions.printQueue();
+            printMempoolRecords();
             
         } else if( command.compare("resetall") == 0){
             std::cout << " Purging node data: " << std::endl;
