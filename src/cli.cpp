@@ -1199,6 +1199,7 @@ void CCLI::printAdvancedCommands(){
     " reindex                - Clear and parse the entire blockchain dataset.\n" <<
     " tests                  - Run tests to verify this build is functioning correctly.\n" <<
     " chain                  - Scan the complete blockchain for verification. Reports findings.\n" <<
+    " repairchain            - Rebuild next-block indexes using the best stored branch.\n" <<
     " printchain             - Print the blockchain summary and validation.\n" <<
     " printqueue             - Print the local mempool queue.\n" <<
     " resetall               - Delete node data.\n" <<
@@ -1580,6 +1581,14 @@ void CCLI::processUserInput(){
 
         } else if ( command.compare("chain") == 0){
            printChainDiagnostics();
+
+        } else if ( command.compare("repairchain") == 0){
+            CBlockDB blockDB;
+            long before = blockDB.getConnectedLatestBlockId();
+            long after = blockDB.rebuildBestChainIndex();
+            std::cout << " Chain repair:" << std::endl;
+            std::cout << "  connected latest before: " << before << std::endl;
+            std::cout << "  connected latest after: " << after << std::endl;
 	
         } else if ( command.compare("printchain") == 0){
             

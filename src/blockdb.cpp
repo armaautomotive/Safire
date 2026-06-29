@@ -6,6 +6,8 @@
 // Add indexDB ???
 
 #include "blockdb.h"
+#include <algorithm>
+#include <map>
 #include <sstream>
 #include <unistd.h>   // open and close
 #include "leveldb/db.h"
@@ -308,6 +310,99 @@ long CBlockDB::getConnectedLatestBlockId(){
     }
 
     return latestConnectedBlockId;
+}
+
+long CBlockDB::rebuildBestChainIndex(){
+    long firstBlockId = getFirstBlockId();
+    if(firstBlockId < 0){
+        return -1;
+    }
+
+    leveldb::DB* db = getDatabase();
+    if(!db){
+        return -1;
+    }
+
+    std::vector<CFunctions::block_structure> blocks = getStoredBlocks();
+    if(blocks.size() == 0){
+        return -1;
+    }
+
+    std::map<long, CFunctions::block_structure> blockByNumber;
+    std::map<long, std::vector<CFunctions::block_structure> > childrenByParent;
+    for(int i = 0; i < blocks.size(); i++){
+        CFunctions::block_structure block = blocks.at(i);
+        blockByNumber[block.number] = block;
+        if(block.previous_block_id > 0){
+            childrenByParent[block.previous_block_id].push_back(block);
+        }
+    }
+
+    std::sort(blocks.begin(), blocks.end(),
+        [](const CFunctions::block_structure& a, const CFunctions::block_structure& b){
+            return a.number > b.number;
+        });
+
+    std::map<long, long> bestTipByBlock;
+    std::map<long, long> bestChildByBlock;
+    for(int i = 0; i < blocks.size(); i++){
+        CFunctions::block_structure block = blocks.at(i);
+        long bestTip = block.number;
+        long bestChild = -1;
+        std::vector<CFunctions::block_structure> children = childrenByParent[block.number];
+        for(int c = 0; c < children.size(); c++){
+            CFunctions::block_structure child = children.at(c);
+            long childTip = child.number;
+            if(bestTipByBlock.find(child.number) != bestTipByBlock.end()){
+                childTip = bestTipByBlock[child.number];
+            }
+            if(childTip > bestTip ||
+               (childTip == bestTip && (bestChild < 0 || child.number < bestChild))){
+                bestTip = childTip;
+                bestChild = child.number;
+            }
+        }
+        bestTipByBlock[block.number] = bestTip;
+        if(bestChild > 0){
+            bestChildByBlock[block.number] = bestChild;
+        }
+    }
+
+    leveldb::WriteOptions writeOptions;
+    std::vector<std::string> nextIndexKeys;
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for(it->SeekToFirst(); it->Valid(); it->Next()){
+        std::string key = it->key().ToString();
+        if(boost::algorithm::starts_with(key, "next_block_")){
+            nextIndexKeys.push_back(key);
+        }
+    }
+    delete it;
+
+    for(int i = 0; i < nextIndexKeys.size(); i++){
+        db->Delete(writeOptions, nextIndexKeys.at(i));
+    }
+
+    long latestBestBlockId = firstBlockId;
+    long currentBlockId = firstBlockId;
+    int guard = 0;
+    while(currentBlockId > 0 && guard < 100000){
+        latestBestBlockId = currentBlockId;
+        if(bestChildByBlock.find(currentBlockId) == bestChildByBlock.end()){
+            break;
+        }
+        long childBlockId = bestChildByBlock[currentBlockId];
+        ostringstream keyStream;
+        keyStream << "next_block_" << currentBlockId;
+        ostringstream valueStream;
+        valueStream << childBlockId;
+        db->Put(writeOptions, keyStream.str(), valueStream.str());
+        currentBlockId = childBlockId;
+        guard++;
+    }
+
+    setLatestBlockId(latestBestBlockId);
+    return latestBestBlockId;
 }
 
 /**

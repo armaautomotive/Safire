@@ -225,6 +225,11 @@ void request_handler::handle_request(const request& req, reply& rep)
       }
     }
 
+    if (added)
+    {
+      blockDB.rebuildBestChainIndex();
+    }
+
     text_reply(rep, added ? reply::accepted : reply::bad_request, added ? "accepted" : "invalid block", "text/plain");
     return;
   }
