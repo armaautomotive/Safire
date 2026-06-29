@@ -244,15 +244,14 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     
     // syncronize chain
     if(networkGenesis == false && firstBlockId == -1){ // && firstBlockId == -1
-        std::cout << "Syncronizing Blockchain." << std::endl; // Downloading
+        std::cout << "Synchronizing blockchain." << std::endl; // Downloading
         
         // Expected latest block number.
-        long currBlock = selector.getCurrentTimeBlock();
         bool localPeerMode = CLocalPeerClient::getPeers().size() > 0;
         if(localPeerMode){
             std::cout << " Latest local block: " << blockDB.getLatestBlockId() << " peer latest block: " << CLocalPeerClient::getBestPeerLatestBlockId() << std::endl;
         } else {
-            std::cout << " Latest local block: " << blockDB.getLatestBlockId() << " current time block: " << currBlock << std::endl;
+            std::cout << " Latest local block: " << blockDB.getLatestBlockId() << std::endl;
             relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
         }
         //log.log("Request the beginning of the blockchain from our peer nodes. \n");
@@ -265,26 +264,31 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //long latestBlockId = blockDB.getLatestBlockId();
         // functions.IsChainUpToDate() == false
         while( functions.IsChainUpToDate() == false && isBuildingBlocks){
-            long targetBlock = localPeerMode ? CLocalPeerClient::getBestPeerLatestBlockId() : currBlock;
+            long targetBlock = localPeerMode ? CLocalPeerClient::getBestPeerLatestBlockId() : -1;
+            std::string targetLabel = "waiting for genesis";
+            if(targetBlock > -1){
+                std::stringstream targetStream;
+                targetStream << targetBlock;
+                targetLabel = targetStream.str();
+            }
             if(progressPos == 0){
                 std::cout << "\rSynchronizing: " << "|" << " " <<
-                    blockDB.getLatestBlockId() << "-" << targetBlock << std::flush; progressPos++;
+                    blockDB.getLatestBlockId() << "-" << targetLabel << std::flush; progressPos++;
             } else if(progressPos == 1){
                 std::cout << "\rSynchronizing: " << "/" << " " <<
-                    blockDB.getLatestBlockId() << "-" << targetBlock << std::flush; progressPos++;
+                    blockDB.getLatestBlockId() << "-" << targetLabel << std::flush; progressPos++;
             } else if(progressPos == 2){
                 std::cout << "\rSynchronizing: " << "-" << " " <<
-                    blockDB.getLatestBlockId() << "-" << targetBlock << std::flush; progressPos++;
+                    blockDB.getLatestBlockId() << "-" << targetLabel << std::flush; progressPos++;
             } else if(progressPos == 3){
                 std::cout << "\rSynchronizing: " << "-" << " " <<
-                    blockDB.getLatestBlockId() << "-" << targetBlock << std::flush; progressPos = 0;
+                    blockDB.getLatestBlockId() << "-" << targetLabel << std::flush; progressPos = 0;
             }
             
             // if no progress, send request again.
             
             usleep(1000000);
             
-            currBlock = selector.getCurrentTimeBlock();
             if(localPeerMode){
                 std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
                 for(int i = 0; i < localPeers.size(); i++){
