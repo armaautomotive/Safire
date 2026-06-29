@@ -651,12 +651,13 @@ std::map<std::string, double> acceptedLedgerBalances(){
 
 double acceptedMemberSupply(){
     std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
-    std::map<std::string, double> balances = acceptedLedgerBalances();
     double supply = 0.0;
     for(int i = 0; i < members.size(); i++){
         std::string publicKey = members.at(i).sender_public_key;
         if(publicKey.length() > 0){
-            supply += balances[publicKey];
+            CFunctions memberFunctions;
+            memberFunctions.scanChain(publicKey, false);
+            supply += memberFunctions.balance;
         }
     }
     return supply;

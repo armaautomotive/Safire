@@ -827,14 +827,15 @@ std::map<std::string, double> accepted_ledger_balances(CBlockDB& block_db)
 double accepted_member_supply(CBlockDB& block_db)
 {
   std::vector<CFunctions::record_structure> members = accepted_membership_records(block_db);
-  std::map<std::string, double> balances = accepted_ledger_balances(block_db);
   double supply = 0.0;
   for (int i = 0; i < members.size(); ++i)
   {
     std::string public_key = members.at(i).sender_public_key;
     if (public_key.length() > 0)
     {
-      supply += balances[public_key];
+      CFunctions member_functions;
+      member_functions.scanChain(public_key, false);
+      supply += member_functions.balance;
     }
   }
   return supply;
