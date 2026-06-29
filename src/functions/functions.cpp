@@ -16,6 +16,7 @@
 #include <boost/range/iterator_range.hpp>
 #include <cmath>
 #include <iostream>
+#include <set>
 #include "log.h"
 
 namespace {
@@ -221,6 +222,15 @@ int CFunctions::addToQueue(record_structure record){
     if(isRecordSizeValid(record) == false){
         return 0;
     }
+    if(record.hash.length() > 0){
+        std::vector<record_structure> existingRecords = peekQueueRecords();
+        for(int i = 0; i < existingRecords.size(); i++){
+            if(existingRecords.at(i).hash.compare(record.hash) == 0){
+                return 1;
+            }
+        }
+    }
+
     std::ofstream outfile;
     outfile.open("queue.dat", std::fstream::out | std::fstream::app | std::ios_base::app);
     outfile << recordJSON(record);
@@ -267,6 +277,7 @@ std::vector<CFunctions::record_structure> CFunctions::peekQueueRecords(){
  */
 std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
     std::vector<record_structure> records;
+    std::set<std::string> seenHashes;
     std::ifstream infile("queue.dat");
     std::string line;
     while (std::getline(infile, line))
@@ -277,8 +288,12 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
    
         // TODO: delete record if it allready exists in the queue???? ***
 
-        if(isRecordSizeValid(record)){
+        bool duplicateHash = record.hash.length() > 0 && seenHashes.find(record.hash) != seenHashes.end();
+        if(isRecordSizeValid(record) && duplicateHash == false){
             records.push_back (record);
+            if(record.hash.length() > 0){
+                seenHashes.insert(record.hash);
+            }
         }
     }
 

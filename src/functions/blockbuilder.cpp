@@ -21,6 +21,7 @@
 #include "blockdb.h"
 #include "userdb.h"
 #include "log.h"
+#include <set>
 
 volatile bool isBuildingBlocks = true;
 
@@ -345,28 +346,15 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             ecdsa.SignMessage(privateKey, blockRewardRecord.hash, signature);
             blockRewardRecord.signature = signature;
             
-            
-            // ***
-            // Example transaction from transaction queue file.
-            // ***
-            CFunctions::record_structure sendRecord;
-            sendRecord.time = ts;
-            sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
-            sendRecord.amount = 0.0123;
-            sendRecord.fee = 0.001;
-            sendRecord.sender_public_key = publicKey;
-            sendRecord.recipient_public_key = "BADADDRESS___";
-            sendRecord.hash = functions.getRecordHash(sendRecord);
-            ecdsa.SignMessage(privateKey, sendRecord.hash, signature);
-            sendRecord.signature = signature;
-            
-            
             previous_block = functions.getLastBlock("main");
             
             CFunctions::block_structure block;
             block.creator_key = publicKey;
             block.records.push_back(blockRewardRecord);
-            block.records.push_back(sendRecord);
+            std::set<std::string> includedRecordHashes;
+            if(blockRewardRecord.hash.length() > 0){
+                includedRecordHashes.insert(blockRewardRecord.hash);
+            }
             
             block.number = selector.getCurrentTimeBlock(); //  blockNumber++;
             block.time = ts;
@@ -381,8 +369,13 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             // Add records from queue...
             std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();
             for(int i = 0; i < records.size(); i++){
-                //printf(" record n");
-                block.records.push_back(records[i]);
+                CFunctions::record_structure queuedRecord = records[i];
+                if(queuedRecord.hash.length() == 0 || includedRecordHashes.find(queuedRecord.hash) == includedRecordHashes.end()){
+                    block.records.push_back(queuedRecord);
+                    if(queuedRecord.hash.length() > 0){
+                        includedRecordHashes.insert(queuedRecord.hash);
+                    }
+                }
                 
                 // TODO: watch time so that there is enough to broadcast the block in order to have it accepted.
             }
