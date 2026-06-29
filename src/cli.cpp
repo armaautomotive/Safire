@@ -29,6 +29,8 @@
 
 namespace {
 
+std::vector<CFunctions::record_structure> acceptedMembershipRecords();
+
 std::string readCommandLine(std::string& lastCommand){
 #ifndef _WIN32
     if(isatty(STDIN_FILENO)){
@@ -155,13 +157,40 @@ std::string formatEpochTimeString(const std::string& epochString){
     return std::string(buffer);
 }
 
+std::map<std::string, std::string> acceptedMemberNames(){
+    std::map<std::string, std::string> names;
+    std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
+    for(int i = 0; i < members.size(); i++){
+        CFunctions::record_structure member = members.at(i);
+        if(member.sender_public_key.length() > 0 && member.name.length() > 0){
+            names[member.sender_public_key] = member.name;
+        }
+    }
+    return names;
+}
+
+std::string namedAddress(const std::string& publicKey, const std::map<std::string, std::string>& names){
+    if(publicKey.length() == 0){
+        return "-";
+    }
+
+    std::map<std::string, std::string>::const_iterator it = names.find(publicKey);
+    if(it != names.end() && it->second.length() > 0){
+        return it->second + " (" + publicKey + ")";
+    }
+
+    return publicKey;
+}
+
 std::string walletHistoryLine(
     const std::string& direction,
     long blockNumber,
     int recordIndex,
     CFunctions::record_structure record,
-    const std::string& counterparty,
-    double netAmount
+    const std::string& fromKey,
+    const std::string& toKey,
+    double netAmount,
+    const std::map<std::string, std::string>& names
 ){
     std::stringstream ss;
     ss << " " << direction;
@@ -172,9 +201,8 @@ std::string walletHistoryLine(
     if(record.fee > 0){
         ss << " fee " << record.fee;
     }
-    if(counterparty.length() > 0){
-        ss << " with " << shortKey(counterparty);
-    }
+    ss << " from " << namedAddress(fromKey, names);
+    ss << " to " << namedAddress(toKey, names);
     if(record.name.length() > 0){
         ss << " note \"" << record.name << "\"";
     }
@@ -192,8 +220,10 @@ void addWalletHistoryRecord(
     long blockNumber,
     int recordIndex,
     CFunctions::record_structure record,
-    const std::string& counterparty,
-    double netAmount
+    const std::string& fromKey,
+    const std::string& toKey,
+    double netAmount,
+    const std::map<std::string, std::string>& names
 ){
     if(filter.compare("sent") == 0 && direction.compare("SENT") != 0 && direction.compare("SELF") != 0){
         return;
@@ -206,7 +236,7 @@ void addWalletHistoryRecord(
         return;
     }
 
-    history.push_back(walletHistoryLine(direction, blockNumber, recordIndex, record, counterparty, netAmount));
+    history.push_back(walletHistoryLine(direction, blockNumber, recordIndex, record, fromKey, toKey, netAmount, names));
     if(history.size() > limit){
         history.pop_front();
     }
@@ -223,6 +253,7 @@ void printWalletHistory(const std::string& publicKey, const std::string& filter)
 
     const int limit = 25;
     std::deque<std::string> history;
+    std::map<std::string, std::string> names = acceptedMemberNames();
     CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
     int guard = 0;
     while(block.number > 0 && guard < 100000){
@@ -231,7 +262,7 @@ void printWalletHistory(const std::string& publicKey, const std::string& filter)
 
             if(record.transaction_type == CFunctions::ISSUE_CURRENCY &&
                record.recipient_public_key.compare(publicKey) == 0){
-                addWalletHistoryRecord(history, limit, filter, "REWARD", block.number, i, record, block.creator_key, record.amount);
+                addWalletHistoryRecord(history, limit, filter, "REWARD", block.number, i, record, record.sender_public_key, record.recipient_public_key, record.amount, names);
             }
 
             if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
@@ -239,11 +270,11 @@ void printWalletHistory(const std::string& publicKey, const std::string& filter)
                 bool receivedByWallet = record.recipient_public_key.compare(publicKey) == 0;
 
                 if(sentByWallet && receivedByWallet){
-                    addWalletHistoryRecord(history, limit, filter, "SELF", block.number, i, record, publicKey, 0);
+                    addWalletHistoryRecord(history, limit, filter, "SELF", block.number, i, record, publicKey, publicKey, 0, names);
                 } else if(sentByWallet){
-                    addWalletHistoryRecord(history, limit, filter, "SENT", block.number, i, record, record.recipient_public_key, -(record.amount + record.fee));
+                    addWalletHistoryRecord(history, limit, filter, "SENT", block.number, i, record, record.sender_public_key, record.recipient_public_key, -(record.amount + record.fee), names);
                 } else if(receivedByWallet){
-                    addWalletHistoryRecord(history, limit, filter, "RECEIVED", block.number, i, record, record.sender_public_key, record.amount);
+                    addWalletHistoryRecord(history, limit, filter, "RECEIVED", block.number, i, record, record.sender_public_key, record.recipient_public_key, record.amount, names);
                 }
             }
 
@@ -251,7 +282,7 @@ void printWalletHistory(const std::string& publicKey, const std::string& filter)
                 record.transaction_type == CFunctions::VOTE) &&
                block.creator_key.compare(publicKey) == 0 &&
                record.fee > 0){
-                addWalletHistoryRecord(history, limit, filter, "FEE", block.number, i, record, record.sender_public_key, record.fee);
+                addWalletHistoryRecord(history, limit, filter, "FEE", block.number, i, record, record.sender_public_key, block.creator_key, record.fee, names);
             }
         }
         if(block.number == latestBlockId){
