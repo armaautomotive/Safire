@@ -10,11 +10,13 @@
 #include <curl/curl.h>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <unistd.h>
 
 std::vector<std::string> CLocalPeerClient::peers;
 std::map<std::string, CLocalPeerClient::peer_status> CLocalPeerClient::peerStatuses;
+std::set<std::string> CLocalPeerClient::configuredPeers;
 bool CLocalPeerClient::running = true;
 
 namespace {
@@ -62,6 +64,8 @@ std::string peerCachePath()
     return "peers.dat";
 }
 
+const long PEER_PURGE_SECONDS = 3L * 24L * 60L * 60L;
+
 CLocalPeerClient::peer_status emptyPeerStatus(const std::string& peer)
 {
     CLocalPeerClient::peer_status status;
@@ -75,10 +79,31 @@ CLocalPeerClient::peer_status emptyPeerStatus(const std::string& peer)
     status.successes = 0;
     status.failures = 0;
     status.lastSeenEpoch = 0;
+    status.lastSuccessEpoch = 0;
+    status.firstFailureEpoch = 0;
     status.genesisMatch = false;
     status.reachable = false;
     status.lastError = "not checked";
     return status;
+}
+
+std::vector<std::string> split(const std::string& value, char delimiter)
+{
+    std::vector<std::string> parts;
+    std::stringstream ss(value);
+    std::string item;
+    while (std::getline(ss, item, delimiter)) {
+        parts.push_back(item);
+    }
+    return parts;
+}
+
+long parseLongOrZero(const std::string& value)
+{
+    if (value.empty()) {
+        return 0;
+    }
+    return std::atol(value.c_str());
 }
 
 int protocolVersionFromStatus(const std::string& statusJson)
@@ -121,27 +146,58 @@ std::vector<std::string> parsePeerUrlsFromJson(const std::string& json)
     return urls;
 }
 
-void savePeerCache(const std::vector<std::string>& peerUrls)
+void writePeerCache(
+    const std::vector<std::string>& peerUrls,
+    const std::map<std::string, CLocalPeerClient::peer_status>& peerStatuses,
+    const std::set<std::string>& configuredPeers)
 {
     std::ofstream outfile(peerCachePath().c_str());
     if (!outfile.good()) {
         return;
     }
     for (int i = 0; i < peerUrls.size(); ++i) {
-        outfile << peerUrls.at(i) << "\n";
+        std::string peer = peerUrls.at(i);
+        if (configuredPeers.find(peer) != configuredPeers.end()) {
+            continue;
+        }
+
+        CLocalPeerClient::peer_status status = emptyPeerStatus(peer);
+        std::map<std::string, CLocalPeerClient::peer_status>::const_iterator found = peerStatuses.find(peer);
+        if (found != peerStatuses.end()) {
+            status = found->second;
+        }
+        outfile << peer << "\t"
+            << status.lastSuccessEpoch << "\t"
+            << status.firstFailureEpoch << "\t"
+            << status.score << "\n";
     }
     outfile.close();
 }
 
-std::vector<std::string> loadPeerCache()
+std::vector<CLocalPeerClient::peer_status> loadPeerCache()
 {
-    std::vector<std::string> cachedPeers;
+    std::vector<CLocalPeerClient::peer_status> cachedPeers;
     std::ifstream infile(peerCachePath().c_str());
     std::string line;
     while (std::getline(infile, line)) {
-        std::string peer = normalizePeerUrl(line);
+        std::vector<std::string> parts = split(line, '\t');
+        if (parts.empty()) {
+            continue;
+        }
+
+        std::string peer = normalizePeerUrl(parts.at(0));
         if (!peer.empty()) {
-            cachedPeers.push_back(peer);
+            CLocalPeerClient::peer_status status = emptyPeerStatus(peer);
+            if (parts.size() > 1) {
+                status.lastSuccessEpoch = parseLongOrZero(parts.at(1));
+            }
+            if (parts.size() > 2) {
+                status.firstFailureEpoch = parseLongOrZero(parts.at(2));
+            }
+            if (parts.size() > 3) {
+                status.score = std::atoi(parts.at(3).c_str());
+            }
+            cachedPeers.push_back(status);
         }
     }
     return cachedPeers;
@@ -332,9 +388,12 @@ std::string latestBlockHashFromStatus(const std::string& statusJson)
 CLocalPeerClient::peer_status statusFromPeer(const std::string& peer)
 {
     CLocalPeerClient::peer_status status = emptyPeerStatus(peer);
+    CNetworkTime netTime;
+    long now = netTime.getLocalEpoch();
     std::string peerStatus = httpGet(peer + "/api/status");
     if (peerStatus.empty()) {
         status.score = -5;
+        status.firstFailureEpoch = now;
         status.lastError = "empty status response";
         return status;
     }
@@ -348,17 +407,20 @@ CLocalPeerClient::peer_status statusFromPeer(const std::string& peer)
     status.genesisMatch = config.genesisMatches(status.firstBlockId, status.firstBlockHash) &&
         genesisMatchFromStatus(peerStatus);
     status.reachable = status.latestBlockId >= 0;
-    CNetworkTime netTime;
-    status.lastSeenEpoch = netTime.getLocalEpoch();
+    status.lastSeenEpoch = now;
 
     if (!status.reachable) {
         status.score = -5;
+        status.firstFailureEpoch = now;
         status.lastError = "missing latest block";
     } else if (!status.genesisMatch) {
         status.score = -20;
+        status.firstFailureEpoch = now;
         status.lastError = "genesis mismatch";
     } else {
         status.score = 10;
+        status.lastSuccessEpoch = now;
+        status.firstFailureEpoch = 0;
         status.lastError = "";
     }
     return status;
@@ -369,17 +431,31 @@ void mergePeerStatus(CLocalPeerClient::peer_status& current, const CLocalPeerCli
     int previousScore = current.score;
     int previousSuccesses = current.successes;
     int previousFailures = current.failures;
+    long previousLastSuccessEpoch = current.lastSuccessEpoch;
+    long previousFirstFailureEpoch = current.firstFailureEpoch;
     current = update;
     current.successes += previousSuccesses;
     current.failures += previousFailures;
+    if (previousLastSuccessEpoch > current.lastSuccessEpoch) {
+        current.lastSuccessEpoch = previousLastSuccessEpoch;
+    }
 
     if (update.reachable && update.genesisMatch) {
         current.successes += 1;
         current.score = std::min(100, previousScore + 10);
+        current.firstFailureEpoch = 0;
+        if (update.lastSuccessEpoch > 0) {
+            current.lastSuccessEpoch = update.lastSuccessEpoch;
+        }
         current.lastError = "";
     } else {
         current.failures += 1;
         current.score = std::max(-100, previousScore - 15);
+        if (previousFirstFailureEpoch > 0) {
+            current.firstFailureEpoch = previousFirstFailureEpoch;
+        } else if (update.firstFailureEpoch > 0) {
+            current.firstFailureEpoch = update.firstFailureEpoch;
+        }
         if (current.lastError.empty()) {
             current.lastError = "peer check failed";
         }
@@ -439,19 +515,25 @@ void CLocalPeerClient::setPeers(const std::vector<std::string>& peerUrls)
 {
     peers.clear();
     peerStatuses.clear();
+    configuredPeers.clear();
     for (int i = 0; i < peerUrls.size(); ++i) {
         std::string peer = normalizePeerUrl(peerUrls.at(i));
         if (!peer.empty() && peerStatuses.find(peer) == peerStatuses.end()) {
             peers.push_back(peer);
             peerStatuses[peer] = emptyPeerStatus(peer);
+            configuredPeers.insert(peer);
         }
     }
 
     if (peerUrls.size() > 0) {
-        std::vector<std::string> cachedPeers = loadPeerCache();
+        std::vector<peer_status> cachedPeers = loadPeerCache();
         for (int i = 0; i < cachedPeers.size(); ++i) {
-            addPeer(cachedPeers.at(i), false);
+            std::string peer = cachedPeers.at(i).url;
+            if (addPeer(peer, false)) {
+                peerStatuses[peer] = cachedPeers.at(i);
+            }
         }
+        purgeUnavailablePeers();
     }
     running = true;
 }
@@ -473,9 +555,47 @@ bool CLocalPeerClient::addPeer(const std::string& peerUrl, bool persist)
     peers.push_back(peer);
     peerStatuses[peer] = emptyPeerStatus(peer);
     if (persist) {
-        savePeerCache(peers);
+        savePeerCache();
     }
     return true;
+}
+
+void CLocalPeerClient::savePeerCache()
+{
+    writePeerCache(peers, peerStatuses, configuredPeers);
+}
+
+void CLocalPeerClient::purgeUnavailablePeers()
+{
+    CNetworkTime netTime;
+    long now = netTime.getLocalEpoch();
+    bool changed = false;
+    std::vector<std::string> keptPeers;
+    for (int i = 0; i < peers.size(); ++i) {
+        std::string peer = peers.at(i);
+        bool configuredPeer = configuredPeers.find(peer) != configuredPeers.end();
+        peer_status status = emptyPeerStatus(peer);
+        if (peerStatuses.find(peer) != peerStatuses.end()) {
+            status = peerStatuses[peer];
+        }
+
+        bool expired = !configuredPeer &&
+            status.firstFailureEpoch > 0 &&
+            now - status.firstFailureEpoch >= PEER_PURGE_SECONDS &&
+            (status.lastSuccessEpoch == 0 || status.lastSuccessEpoch < status.firstFailureEpoch);
+
+        if (expired) {
+            peerStatuses.erase(peer);
+            changed = true;
+            continue;
+        }
+        keptPeers.push_back(peer);
+    }
+
+    if (changed) {
+        peers = keptPeers;
+        savePeerCache();
+    }
 }
 
 std::vector<std::string> CLocalPeerClient::getPeers()
@@ -520,9 +640,11 @@ void CLocalPeerClient::discoverPeers()
             if (status.reachable && status.genesisMatch) {
                 addPeer(discoveredPeer, true);
                 peerStatuses[discoveredPeer] = status;
+                savePeerCache();
             }
         }
     }
+    purgeUnavailablePeers();
 }
 
 void CLocalPeerClient::stop()
@@ -535,6 +657,7 @@ void CLocalPeerClient::syncThread(int argc, char* argv[])
     while (running) {
         syncNetworkTime();
         discoverPeers();
+        purgeUnavailablePeers();
         std::vector<peer_status> statuses = getPeerStatuses();
         std::sort(statuses.begin(), statuses.end(),
             [](const peer_status& a, const peer_status& b){
@@ -576,19 +699,23 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
         peerStatuses[peer] = emptyPeerStatus(peer);
     }
     mergePeerStatus(peerStatuses[peer], status);
+    savePeerCache();
 
     if (peerLatestBlockId < 0) {
         peerStatuses[peer].lastError = "missing latest block";
+        savePeerCache();
         return false;
     }
     if(config.genesisMatches(peerFirstBlockId, peerFirstBlockHash) == false){
         peerStatuses[peer].lastError = "genesis mismatch";
+        savePeerCache();
         return false;
     }
     if(firstBlockId > 0){
         CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
         if(config.genesisMatches(firstBlockId, firstBlock.hash) == false){
             peerStatuses[peer].lastError = "local genesis mismatch";
+            savePeerCache();
             return false;
         }
     }
@@ -699,15 +826,24 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
                 peerStatuses[peer] = emptyPeerStatus(peer);
             }
             peerStatuses[peer].failures += 1;
+            CNetworkTime netTime;
+            if (peerStatuses[peer].firstFailureEpoch == 0) {
+                peerStatuses[peer].firstFailureEpoch = netTime.getLocalEpoch();
+            }
             peerStatuses[peer].score = std::max(-100, peerStatuses[peer].score - 10);
             peerStatuses[peer].lastError = response.empty() ? "push failed" : response;
+            savePeerCache();
             break;
         }
         if (peerStatuses.find(peer) == peerStatuses.end()) {
             peerStatuses[peer] = emptyPeerStatus(peer);
         }
         peerStatuses[peer].successes += 1;
+        CNetworkTime netTime;
+        peerStatuses[peer].lastSuccessEpoch = netTime.getLocalEpoch();
+        peerStatuses[peer].firstFailureEpoch = 0;
         peerStatuses[peer].score = std::min(100, peerStatuses[peer].score + 1);
+        savePeerCache();
         result.pushedBlocks++;
     }
 
@@ -762,6 +898,8 @@ long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)
         peerStatuses[peer] = emptyPeerStatus(peer);
     }
     mergePeerStatus(peerStatuses[peer], status);
+    savePeerCache();
+    purgeUnavailablePeers();
     if(status.genesisMatch == false || status.reachable == false){
         return -1;
     }

@@ -216,6 +216,8 @@ void request_handler::handle_request(const request& req, reply& rep)
       ss << "\"latest_block_hash\":\"" << peers.at(i).latestBlockHash << "\",";
       ss << "\"genesis_match\":\"" << (peers.at(i).genesisMatch ? "yes" : "no") << "\",";
       ss << "\"reachable\":\"" << (peers.at(i).reachable ? "yes" : "no") << "\",";
+      ss << "\"last_success_epoch\":\"" << peers.at(i).lastSuccessEpoch << "\",";
+      ss << "\"first_failure_epoch\":\"" << peers.at(i).firstFailureEpoch << "\",";
       ss << "\"score\":\"" << peers.at(i).score << "\"";
       ss << "}";
     }

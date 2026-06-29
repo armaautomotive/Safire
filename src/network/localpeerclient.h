@@ -3,6 +3,7 @@
 
 #include "functions/functions.h"
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,8 @@ public:
         int successes;
         int failures;
         long lastSeenEpoch;
+        long lastSuccessEpoch;
+        long firstFailureEpoch;
         bool genesisMatch;
         bool reachable;
         std::string lastError;
@@ -55,8 +58,11 @@ public:
     static void broadcastBlock(const CFunctions::block_structure& block);
 
 private:
+    static void savePeerCache();
+    static void purgeUnavailablePeers();
     static std::vector<std::string> peers;
     static std::map<std::string, peer_status> peerStatuses;
+    static std::set<std::string> configuredPeers;
     static bool running;
 };
 

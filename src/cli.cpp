@@ -1671,6 +1671,17 @@ void CCLI::processUserInput(){
                 }
                 std::cout << std::endl;
                 std::cout << "    score: " << peer.score << " successes " << peer.successes << " failures " << peer.failures << std::endl;
+                if(peer.lastSuccessEpoch > 0){
+                    std::stringstream lastSuccess;
+                    lastSuccess << peer.lastSuccessEpoch;
+                    std::cout << "    last success: " << formatEpochTimeString(lastSuccess.str()) << std::endl;
+                }
+                if(peer.firstFailureEpoch > 0){
+                    std::stringstream firstFailure;
+                    firstFailure << peer.firstFailureEpoch;
+                    std::cout << "    failing since: " << formatEpochTimeString(firstFailure.str()) << std::endl;
+                    std::cout << "    purge after: 3 days unavailable" << std::endl;
+                }
                 if(peer.lastError.length() > 0){
                     std::cout << "    last error: " << peer.lastError << std::endl;
                 }
