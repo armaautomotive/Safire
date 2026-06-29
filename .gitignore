@@ -6,6 +6,7 @@
 *.app/
 *.zip
 /bin/Safire
+/build/
 /relay/simple-example
 
 # qmake generated files

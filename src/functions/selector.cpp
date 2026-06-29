@@ -13,6 +13,7 @@
 #include "functions/selector.h"
 #include "global.h"
 #include <ctime>
+#include <cstdlib>
 #include <curl/curl.h>
 #include "userdb.h"
 
@@ -48,8 +49,15 @@ void CSelector::syncronizeTime(){
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
-        std::string::size_type sz;
-        long server_long = std::stol (readBuffer,&sz); 
+        if (res != CURLE_OK || readBuffer.empty()) {
+            return;
+        }
+
+        char *end = NULL;
+        long server_long = std::strtol(readBuffer.c_str(), &end, 10);
+        if (end == readBuffer.c_str()) {
+            return;
+        }
 
         // get time from local system
         time_t  timev;

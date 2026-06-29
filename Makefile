@@ -22,10 +22,12 @@ FILES_LINUX= ./src/main.cpp ./src/platform.cpp ./src/ecdsacrypto.cpp ./src/walle
 FILES_LINUX2= ./src/main2.cpp  ./src/ecdsacrypto.cpp   
 SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 
+.PHONY: all mac linux linux2 clean
+
 #  gcc -o yourname -Bstatic -L<dir-of-libcrypto.a> -lcrypto . . . yourfile.c
 # MacOS Doesn’t support static linking.
 CFLAGS_MAC= -arch x86_64 -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w    `pkg-config --cflags nice`
-LIBS_MAC= -L/usr/local/opt/openssl/lib -L/usr/local/lib -L./src/leveldb  -lssl -lcrypto -lboost_system -lboost_thread-mt -lboost_filesystem -lleveldb -lcurl -lz   `pkg-config --libs nice`
+LIBS_MAC= -L/usr/local/opt/openssl/lib -L/usr/local/lib /usr/local/opt/leveldb/lib/libleveldb.a -lssl -lcrypto -lboost_system -lboost_thread-mt -lboost_filesystem -lsnappy -lcurl -lz   `pkg-config --libs nice`
 # -lsecp256k1
 # -lboost_system -lboost_asio
 # -L./usr/local/Cellar/boost/1.62.0/lib
@@ -55,5 +57,9 @@ linux:
 
 linux2: 
 	clang++ ${CFLAGS_LINUX} -std=c++11 ${SRC_PATH_LINUX} ${FILES_LINUX2} -lssl -o ${OUT_PATH}/Safire	
+
+clean:
+	rm -f ${OUT_PATH}/Safire
+	rm -f ./src/*.o ./gui_client/*.o ./gui_client/moc_*.cpp ./gui_client/moc_*.o ./gui_client/moc_predefs.h
 
 # TODO add tests application target to run all unit tests.
