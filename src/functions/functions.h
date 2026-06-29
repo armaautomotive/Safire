@@ -24,6 +24,9 @@ private:
 public:
     static const long HEARTBEAT_VALID_BLOCKS = 5760; // 24 hours at 15 seconds per block.
     static const long HEARTBEAT_RENEW_BLOCKS = 5520; // About 23 hours at 15 seconds per block.
+    static const long CARRY_FORWARD_PERIOD_BLOCKS = 2102400; // About 1 year at 15 seconds per block.
+    static const long CARRY_FORWARD_PRUNE_BLOCKS = 6307200; // About 3 years at 15 seconds per block.
+    static constexpr double CARRY_FORWARD_REWARD = 1.0;
 
     //! Construct an invalid private key.
     CFunctions()

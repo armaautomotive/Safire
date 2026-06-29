@@ -5,6 +5,7 @@
 #include "cli.h"
 
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <deque>
 #include <map>
@@ -30,6 +31,7 @@
 namespace {
 
 std::vector<CFunctions::record_structure> acceptedMembershipRecords();
+double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpointBlock);
 
 std::string readCommandLine(std::string& lastCommand){
 #ifndef _WIN32
@@ -354,6 +356,66 @@ void addBalanceDelta(std::map<std::string, double>& balances, const std::string&
     balances[publicKey] += amount;
 }
 
+long parseCarryForwardValueLong(const std::string& value, const std::string& key){
+    std::string prefix = key + "=";
+    std::size_t start = value.find(prefix);
+    if(start == std::string::npos){
+        return -1;
+    }
+    start += prefix.length();
+    std::size_t end = value.find(";", start);
+    std::string section = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    if(section.length() == 0){
+        return -1;
+    }
+    return ::atol(section.c_str());
+}
+
+std::string carryForwardValue(long checkpointBlock, long period){
+    std::stringstream ss;
+    ss << "checkpoint=" << checkpointBlock << ";period=" << period << ";reward=" << CFunctions::CARRY_FORWARD_REWARD;
+    return ss.str();
+}
+
+std::string carryForwardUniqueKey(const CFunctions::record_structure& record){
+    long period = parseCarryForwardValueLong(record.value, "period");
+    if(record.recipient_public_key.length() == 0 || period < 0){
+        return "";
+    }
+
+    std::stringstream ss;
+    ss << record.recipient_public_key << ":" << period;
+    return ss.str();
+}
+
+bool isBasicCarryForwardRecord(const CFunctions::record_structure& record, long blockNumber){
+    if(record.transaction_type != CFunctions::CARRY_FORWARD){
+        return false;
+    }
+    if(record.sender_public_key.length() == 0 || record.recipient_public_key.length() == 0){
+        return false;
+    }
+    long checkpoint = parseCarryForwardValueLong(record.value, "checkpoint");
+    long period = parseCarryForwardValueLong(record.value, "period");
+    if(checkpoint < 0 || period < 0 || checkpoint >= blockNumber){
+        return false;
+    }
+    if(record.amount < 0){
+        return false;
+    }
+    return true;
+}
+
+bool carryForwardSnapshotMatches(const CFunctions::record_structure& record){
+    long checkpoint = parseCarryForwardValueLong(record.value, "checkpoint");
+    if(checkpoint < 0){
+        return false;
+    }
+
+    double expectedBalance = accountBalanceAtBlock(record.recipient_public_key, checkpoint);
+    return std::fabs(expectedBalance - record.amount) < 0.000001;
+}
+
 std::map<std::string, double> acceptedLedgerBalances(){
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
@@ -364,6 +426,7 @@ std::map<std::string, double> acceptedLedgerBalances(){
     }
 
     CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    std::map<std::string, bool> acceptedCarryForwardKeys;
     int guard = 0;
     while(block.number > 0 && guard < 100000){
         for(int i = 0; i < block.records.size(); i++){
@@ -377,6 +440,12 @@ std::map<std::string, double> acceptedLedgerBalances(){
             } else if(record.transaction_type == CFunctions::VOTE){
                 addBalanceDelta(balances, record.sender_public_key, -record.fee);
                 addBalanceDelta(balances, block.creator_key, record.fee);
+            } else if(isBasicCarryForwardRecord(record, block.number) && carryForwardSnapshotMatches(record)){
+                std::string key = carryForwardUniqueKey(record);
+                if(key.length() > 0 && acceptedCarryForwardKeys.find(key) == acceptedCarryForwardKeys.end()){
+                    acceptedCarryForwardKeys[key] = true;
+                    addBalanceDelta(balances, record.sender_public_key, CFunctions::CARRY_FORWARD_REWARD);
+                }
             }
         }
         if(block.number == latestBlockId){
@@ -390,6 +459,103 @@ std::map<std::string, double> acceptedLedgerBalances(){
         guard++;
     }
     return balances;
+}
+
+double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpointBlock){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(accountPublicKey.length() == 0 || firstBlockId < 0 || latestBlockId < 0){
+        return 0.0;
+    }
+
+    double balance = 0.0;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    std::map<std::string, bool> acceptedCarryForwardKeys;
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        if(block.number > checkpointBlock){
+            break;
+        }
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::ISSUE_CURRENCY &&
+               record.recipient_public_key.compare(accountPublicKey) == 0){
+                balance += record.amount;
+            } else if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
+                if(record.recipient_public_key.compare(accountPublicKey) == 0){
+                    balance += record.amount;
+                }
+                if(record.sender_public_key.compare(accountPublicKey) == 0 &&
+                   record.recipient_public_key.compare(accountPublicKey) != 0){
+                    balance -= record.amount;
+                    balance -= record.fee;
+                }
+                if(block.creator_key.compare(accountPublicKey) == 0){
+                    balance += record.fee;
+                }
+            } else if(record.transaction_type == CFunctions::VOTE){
+                if(record.sender_public_key.compare(accountPublicKey) == 0){
+                    balance -= record.fee;
+                }
+                if(block.creator_key.compare(accountPublicKey) == 0){
+                    balance += record.fee;
+                }
+            } else if(isBasicCarryForwardRecord(record, block.number)){
+                std::string key = carryForwardUniqueKey(record);
+                if(key.length() > 0 && acceptedCarryForwardKeys.find(key) == acceptedCarryForwardKeys.end()){
+                    acceptedCarryForwardKeys[key] = true;
+                    if(record.sender_public_key.compare(accountPublicKey) == 0){
+                        balance += CFunctions::CARRY_FORWARD_REWARD;
+                    }
+                }
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+    return balance;
+}
+
+bool acceptedCarryForwardExists(const std::string& accountPublicKey, long period){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(accountPublicKey.length() == 0 || firstBlockId < 0 || latestBlockId < 0){
+        return false;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::CARRY_FORWARD &&
+               record.recipient_public_key.compare(accountPublicKey) == 0 &&
+               parseCarryForwardValueLong(record.value, "period") == period &&
+               isBasicCarryForwardRecord(record, block.number) &&
+               carryForwardSnapshotMatches(record)){
+                return true;
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+    return false;
 }
 
 std::vector<CFunctions::record_structure> activeMembershipRecords(){
@@ -674,6 +840,61 @@ void printMembershipRecords(){
     std::cout << " Membership count: " << membershipCount << std::endl;
 }
 
+void printCarryForwardRecords(){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId < 0 || latestBlockId < 0){
+        std::cout << " No blockchain records found." << std::endl;
+        return;
+    }
+
+    int carryForwardCount = 0;
+    int validCarryForwardCount = 0;
+    std::map<std::string, bool> acceptedCarryForwardKeys;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::CARRY_FORWARD){
+                if(carryForwardCount == 0){
+                    std::cout << " Carry-forward records:" << std::endl;
+                }
+                bool valid = isBasicCarryForwardRecord(record, block.number) && carryForwardSnapshotMatches(record);
+                std::string key = carryForwardUniqueKey(record);
+                bool duplicate = key.length() > 0 && acceptedCarryForwardKeys.find(key) != acceptedCarryForwardKeys.end();
+                if(valid && duplicate == false){
+                    acceptedCarryForwardKeys[key] = true;
+                    validCarryForwardCount++;
+                }
+                std::cout << "  " << recordSummary(block.number, i, record, true);
+                std::cout << " status " << (valid && duplicate == false ? "accepted" : "ignored");
+                if(duplicate){
+                    std::cout << " duplicate-period";
+                }
+                std::cout << std::endl;
+                carryForwardCount++;
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+
+    std::cout << " Carry-forward count: " << carryForwardCount << std::endl;
+    std::cout << " Accepted carry-forwards: " << validCarryForwardCount << std::endl;
+    std::cout << " Carry-forward reward: " << CFunctions::CARRY_FORWARD_REWARD << " sfr" << std::endl;
+    std::cout << " Carry-forward period: " << CFunctions::CARRY_FORWARD_PERIOD_BLOCKS << " blocks" << std::endl;
+    std::cout << " Prune horizon: " << CFunctions::CARRY_FORWARD_PRUNE_BLOCKS << " blocks" << std::endl;
+}
+
 }
 
 /**
@@ -696,6 +917,8 @@ void CCLI::printCommands(){
     " nextblock               - print current and upcoming selected block creators.\n" <<
     " blockchain              - print the last 10 blockchain records.\n" <<
     " memberships             - print blockchain membership records.\n" <<
+    " carryforward            - submit a carry-forward candidate for this wallet.\n" <<
+    " carryforwards           - print accepted carry-forward records.\n" <<
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
 	" users                   - prints user address and balance information.\n" <<
@@ -981,6 +1204,68 @@ void CCLI::processUserInput(){
         } else if ( command.compare("memberships") == 0 || command.compare("members") == 0 ){
 
             printMembershipRecords();
+
+        } else if ( command.compare("carryforwards") == 0 ){
+
+            printCarryForwardRecords();
+
+        } else if ( command.compare("carryforward") == 0 ){
+
+            CBlockDB carryBlockDB;
+            long firstBlockId = carryBlockDB.getFirstBlockId();
+            long latestConnectedBlockId = carryBlockDB.getConnectedLatestBlockId();
+            if(publicKey.length() == 0){
+                std::cout << " Wallet public key is not available." << std::endl;
+            } else if(firstBlockId < 0 || latestConnectedBlockId < 0){
+                std::cout << " No accepted chain available for carry-forward." << std::endl;
+            } else if(latestConnectedBlockId - firstBlockId < CFunctions::CARRY_FORWARD_PRUNE_BLOCKS){
+                std::cout << " Chain is not old enough for carry-forward yet." << std::endl;
+                std::cout << " Required span: " << CFunctions::CARRY_FORWARD_PRUNE_BLOCKS << " blocks" << std::endl;
+                std::cout << " Current span: " << (latestConnectedBlockId - firstBlockId) << " blocks" << std::endl;
+            } else {
+                long checkpointBlock = latestConnectedBlockId - CFunctions::CARRY_FORWARD_PRUNE_BLOCKS;
+                long period = checkpointBlock / CFunctions::CARRY_FORWARD_PERIOD_BLOCKS;
+                if(acceptedCarryForwardExists(publicKey, period)){
+                    std::cout << " Carry-forward already accepted for this wallet and period." << std::endl;
+                    std::cout << " Period: " << period << std::endl;
+                } else {
+                    double checkpointBalance = accountBalanceAtBlock(publicKey, checkpointBlock);
+                    if(checkpointBalance <= 0){
+                        std::cout << " Carry-forward not queued; checkpoint balance is not positive." << std::endl;
+                        std::cout << " Checkpoint block: " << checkpointBlock << std::endl;
+                        std::cout << " Balance at checkpoint: " << checkpointBalance << " sfr" << std::endl;
+                    } else {
+                        CFunctions::record_structure carryForwardRecord;
+                        carryForwardRecord.network = "main";
+                        CNetworkTime netTime;
+                        std::stringstream ss;
+                        ss << netTime.getEpoch();
+                        carryForwardRecord.time = ss.str();
+                        carryForwardRecord.transaction_type = CFunctions::CARRY_FORWARD;
+                        carryForwardRecord.amount = checkpointBalance;
+                        carryForwardRecord.fee = 0.0;
+                        carryForwardRecord.sender_public_key = publicKey;
+                        carryForwardRecord.recipient_public_key = publicKey;
+                        carryForwardRecord.name = "carry-forward";
+                        carryForwardRecord.value = carryForwardValue(checkpointBlock, period);
+                        carryForwardRecord.hash = functions.getRecordHash(carryForwardRecord);
+                        std::string signature = "";
+                        ecdsa.SignMessage(privateKey, carryForwardRecord.hash, signature);
+                        carryForwardRecord.signature = signature;
+
+                        functions.addToQueue(carryForwardRecord);
+                        relayClient.sendRecord(carryForwardRecord);
+                        CLocalPeerClient::broadcastRecord(carryForwardRecord);
+
+                        std::cout << " Carry-forward queued and broadcast." << std::endl;
+                        std::cout << " Account: " << publicKey << std::endl;
+                        std::cout << " Checkpoint block: " << checkpointBlock << std::endl;
+                        std::cout << " Period: " << period << std::endl;
+                        std::cout << " Snapshot balance: " << checkpointBalance << " sfr" << std::endl;
+                        std::cout << " Reward after accepted: " << CFunctions::CARRY_FORWARD_REWARD << " sfr" << std::endl;
+                    }
+                }
+            }
 
  
         } else if ( command.find("quit") != std::string::npos ){

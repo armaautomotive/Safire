@@ -14,8 +14,129 @@
 #include "functions/chain.h"
 #include <boost/filesystem.hpp>
 #include <boost/range/iterator_range.hpp>
+#include <cmath>
 #include <iostream>
 #include "log.h"
+
+namespace {
+
+long parseCarryForwardValueLong(const std::string& value, const std::string& key){
+    std::string prefix = key + "=";
+    std::size_t start = value.find(prefix);
+    if(start == std::string::npos){
+        return -1;
+    }
+    start += prefix.length();
+    std::size_t end = value.find(";", start);
+    std::string section = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    if(section.length() == 0){
+        return -1;
+    }
+    return ::atol(section.c_str());
+}
+
+std::string carryForwardKey(const CFunctions::record_structure& record){
+    long period = parseCarryForwardValueLong(record.value, "period");
+    if(record.recipient_public_key.length() == 0 || period < 0){
+        return "";
+    }
+
+    std::stringstream ss;
+    ss << record.recipient_public_key << ":" << period;
+    return ss.str();
+}
+
+bool isBasicCarryForwardRecord(const CFunctions::record_structure& record, long blockNumber){
+    if(record.transaction_type != CFunctions::CARRY_FORWARD){
+        return false;
+    }
+    if(record.sender_public_key.length() == 0 || record.recipient_public_key.length() == 0){
+        return false;
+    }
+    long checkpoint = parseCarryForwardValueLong(record.value, "checkpoint");
+    long period = parseCarryForwardValueLong(record.value, "period");
+    if(checkpoint < 0 || period < 0 || checkpoint >= blockNumber){
+        return false;
+    }
+    if(record.amount < 0){
+        return false;
+    }
+    return true;
+}
+
+double accountBalanceAtBlockForCarryForward(const std::string& accountPublicKey, long checkpointBlock){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(accountPublicKey.length() == 0 || firstBlockId < 0 || latestBlockId < 0){
+        return 0.0;
+    }
+
+    double balance = 0.0;
+    std::map<std::string, bool> acceptedCarryForwardKeys;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        if(block.number > checkpointBlock){
+            break;
+        }
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::ISSUE_CURRENCY &&
+               record.recipient_public_key.compare(accountPublicKey) == 0){
+                balance += record.amount;
+            } else if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
+                if(record.recipient_public_key.compare(accountPublicKey) == 0){
+                    balance += record.amount;
+                }
+                if(record.sender_public_key.compare(accountPublicKey) == 0 &&
+                   record.recipient_public_key.compare(accountPublicKey) != 0){
+                    balance -= record.amount;
+                    balance -= record.fee;
+                }
+                if(block.creator_key.compare(accountPublicKey) == 0){
+                    balance += record.fee;
+                }
+            } else if(record.transaction_type == CFunctions::VOTE){
+                if(record.sender_public_key.compare(accountPublicKey) == 0){
+                    balance -= record.fee;
+                }
+                if(block.creator_key.compare(accountPublicKey) == 0){
+                    balance += record.fee;
+                }
+            } else if(isBasicCarryForwardRecord(record, block.number)){
+                std::string key = carryForwardKey(record);
+                if(key.length() > 0 && acceptedCarryForwardKeys.find(key) == acceptedCarryForwardKeys.end()){
+                    acceptedCarryForwardKeys[key] = true;
+                    if(record.sender_public_key.compare(accountPublicKey) == 0){
+                        balance += CFunctions::CARRY_FORWARD_REWARD;
+                    }
+                }
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+    return balance;
+}
+
+bool carryForwardSnapshotMatches(const CFunctions::record_structure& record){
+    long checkpoint = parseCarryForwardValueLong(record.value, "checkpoint");
+    if(checkpoint < 0){
+        return false;
+    }
+    double expectedBalance = accountBalanceAtBlockForCarryForward(record.recipient_public_key, checkpoint);
+    return std::fabs(expectedBalance - record.amount) < 0.000001;
+}
+
+}
 
 /**
  * tokenClose
@@ -390,6 +511,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     CSelector::users.clear();
     std::vector<CFunctions::record_structure> memberRecords;
     std::map<std::string, long> latestHeartbeatBlockByUser;
+    std::map<std::string, bool> acceptedCarryForwardKeys;
     bool sawHeartbeat = false;
     
     // Rebuild wallet/network state from the accepted chain. The previous scan cursor
@@ -481,6 +603,24 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 // Tally currency supply
                 if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
                     currency_circulation += record.amount;
+                }
+
+                if(isBasicCarryForwardRecord(record, block.number) && carryForwardSnapshotMatches(record)){
+                    std::string key = carryForwardKey(record);
+                    if(key.length() > 0 && acceptedCarryForwardKeys.find(key) == acceptedCarryForwardKeys.end()){
+                        acceptedCarryForwardKeys[key] = true;
+                        currency_circulation += CFunctions::CARRY_FORWARD_REWARD;
+                        if(record.sender_public_key.compare(my_public_key) == 0){
+                            updatedBalance += CFunctions::CARRY_FORWARD_REWARD;
+                        }
+
+                        CFunctions::user_structure user = userDB.getUser(record.sender_public_key);
+                        if(user.public_key.compare(record.sender_public_key) != 0){
+                            user.public_key = record.sender_public_key;
+                        }
+                        user.balance += CFunctions::CARRY_FORWARD_REWARD;
+                        userDB.setUser(user);
+                    }
                 }
                 
                 

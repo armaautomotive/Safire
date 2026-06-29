@@ -36,21 +36,9 @@ void CCarryforward::carryforwardThread(int argc, char* argv[]){
             usleep(1000000);
         }
         
-        if(isRunningX){
-            //std::cout << "Carry forward" << std::endl;
-            
-            CFunctions::record_structure carryForwardRecord;
-            // Time?
-            carryForwardRecord.transaction_type = CFunctions::CARRY_FORWARD;
-            
-            carryForwardRecord.sender_public_key = publicKey;
-            
-            // Add current block id number to message.
-            
-            std::string message_siganture = "";
-            carryForwardRecord.hash = functions.getRecordHash(carryForwardRecord);
-            relayClient.sendRecord(carryForwardRecord);
-        }
+        // Carry-forward records now require a checkpoint block, period id, and
+        // balance snapshot. Use the CLI carryforward command until automatic
+        // generation can share that validation path.
         
         // frequency delay, 24 hours - start delay.
         for(int i = 0; i < (60 * 60 * 23) && isRunningX; i++){
@@ -64,4 +52,3 @@ void CCarryforward::stop() {
     isRunningX = false;
     // Join thread
 }
-
