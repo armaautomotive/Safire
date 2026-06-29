@@ -288,6 +288,7 @@ int CLocalPeerClient::pushToPeer(const std::string& peerUrl)
 CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::string& peerUrl)
 {
     const int maxBlocksPerPush = 10000;
+    const long forkRepairLookbackBlocks = 1000;
     push_result result;
     result.candidateBlocks = 0;
     result.pushedBlocks = 0;
@@ -304,11 +305,15 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
     long firstBlockId = blockDB.getFirstBlockId();
     long localLatestBlockId = blockDB.getLatestBlockId();
     long peerLatestBlockId = getPeerLatestBlockId(peer);
-    if (localLatestBlockId < 0 || firstBlockId < 0 || localLatestBlockId <= peerLatestBlockId) {
+    long pushStartBlock = peerLatestBlockId - forkRepairLookbackBlocks;
+    if (peerLatestBlockId < 0) {
+        pushStartBlock = -1;
+    }
+    if (localLatestBlockId < 0 || firstBlockId < 0 || localLatestBlockId <= pushStartBlock) {
         return result;
     }
 
-    std::vector<CFunctions::block_structure> blocks = connectedBlocksAfter(peerLatestBlockId);
+    std::vector<CFunctions::block_structure> blocks = connectedBlocksAfter(pushStartBlock);
     result.candidateBlocks = blocks.size();
     for (int i = 0; i < blocks.size() && result.pushedBlocks < maxBlocksPerPush; ++i) {
         std::string response;
