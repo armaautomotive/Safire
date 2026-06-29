@@ -14,6 +14,7 @@
 #include "network/localpeerclient.h"
 #include "network/server.h"
 #include "networktime.h"
+#include "networkconfig.h"
 #include "functions/selector.h"
 #include "functions/chain.h"
 //#include "wallet/wallet.h"
@@ -186,6 +187,16 @@ int main(int argc, char* argv[])
     CNetworkTime startupNetworkTime;
     std::cout << " Network time offset: " << startupNetworkTime.getOffset() << "s" << std::endl;
     std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
+    CBlockDB startupBlockDB;
+    long startupFirstBlockId = startupBlockDB.getFirstBlockId();
+    CFunctions::block_structure startupFirstBlock = startupBlockDB.getBlock(startupFirstBlockId);
+    CNetworkConfig startupNetworkConfig = CNetworkConfig::load();
+    if(startupFirstBlockId > 0 && startupNetworkConfig.genesisMatches(startupFirstBlockId, startupFirstBlock.hash) == false){
+        std::cout << ANSI_COLOR_RED << " Configured chain changed. " << ANSI_COLOR_RESET << std::endl;
+        std::cout << "  Local genesis: " << startupFirstBlockId << " " << startupFirstBlock.hash << std::endl;
+        std::cout << "  Config genesis: " << startupNetworkConfig.genesisBlock << " " << startupNetworkConfig.genesisHash << std::endl;
+        std::cout << "  Run resetall and restart to sync the configured test network." << std::endl;
+    }
 
     std::cout << std::endl;
 
