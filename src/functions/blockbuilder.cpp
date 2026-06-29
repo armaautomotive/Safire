@@ -159,25 +159,6 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         ecdsa.SignMessage(privateKey, joinRecord.hash, signature);
         joinRecord.signature = signature;
         
-        // *** TESTING ONLY ***
-        std::string fictionPrivateKey;
-        std::string fictionPublicKey;
-        std::string uncompressed;
-        int r = ecdsa.RandomPrivateKey(fictionPrivateKey);
-        r = ecdsa.GetPublicKey(fictionPrivateKey, uncompressed, fictionPublicKey);
-        CFunctions::record_structure fictionJoinRecord;
-        fictionJoinRecord.network = networkName;
-        fictionJoinRecord.time = ts;
-        fictionJoinRecord.transaction_type = joinType;
-        fictionJoinRecord.amount = 0.0;
-        fictionJoinRecord.fee = 0;
-        fictionJoinRecord.sender_public_key = fictionPublicKey;
-        fictionJoinRecord.recipient_public_key = "";
-        fictionJoinRecord.hash = functions.getRecordHash(fictionJoinRecord);
-        ecdsa.SignMessage(fictionPrivateKey, fictionJoinRecord.hash, signature);
-        fictionJoinRecord.signature = signature;
-        // *** END TESTING ***
-        
         CFunctions::record_structure blockRewardRecord;
         blockRewardRecord.network = networkName;
         blockRewardRecord.time = ts;
@@ -194,7 +175,6 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         block.creator_key = publicKey;
         block.network = networkName;
         block.records.push_back(joinRecord);
-        block.records.push_back(fictionJoinRecord);
         block.records.push_back(blockRewardRecord);
         
         //time_t t = time(0);
