@@ -5,6 +5,10 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QColor>
+#include <QCoreApplication>
+#include <QCloseEvent>
+#include <QDir>
+#include <QFileInfo>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -17,13 +21,16 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPen>
+#include <QPlainTextEdit>
 #include <QPointF>
+#include <QProcess>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QStringList>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTextCursor>
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -84,6 +91,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
       m_rootStack(new QStackedWidget(this)),
       m_contentStack(0),
+      m_terminalProcess(0),
       m_userEdit(0),
       m_passwordEdit(0),
       m_loginMessage(0),
@@ -95,10 +103,16 @@ MainWindow::MainWindow(QWidget *parent)
       m_sendAmountEdit(0),
       m_sendMemoEdit(0),
       m_receiveAddressLabel(0),
+      m_terminalOutput(0),
+      m_terminalInput(0),
+      m_terminalStatusLabel(0),
+      m_terminalStartButton(0),
+      m_terminalStopButton(0),
       m_balanceButton(0),
       m_sendButton(0),
       m_receiveButton(0),
       m_historyButton(0),
+      m_terminalButton(0),
       m_optionsButton(0)
 {
     setWindowTitle(tr("Safire Wallet"));
@@ -117,6 +131,7 @@ MainWindow::MainWindow(QWidget *parent)
         "#AccountBalance { color: #0d343b; font-size: 22px; font-weight: 700; }"
         "#StatusGood { color: #18735d; font-weight: 700; }"
         "#Error { color: #b3261e; font-weight: 600; }"
+        "#TerminalOutput { background: #0d171b; color: #d9f7ef; border: 1px solid #17343b; border-radius: 6px; font-family: Menlo, Consolas, monospace; font-size: 13px; padding: 10px; }"
         "QLineEdit, QTextEdit { background: #ffffff; border: 1px solid #cddadd; border-radius: 6px; padding: 10px; selection-background-color: #1b7f8a; }"
         "QLineEdit:focus, QTextEdit:focus { border-color: #1b7f8a; }"
         "QPushButton { border-radius: 6px; padding: 10px 14px; font-weight: 700; }"
@@ -138,6 +153,13 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    stopTerminal();
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    stopTerminal();
+    QMainWindow::closeEvent(event);
 }
 
 QWidget *MainWindow::createLoginPage()
@@ -214,12 +236,14 @@ QWidget *MainWindow::createShellPage()
     m_sendButton = createNavButton(tr("Send"));
     m_receiveButton = createNavButton(tr("Receive"));
     m_historyButton = createNavButton(tr("History"));
+    m_terminalButton = createNavButton(tr("Terminal"));
     m_optionsButton = createNavButton(tr("Options"));
 
     nav->addWidget(m_balanceButton);
     nav->addWidget(m_sendButton);
     nav->addWidget(m_receiveButton);
     nav->addWidget(m_historyButton);
+    nav->addWidget(m_terminalButton);
     nav->addWidget(m_optionsButton);
     nav->addStretch();
 
@@ -231,12 +255,14 @@ QWidget *MainWindow::createShellPage()
     m_contentStack->addWidget(createSendPage());
     m_contentStack->addWidget(createReceivePage());
     m_contentStack->addWidget(createHistoryPage());
+    m_contentStack->addWidget(createTerminalPage());
     m_contentStack->addWidget(createOptionsPage());
 
     connect(m_balanceButton, SIGNAL(clicked()), this, SLOT(showBalance()));
     connect(m_sendButton, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(m_receiveButton, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(m_historyButton, SIGNAL(clicked()), this, SLOT(showHistory()));
+    connect(m_terminalButton, SIGNAL(clicked()), this, SLOT(showTerminal()));
     connect(m_optionsButton, SIGNAL(clicked()), this, SLOT(showOptions()));
     connect(signOutButton, SIGNAL(clicked()), this, SLOT(signOut()));
 
@@ -387,6 +413,53 @@ QWidget *MainWindow::createHistoryPage()
     return page;
 }
 
+QWidget *MainWindow::createTerminalPage()
+{
+    QFrame *page = makePanel("Panel");
+    QVBoxLayout *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(26, 24, 26, 24);
+    layout->setSpacing(14);
+
+    QHBoxLayout *header = new QHBoxLayout;
+    header->addWidget(createSectionTitle(tr("Terminal")));
+    header->addStretch();
+    m_terminalStatusLabel = makeLabel(tr("Stopped"), "Muted");
+    header->addWidget(m_terminalStatusLabel);
+    layout->addLayout(header);
+
+    m_terminalOutput = new QPlainTextEdit;
+    m_terminalOutput->setObjectName("TerminalOutput");
+    m_terminalOutput->setReadOnly(true);
+    m_terminalOutput->setLineWrapMode(QPlainTextEdit::NoWrap);
+    m_terminalOutput->setMinimumHeight(330);
+    m_terminalOutput->appendPlainText(tr("Console stopped."));
+    layout->addWidget(m_terminalOutput, 1);
+
+    QHBoxLayout *entry = new QHBoxLayout;
+    m_terminalInput = new QLineEdit;
+    m_terminalInput->setPlaceholderText(tr("Command"));
+    entry->addWidget(m_terminalInput, 1);
+    QPushButton *sendButton = createPrimaryButton(tr("Send"));
+    entry->addWidget(sendButton);
+    layout->addLayout(entry);
+
+    QHBoxLayout *actions = new QHBoxLayout;
+    m_terminalStartButton = createSecondaryButton(tr("Start Console"));
+    m_terminalStopButton = createSecondaryButton(tr("Stop Console"));
+    m_terminalStopButton->setEnabled(false);
+    actions->addWidget(m_terminalStartButton);
+    actions->addWidget(m_terminalStopButton);
+    actions->addStretch();
+    layout->addLayout(actions);
+
+    connect(m_terminalStartButton, SIGNAL(clicked()), this, SLOT(startTerminal()));
+    connect(m_terminalStopButton, SIGNAL(clicked()), this, SLOT(stopTerminal()));
+    connect(sendButton, SIGNAL(clicked()), this, SLOT(sendTerminalCommand()));
+    connect(m_terminalInput, SIGNAL(returnPressed()), this, SLOT(sendTerminalCommand()));
+
+    return page;
+}
+
 QWidget *MainWindow::createOptionsPage()
 {
     QFrame *page = makePanel("Panel");
@@ -474,7 +547,7 @@ void MainWindow::appendHistory(const QString &date, const QString &type, const Q
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
-    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_historyButton << m_optionsButton;
+    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_historyButton << m_terminalButton << m_optionsButton;
     for (int i = 0; i < buttons.size(); ++i) {
         QPushButton *button = buttons.at(i);
         if (!button) {
@@ -489,6 +562,37 @@ void MainWindow::setActiveNav(QPushButton *activeButton)
 QString MainWindow::receiveAddress() const
 {
     return QString("03D245A704904A61B82E7876D123D5C561B990A391E427FC9019229439D2986680");
+}
+
+QString MainWindow::coreBinaryPath() const
+{
+    QStringList candidates;
+    candidates << QDir::current().absoluteFilePath("bin/Safire");
+
+    QDir appDir(QCoreApplication::applicationDirPath());
+    candidates << appDir.absoluteFilePath("../../../../bin/Safire");
+
+    for (int i = 0; i < candidates.size(); ++i) {
+        QFileInfo file(candidates.at(i));
+        if (file.exists() && file.isExecutable() && file.isFile()) {
+            return file.canonicalFilePath();
+        }
+    }
+    return QString();
+}
+
+void MainWindow::appendTerminalText(const QString &text)
+{
+    if (!m_terminalOutput || text.isEmpty()) {
+        return;
+    }
+
+    QString normalized = text;
+    normalized.replace("\r\n", "\n");
+    normalized.replace("\r", "\n");
+    m_terminalOutput->moveCursor(QTextCursor::End);
+    m_terminalOutput->insertPlainText(normalized);
+    m_terminalOutput->moveCursor(QTextCursor::End);
 }
 
 void MainWindow::signIn()
@@ -534,9 +638,15 @@ void MainWindow::showHistory()
     setActiveNav(m_historyButton);
 }
 
-void MainWindow::showOptions()
+void MainWindow::showTerminal()
 {
     m_contentStack->setCurrentIndex(4);
+    setActiveNav(m_terminalButton);
+}
+
+void MainWindow::showOptions()
+{
+    m_contentStack->setCurrentIndex(5);
     setActiveNav(m_optionsButton);
 }
 
@@ -561,4 +671,146 @@ void MainWindow::submitPayment()
     m_sendAmountEdit->clear();
     m_sendMemoEdit->clear();
     showHistory();
+}
+
+void MainWindow::startTerminal()
+{
+    if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
+        appendTerminalText(tr("\nConsole is already running.\n"));
+        return;
+    }
+
+    QString corePath = coreBinaryPath();
+    if (corePath.isEmpty()) {
+        appendTerminalText(tr("\nUnable to find bin/Safire. Build the core app first.\n"));
+        if (m_terminalStatusLabel) {
+            m_terminalStatusLabel->setText(tr("Core binary not found"));
+        }
+        return;
+    }
+
+    if (!m_terminalProcess) {
+        m_terminalProcess = new QProcess(this);
+        m_terminalProcess->setProcessChannelMode(QProcess::MergedChannels);
+        connect(m_terminalProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(readTerminalOutput()));
+        connect(m_terminalProcess, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(terminalFinished(int,QProcess::ExitStatus)));
+        connect(m_terminalProcess, SIGNAL(errorOccurred(QProcess::ProcessError)), this, SLOT(terminalError(QProcess::ProcessError)));
+    }
+
+    QFileInfo coreInfo(corePath);
+    m_terminalProcess->setWorkingDirectory(coreInfo.absoluteDir().absolutePath() + "/..");
+    appendTerminalText(tr("\nStarting console backend: %1\n").arg(corePath));
+    m_terminalProcess->start(corePath);
+
+    if (!m_terminalProcess->waitForStarted(2000)) {
+        appendTerminalText(tr("Unable to start console backend: %1\n").arg(m_terminalProcess->errorString()));
+        if (m_terminalStatusLabel) {
+            m_terminalStatusLabel->setText(tr("Start failed"));
+        }
+        return;
+    }
+
+    if (m_terminalStatusLabel) {
+        m_terminalStatusLabel->setText(tr("Running"));
+    }
+    if (m_terminalStartButton) {
+        m_terminalStartButton->setEnabled(false);
+    }
+    if (m_terminalStopButton) {
+        m_terminalStopButton->setEnabled(true);
+    }
+    if (m_terminalInput) {
+        m_terminalInput->setFocus();
+    }
+}
+
+void MainWindow::stopTerminal()
+{
+    if (!m_terminalProcess || m_terminalProcess->state() == QProcess::NotRunning) {
+        return;
+    }
+
+    appendTerminalText(tr("\nStopping console backend...\n"));
+    m_terminalProcess->write("quit\n");
+    if (!m_terminalProcess->waitForFinished(2500)) {
+        m_terminalProcess->terminate();
+        if (!m_terminalProcess->waitForFinished(1500)) {
+            m_terminalProcess->kill();
+            m_terminalProcess->waitForFinished(1000);
+        }
+    }
+}
+
+void MainWindow::sendTerminalCommand()
+{
+    if (!m_terminalInput) {
+        return;
+    }
+
+    QString command = m_terminalInput->text();
+    if (command.trimmed().isEmpty()) {
+        return;
+    }
+
+    if (!m_terminalProcess || m_terminalProcess->state() == QProcess::NotRunning) {
+        startTerminal();
+    }
+
+    if (!m_terminalProcess || m_terminalProcess->state() == QProcess::NotRunning) {
+        appendTerminalText(tr("\nConsole backend is not running.\n"));
+        return;
+    }
+
+    appendTerminalText(QString(">") + command + "\n");
+    QByteArray bytes = command.toUtf8();
+    bytes.append('\n');
+    m_terminalProcess->write(bytes);
+    m_terminalInput->clear();
+}
+
+void MainWindow::readTerminalOutput()
+{
+    if (!m_terminalProcess) {
+        return;
+    }
+
+    QByteArray bytes = m_terminalProcess->readAllStandardOutput();
+    appendTerminalText(QString::fromLocal8Bit(bytes));
+}
+
+void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    Q_UNUSED(exitStatus);
+    if (m_terminalProcess) {
+        QByteArray bytes = m_terminalProcess->readAllStandardOutput();
+        appendTerminalText(QString::fromLocal8Bit(bytes));
+    }
+    appendTerminalText(tr("\nConsole backend stopped with exit code %1.\n").arg(exitCode));
+    if (m_terminalStatusLabel) {
+        m_terminalStatusLabel->setText(tr("Stopped"));
+    }
+    if (m_terminalStartButton) {
+        m_terminalStartButton->setEnabled(true);
+    }
+    if (m_terminalStopButton) {
+        m_terminalStopButton->setEnabled(false);
+    }
+}
+
+void MainWindow::terminalError(QProcess::ProcessError error)
+{
+    Q_UNUSED(error);
+    if (!m_terminalProcess) {
+        return;
+    }
+    appendTerminalText(tr("\nConsole backend error: %1\n").arg(m_terminalProcess->errorString()));
+    if (m_terminalStatusLabel) {
+        m_terminalStatusLabel->setText(tr("Error"));
+    }
+    if (m_terminalStartButton) {
+        m_terminalStartButton->setEnabled(true);
+    }
+    if (m_terminalStopButton) {
+        m_terminalStopButton->setEnabled(false);
+    }
 }
