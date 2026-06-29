@@ -213,8 +213,8 @@ std::string httpGet(const std::string& url)
     }
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
     curl_easy_perform(curl);
@@ -238,8 +238,8 @@ std::string httpPost(const std::string& url, const std::string& body)
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, body.size());
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
     curl_easy_perform(curl);
@@ -618,8 +618,14 @@ std::vector<CLocalPeerClient::peer_status> CLocalPeerClient::getPeerStatuses()
 
 void CLocalPeerClient::discoverPeers()
 {
+    if (!running) {
+        return;
+    }
     std::vector<std::string> currentPeers = peers;
     for (int i = 0; i < currentPeers.size(); ++i) {
+        if (!running) {
+            break;
+        }
         std::string peer = currentPeers.at(i);
         std::string response = httpGet(peer + "/api/peers");
         if (response.empty()) {
@@ -628,6 +634,9 @@ void CLocalPeerClient::discoverPeers()
 
         std::vector<std::string> discoveredPeers = parsePeerUrlsFromJson(response);
         for (int j = 0; j < discoveredPeers.size(); ++j) {
+            if (!running) {
+                break;
+            }
             std::string discoveredPeer = discoveredPeers.at(j);
             if (discoveredPeer.compare(peer) == 0) {
                 continue;
@@ -680,6 +689,9 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
 {
     const int maxBlocksPerSync = 10000;
     bool changed = false;
+    if (!running) {
+        return false;
+    }
     std::string peer = normalizePeerUrl(peerUrl);
     if (peer.empty()) {
         return false;
@@ -737,6 +749,9 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
 
     int received = 0;
     while (latestBlockId > -1 && received < maxBlocksPerSync) {
+        if (!running) {
+            break;
+        }
         if (peerLatestBlockId > -1 && latestBlockId >= peerLatestBlockId) {
             break;
         }
@@ -797,6 +812,11 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
     result.failedBlockId = -1;
     result.response = "";
 
+    if (!running) {
+        result.response = "stopping";
+        return result;
+    }
+
     std::string peer = normalizePeerUrl(peerUrl);
     if (peer.empty()) {
         result.response = "empty peer URL";
@@ -818,6 +838,10 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
     std::vector<CFunctions::block_structure> blocks = connectedBlocksAfter(pushStartBlock);
     result.candidateBlocks = blocks.size();
     for (int i = 0; i < blocks.size() && result.pushedBlocks < maxBlocksPerPush; ++i) {
+        if (!running) {
+            result.response = "stopping";
+            break;
+        }
         std::string response;
         if (!submitBlockToPeer(peer, blocks.at(i), response)) {
             result.failedBlockId = blocks.at(i).number;
@@ -859,6 +883,11 @@ CLocalPeerClient::push_result CLocalPeerClient::pushFullChainToPeerDetailed(cons
     result.failedBlockId = -1;
     result.response = "";
 
+    if (!running) {
+        result.response = "stopping";
+        return result;
+    }
+
     std::string peer = normalizePeerUrl(peerUrl);
     if (peer.empty()) {
         result.response = "empty peer URL";
@@ -875,6 +904,10 @@ CLocalPeerClient::push_result CLocalPeerClient::pushFullChainToPeerDetailed(cons
     std::vector<CFunctions::block_structure> blocks = connectedBlocksAfter(-1);
     result.candidateBlocks = blocks.size();
     for (int i = 0; i < blocks.size() && result.pushedBlocks < maxBlocksPerPush; ++i) {
+        if (!running) {
+            result.response = "stopping";
+            break;
+        }
         std::string response;
         if (!submitBlockToPeer(peer, blocks.at(i), response)) {
             result.failedBlockId = blocks.at(i).number;
@@ -889,6 +922,9 @@ CLocalPeerClient::push_result CLocalPeerClient::pushFullChainToPeerDetailed(cons
 
 long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)
 {
+    if (!running) {
+        return -1;
+    }
     std::string peer = normalizePeerUrl(peerUrl);
     if (peer.empty()) {
         return -1;
@@ -939,7 +975,7 @@ bool CLocalPeerClient::isSyncedWithPeers()
 
 bool CLocalPeerClient::syncNetworkTime()
 {
-    if (peers.empty()) {
+    if (!running || peers.empty()) {
         return false;
     }
 
@@ -948,6 +984,9 @@ bool CLocalPeerClient::syncNetworkTime()
     CFunctions functions;
     std::vector<peer_status> statuses = getPeerStatuses();
     for (int i = 0; i < statuses.size(); ++i) {
+        if (!running) {
+            break;
+        }
         if (statuses.at(i).score < -40) {
             continue;
         }
@@ -984,7 +1023,7 @@ long CLocalPeerClient::getNetworkTimeOffset()
 
 void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& record)
 {
-    if (peers.empty()) {
+    if (!running || peers.empty()) {
         return;
     }
 
@@ -994,6 +1033,9 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
     }
     std::string recordJson = functions.recordJSON(record);
     for (int i = 0; i < peers.size(); ++i) {
+        if (!running) {
+            break;
+        }
         if (peerStatuses.find(peers.at(i)) != peerStatuses.end() && peerStatuses[peers.at(i)].score < -40) {
             continue;
         }
@@ -1011,7 +1053,7 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
 
 void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
 {
-    if (peers.empty()) {
+    if (!running || peers.empty()) {
         return;
     }
 
@@ -1027,6 +1069,9 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
         }
     }
     for (int i = 0; i < peers.size(); ++i) {
+        if (!running) {
+            break;
+        }
         if (peerStatuses.find(peers.at(i)) != peerStatuses.end() && peerStatuses[peers.at(i)].score < -40) {
             continue;
         }

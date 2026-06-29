@@ -33,6 +33,7 @@
 #include "networktime.h"
 #include "blockdb.h"
 #include "userdb.h"
+#include "guilauncher.h"
 
 namespace {
 
@@ -42,72 +43,6 @@ double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpoin
 const double DEFAULT_TRANSACTION_FEE = 0.0;
 const double MAX_TRANSACTION_FEE = 0.1;
 const char* SETTINGS_FILE = "settings.dat";
-
-bool executableFileExists(const std::string& path){
-    return access(path.c_str(), X_OK) == 0;
-}
-
-bool graphicalSessionAvailable(){
-#ifdef __APPLE__
-    return getenv("SSH_CONNECTION") == NULL && getenv("SSH_TTY") == NULL;
-#elif defined(_WIN32)
-    return true;
-#else
-    return getenv("DISPLAY") != NULL ||
-        getenv("WAYLAND_DISPLAY") != NULL ||
-        getenv("MIR_SOCKET") != NULL;
-#endif
-}
-
-std::string shellQuote(const std::string& value){
-    std::string quoted = "'";
-    for(std::size_t i = 0; i < value.length(); i++){
-        if(value[i] == '\''){
-            quoted += "'\\''";
-        } else {
-            quoted += value[i];
-        }
-    }
-    quoted += "'";
-    return quoted;
-}
-
-std::string guiLauncherPath(){
-    std::vector<std::string> candidates;
-    candidates.push_back("gui_client/run.sh");
-    candidates.push_back("./gui_client/run.sh");
-    candidates.push_back("../gui_client/run.sh");
-
-    for(int i = 0; i < candidates.size(); i++){
-        if(executableFileExists(candidates.at(i))){
-            return candidates.at(i);
-        }
-    }
-    return "";
-}
-
-bool launchGuiInterface(std::string& message){
-    if(graphicalSessionAvailable() == false){
-        message = "No graphical window session detected. Start the GUI from a desktop session.";
-        return false;
-    }
-
-    std::string launcher = guiLauncherPath();
-    if(launcher.length() == 0){
-        message = "GUI launcher not found. Build the GUI with scripts/gui.sh first.";
-        return false;
-    }
-
-    std::string command = shellQuote(launcher) + " >/tmp/safire-gui.log 2>&1 &";
-    int result = system(command.c_str());
-    if(result != 0){
-        message = "GUI launch command failed. See /tmp/safire-gui.log for details.";
-        return false;
-    }
-
-    message = "GUI launch requested.";
-    return true;
-}
 
 std::string firstCommandToken(const std::string& command){
     std::istringstream ss(command);
@@ -1826,7 +1761,7 @@ void CCLI::processUserInput(){
         } else if ( command.compare("gui") == 0 || command.compare("launchgui") == 0 ){
 
             std::string message;
-            launchGuiInterface(message);
+            safireLaunchGuiInterface(message);
             std::cout << " " << message << std::endl;
  
         } else if ( command.find("quit") != std::string::npos ){

@@ -17,6 +17,7 @@
 #include "networkconfig.h"
 #include "functions/selector.h"
 #include "functions/chain.h"
+#include "guilauncher.h"
 //#include "wallet/wallet.h"
 //#include "key.h"
 //#include "pubkey.h"
@@ -87,6 +88,13 @@ int main(int argc, char* argv[])
 {
     std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.03" << ANSI_COLOR_RESET << std::endl;
     std::cout << std::endl;
+
+    if(hasArg(argc, argv, "gui") || hasArg(argc, argv, "--gui") || hasArg(argc, argv, "launchgui")){
+        std::string message;
+        bool launched = safireLaunchGuiInterface(message);
+        std::cout << " " << message << std::endl;
+        return launched ? 0 : 1;
+    }
     
     //std::cout << "a \n";
     
@@ -327,11 +335,11 @@ int main(int argc, char* argv[])
     cli.processUserInput();    
 
     std::cout << "Shutting down... " << std::endl;
+    CLocalPeerClient::stop();
     chain.writeFile();
     heartbeat.stop();
     blockBuilder.stop();
     carryforward.stop();
-    CLocalPeerClient::stop();
     blockThread.join();
     heartbeatThread.join();
     carryforwardThread.join();
