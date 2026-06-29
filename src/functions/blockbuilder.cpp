@@ -13,6 +13,7 @@
 #include "ecdsacrypto.h"
 #include "functions/functions.h"
 #include "network/relayclient.h"
+#include "network/localpeerclient.h"
 #include "functions/selector.h"
 #include "functions/chain.h"
 #include "wallet.h"
@@ -168,6 +169,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         blockDB.setFirstBlockId(block.number);
         
         relayClient.sendBlock(block);
+        CLocalPeerClient::broadcastBlock(block);
         
         // Wait until the block period is over
         long currTimeBlock = selector.getCurrentTimeBlock();
@@ -357,6 +359,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             if(block.number != lastLocalBuiltBlockId){
                 blockDB.AddBlock(block);
                 relayClient.sendBlock(block);
+                CLocalPeerClient::broadcastBlock(block);
             }
             lastLocalBuiltBlockId = block.number;
             

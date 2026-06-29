@@ -11,6 +11,8 @@
 #include "global.h"
 #include "network/relayclient.h"
 #include "network/p2p.h"
+#include "network/localpeerclient.h"
+#include "network/server.h"
 #include "functions/selector.h"
 #include "functions/chain.h"
 //#include "wallet/wallet.h"
@@ -43,11 +45,32 @@
 #include "compression.h"
 #include "heartbeat.h"
 #include "carryforward.h"
+#include <boost/shared_ptr.hpp>
+#include <exception>
 
 //static const uint64_t BUFFER_SIZE = 1000*1000; // Temp
 using namespace std;
 
 volatile bool buildingBlocks = true;
+
+static std::string getArgValue(int argc, char* argv[], const std::string& name){
+    for(int i = 1; i + 1 < argc; i++){
+        if(name.compare(argv[i]) == 0){
+            return argv[i + 1];
+        }
+    }
+    return "";
+}
+
+static std::vector<std::string> getArgValues(int argc, char* argv[], const std::string& name){
+    std::vector<std::string> values;
+    for(int i = 1; i + 1 < argc; i++){
+        if(name.compare(argv[i]) == 0){
+            values.push_back(argv[i + 1]);
+        }
+    }
+    return values;
+}
 
 int main(int argc, char* argv[])
 {
@@ -178,6 +201,27 @@ int main(int argc, char* argv[])
     CRelayClient relayClient;
     relayClient.getNewNetworkPeer(publicKey);
 
+    std::string localNodePort = getArgValue(argc, argv, "--node-port");
+    std::vector<std::string> localPeers = getArgValues(argc, argv, "--peer");
+    CLocalPeerClient::setPeers(localPeers);
+    boost::shared_ptr<http::server3::server> localNodeServer;
+    boost::shared_ptr<std::thread> localNodeThread;
+    if(localNodePort.length() > 0){
+        try {
+            localNodeServer.reset(new http::server3::server("0.0.0.0", localNodePort, ".", 1));
+            localNodeThread.reset(new std::thread(&http::server3::server::run, localNodeServer.get()));
+            std::cout << " Local node API.         http://127.0.0.1:" << localNodePort << "/api/status" << std::endl;
+        } catch (const std::exception& ex) {
+            std::cout << " Local node API.         [failed] " << ex.what() << std::endl;
+            localNodeServer.reset();
+        }
+    }
+    boost::shared_ptr<std::thread> localSyncThread;
+    if(localPeers.size() > 0){
+        localSyncThread.reset(new std::thread(&CLocalPeerClient::syncThread, argc, argv));
+        std::cout << " Local peer sync.        " << localPeers.size() << " peer(s)" << std::endl;
+    }
+
     // Validate chain
     std::cout << " Validating chain.       " << ANSI_COLOR_GREEN << "[ok] " << ANSI_COLOR_RESET << std::endl;
 
@@ -247,9 +291,19 @@ int main(int argc, char* argv[])
     heartbeat.stop();
     blockBuilder.stop();
     carryforward.stop();
+    CLocalPeerClient::stop();
     blockThread.join();
     heartbeatThread.join();
     carryforwardThread.join();
+    if(localSyncThread){
+        localSyncThread->join();
+    }
+    if(localNodeServer){
+        localNodeServer->stop();
+    }
+    if(localNodeThread){
+        localNodeThread->join();
+    }
     //p2p.exit();
     relayClient.exit();
     //p2pNetworkThread.join();

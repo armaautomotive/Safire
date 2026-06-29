@@ -14,6 +14,7 @@
 #include "wallet.h"
 #include "network/p2p.h"
 #include "network/relayclient.h"
+#include "network/localpeerclient.h"
 #include "blockdb.h"
 #include "userdb.h"
 
@@ -50,6 +51,7 @@ void CCLI::printAdvancedCommands(){
     " printqueue             - Print the record queue.\n" <<
     " resetall               - Delete node data.\n" <<
     " requestblock           - Send network request for block data. \n" <<
+    " sync                   - Pull blocks from configured local peers. \n" <<
     std::endl;
 }
 
@@ -133,6 +135,7 @@ void CCLI::processUserInput(){
 				
                 //functions.addToQueue( joinRecord );
                 relayClient.sendRecord(joinRecord);
+                CLocalPeerClient::broadcastRecord(joinRecord);
 	
 				// TODO: send request or say allready sent. 	
 			}
@@ -184,6 +187,7 @@ void CCLI::processUserInput(){
             } else {
 
                 CFunctions::record_structure sendRecord;
+                sendRecord.network = "main";
                 time_t  timev;
                 time(&timev);
                 std::stringstream ss;
@@ -192,14 +196,16 @@ void CCLI::processUserInput(){
                 sendRecord.time = ts;
                 sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
                 sendRecord.amount = d_amount;
-                            sendRecord.fee = 0.0;
+                sendRecord.fee = 0.0;
                 sendRecord.sender_public_key = publicKey;
-                sendRecord.recipient_public_key = publicKey;
-                std::string message_siganture = destination_address;
-                ecdsa.SignMessage(privateKey, "" + publicKey, message_siganture);
-                sendRecord.signature = message_siganture;
+                sendRecord.recipient_public_key = destination_address;
+                sendRecord.hash = functions.getRecordHash(sendRecord);
+                std::string signature = "";
+                ecdsa.SignMessage(privateKey, sendRecord.hash, signature);
+                sendRecord.signature = signature;
                 functions.addToQueue( sendRecord );
                 relayClient.sendRecord(sendRecord);
+                CLocalPeerClient::broadcastRecord(sendRecord);
                 std::cout << "Sent transfer request. " << std::endl;
             }
 
@@ -210,6 +216,9 @@ void CCLI::processUserInput(){
             
             std::cout << " Network up to date: " << (functions.IsChainUpToDate() == true ? "yes" : "no ") << std::endl;
             std::cout << " Sync Porgress: " << functions.SyncProgress() << "% " << std::endl;
+            CBlockDB networkBlockDB;
+            std::cout << " First block: " << networkBlockDB.getFirstBlockId() << std::endl;
+            std::cout << " Latest block: " << networkBlockDB.getLatestBlockId() << std::endl;
             
             std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
             std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
@@ -225,6 +234,7 @@ void CCLI::processUserInput(){
             //std::cout << "This feature is not implemented yet.\n" << std::endl;
             std::vector<CRelayClient::node_status> peers = relayClient.getPeers();
             std::cout << " Peers: " << peers.size() << std::endl;
+            std::cout << " Local peers: " << CLocalPeerClient::getPeers().size() << std::endl;
             //for(int i = 0; i < peers.size(); i++){ std::cout << peers.at(i).public_key << " "; } std::cout << std::endl;
      
             //CP2P p2p;
@@ -304,6 +314,22 @@ void CCLI::processUserInput(){
             // Get connected nodes.
             CRelayClient relayClient;
             relayClient.sendRequestBlocks(latestBlockId);
+            std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
+            for(int i = 0; i < localPeers.size(); i++){
+                CLocalPeerClient::syncFromPeer(localPeers.at(i));
+            }
+            
+        } else if(command.compare("sync") == 0){
+            std::cout << " Syncing local peers... " << std::endl;
+            std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
+            for(int i = 0; i < localPeers.size(); i++){
+                std::cout << "  " << localPeers.at(i) << std::endl;
+                CBlockDB syncBlockDB;
+                long before = syncBlockDB.getLatestBlockId();
+                CLocalPeerClient::syncFromPeer(localPeers.at(i));
+                long after = syncBlockDB.getLatestBlockId();
+                std::cout << "    latest block: " << before << " -> " << after << std::endl;
+            }
             
         } else if(command.compare("users") == 0){
             std::cout << "Users: " << std::endl;
@@ -360,6 +386,7 @@ void CCLI::processUserInput(){
  
              functions.addToQueue(voteRecord);
 	     relayClient.sendRecord(voteRecord); 
+	     CLocalPeerClient::broadcastRecord(voteRecord); 
 
 		std::cout << "Vote sent." << std::endl;
 
@@ -368,7 +395,4 @@ void CCLI::processUserInput(){
 	}
     }
 }
-
-
-
 

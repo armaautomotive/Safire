@@ -17,11 +17,53 @@
 #include "reply.h"
 #include "request.h"
 #include "wallet.h"
+#include "blockdb.h"
+#include "functions/functions.h"
 
 #include "networktime.h"
 
 namespace http {
 namespace server3 {
+
+namespace {
+
+std::string query_value(const std::string& path, const std::string& key)
+{
+  std::string token = key + "=";
+  std::size_t query_start = path.find("?");
+  if (query_start == std::string::npos)
+  {
+    return "";
+  }
+
+  std::size_t value_start = path.find(token, query_start + 1);
+  if (value_start == std::string::npos)
+  {
+    return "";
+  }
+  value_start += token.length();
+
+  std::size_t value_end = path.find("&", value_start);
+  if (value_end == std::string::npos)
+  {
+    value_end = path.length();
+  }
+
+  return path.substr(value_start, value_end - value_start);
+}
+
+void text_reply(reply& rep, reply::status_type status, const std::string& content, const std::string& content_type)
+{
+  rep.status = status;
+  rep.content = content;
+  rep.headers.resize(2);
+  rep.headers[0].name = "Content-Length";
+  rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
+  rep.headers[1].name = "Content-Type";
+  rep.headers[1].value = content_type;
+}
+
+}
 
 request_handler::request_handler(const std::string& doc_root)
   : doc_root_(doc_root)
@@ -36,6 +78,128 @@ void request_handler::handle_request(const request& req, reply& rep)
   if (!url_decode(req.uri, request_path))
   {
     rep = reply::stock_reply(reply::bad_request);
+    return;
+  }
+
+  CBlockDB blockDB;
+  CFunctions functions;
+
+  if (request_path == "/api/status")
+  {
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"first_block_id\":\"" << blockDB.getFirstBlockId() << "\",";
+    ss << "\"latest_block_id\":\"" << blockDB.getLatestBlockId() << "\"}";
+    text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/blocks/first")
+  {
+    long firstBlockId = blockDB.getFirstBlockId();
+    if (firstBlockId < 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    text_reply(rep, reply::ok, functions.blockJSON(block), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/blocks/latest")
+  {
+    long latestBlockId = blockDB.getLatestBlockId();
+    if (latestBlockId < 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlock(latestBlockId);
+    text_reply(rep, reply::ok, functions.blockJSON(block), "application/json");
+    return;
+  }
+
+  std::string blockPrefix = "/api/blocks/";
+  if (request_path.find(blockPrefix) == 0 && request_path.find("/api/blocks/after/") != 0)
+  {
+    std::string blockNumberString = request_path.substr(blockPrefix.length());
+    long blockNumber = ::atol(blockNumberString.c_str());
+    CFunctions::block_structure block = blockDB.getBlock(blockNumber);
+    if (block.number <= 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    text_reply(rep, reply::ok, functions.blockJSON(block), "application/json");
+    return;
+  }
+
+  std::string blockAfterPrefix = "/api/blocks/after/";
+  if (request_path.find(blockAfterPrefix) == 0)
+  {
+    std::string blockNumberString = request_path.substr(blockAfterPrefix.length());
+    long blockNumber = ::atol(blockNumberString.c_str());
+    CFunctions::block_structure block = blockDB.getBlock(blockNumber);
+    if (block.number <= 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+    if (nextBlock.number <= 0 || nextBlock.number == block.number)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    text_reply(rep, reply::ok, functions.blockJSON(nextBlock), "application/json");
+    return;
+  }
+
+  if (request_path.find("/api/blocks/submit?") == 0)
+  {
+    std::string blockJson = query_value(request_path, "block");
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
+    bool added = false;
+    for (int i = 0; i < blocks.size(); ++i)
+    {
+      CFunctions::block_structure block = blocks.at(i);
+      if (block.number > 0)
+      {
+        blockDB.AddBlock(block);
+        if (blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
+        {
+          blockDB.setFirstBlockId(block.number);
+        }
+        if (block.number > blockDB.getLatestBlockId())
+        {
+          blockDB.setLatestBlockId(block.number);
+        }
+        added = true;
+      }
+    }
+
+    text_reply(rep, added ? reply::accepted : reply::bad_request, added ? "accepted" : "invalid block", "text/plain");
+    return;
+  }
+
+  if (request_path.find("/api/records/submit?") == 0)
+  {
+    std::string recordJson = query_value(request_path, "record");
+    CFunctions::record_structure record = functions.parseRecordJson(recordJson);
+    if (record.sender_public_key.empty() && record.recipient_public_key.empty())
+    {
+      text_reply(rep, reply::bad_request, "invalid record", "text/plain");
+      return;
+    }
+
+    functions.addToQueue(record);
+    text_reply(rep, reply::accepted, "accepted", "text/plain");
     return;
   }
 
@@ -178,4 +342,3 @@ bool request_handler::url_decode(const std::string& in, std::string& out)
 
 } // namespace server3
 } // namespace http
-
