@@ -8,7 +8,9 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <deque>
+#include <fstream>
 #include <map>
 #include <sstream>
 #include <vector>
@@ -34,6 +36,67 @@ namespace {
 
 std::vector<CFunctions::record_structure> acceptedMembershipRecords();
 double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpointBlock);
+
+const double DEFAULT_TRANSACTION_FEE = 0.0;
+const double MAX_TRANSACTION_FEE = 0.1;
+const char* SETTINGS_FILE = "settings.dat";
+
+std::string firstCommandToken(const std::string& command){
+    std::istringstream ss(command);
+    std::string token;
+    ss >> token;
+    return token;
+}
+
+std::string commandArgument(const std::string& command){
+    std::size_t start = command.find_first_of(" \t");
+    if(start == std::string::npos){
+        return "";
+    }
+    start = command.find_first_not_of(" \t", start);
+    if(start == std::string::npos){
+        return "";
+    }
+    return command.substr(start);
+}
+
+bool parseFeeAmount(const std::string& value, double& fee){
+    char* end = NULL;
+    fee = std::strtod(value.c_str(), &end);
+    if(end == value.c_str() || *end != '\0'){
+        return false;
+    }
+    return fee >= 0.0 && fee <= MAX_TRANSACTION_FEE;
+}
+
+double getDefaultTransactionFee(){
+    std::ifstream infile(SETTINGS_FILE);
+    std::string line;
+    while(std::getline(infile, line)){
+        std::size_t start = line.find("fee:");
+        if(start == 0){
+            std::string value = line.substr(4);
+            double fee = DEFAULT_TRANSACTION_FEE;
+            if(parseFeeAmount(value, fee)){
+                return fee;
+            }
+        }
+    }
+    return DEFAULT_TRANSACTION_FEE;
+}
+
+bool setDefaultTransactionFee(double fee){
+    if(fee < 0.0 || fee > MAX_TRANSACTION_FEE){
+        return false;
+    }
+    std::ofstream outfile(SETTINGS_FILE);
+    if(!outfile.good()){
+        return false;
+    }
+    outfile << "fee:" << fee << "\n";
+    outfile.close();
+    return true;
+}
 
 std::string readCommandLine(std::string& lastCommand){
 #ifndef _WIN32
@@ -1186,6 +1249,8 @@ void CCLI::printCommands(){
     " switch [network name]   - switch current network. Default is 'main'.\n" <<
     //" swtch wallet            - change wallet" <<
 	" balance                 - print balance and transaction summary.\n" <<
+    " fee                     - print default transaction fee.\n" <<
+    " setfee [amount]         - set default transaction fee for sends.\n" <<
     " history                 - print sent and received wallet history.\n" <<
 	" sent                    - print sent transaction list details.\n" <<
 	" received                - print received transaction list details.\n" <<
@@ -1373,6 +1438,25 @@ void CCLI::processUserInput(){
                 }
             }
 
+		} else if ( command.compare("fee") == 0 ){
+            std::cout << " Default transaction fee: " << getDefaultTransactionFee() << " sfr" << std::endl;
+
+        } else if ( firstCommandToken(command).compare("setfee") == 0 ){
+            std::string feeValue = commandArgument(command);
+            if(feeValue.length() == 0){
+                std::cout << "Enter default transaction fee: \n" << std::endl;
+                std::cin >> feeValue;
+            }
+
+            double fee = 0.0;
+            if(parseFeeAmount(feeValue, fee) == false){
+                std::cout << " Fee not changed. Use a number from 0 to " << MAX_TRANSACTION_FEE << " sfr." << std::endl;
+            } else if(setDefaultTransactionFee(fee) == false){
+                std::cout << " Fee not changed. Unable to write settings." << std::endl;
+            } else {
+                std::cout << " Default transaction fee set to " << fee << " sfr." << std::endl;
+            }
+
 		} else if ( command.find("balance") != std::string::npos ){
 			
 
@@ -1409,6 +1493,7 @@ void CCLI::processUserInput(){
             std::cout << "Your receiving address is: " << publicKey << "\n" << std::endl;
  
         } else if ( command.compare("send") == 0 ){
+            functions.scanChain(publicKey, false);
             std::cout << "Enter destination address: \n" << std::endl;
             std::string destination_address;
             std::cin >> destination_address;
@@ -1418,11 +1503,15 @@ void CCLI::processUserInput(){
             std::cout << "Sending " << amount << " to user: " << destination_address << " \n" << std::endl;
 
             double d_amount = ::atof(amount.c_str());
+            double transactionFee = getDefaultTransactionFee();
+            double totalDebit = d_amount + transactionFee;
 
             // TODO also check balance adjusted using sent requests in queue....
             // TODO check destination address is an accepted user
-            if(d_amount > functions.balance ){
-                std::cout << "Insuficient balance. Unable to send transfer request. " << std::endl;
+            if(d_amount <= 0.0){
+                std::cout << "Invalid amount. Unable to send transfer request. " << std::endl;
+            } else if(totalDebit > functions.balance ){
+                std::cout << "Insuficient balance. Unable to send transfer request. Amount plus fee is " << totalDebit << " sfr." << std::endl;
             } else {
 
                 CFunctions::record_structure sendRecord;
@@ -1434,7 +1523,7 @@ void CCLI::processUserInput(){
                 sendRecord.time = ts;
                 sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
                 sendRecord.amount = d_amount;
-                sendRecord.fee = 0.0;
+                sendRecord.fee = transactionFee;
                 sendRecord.sender_public_key = publicKey;
                 sendRecord.recipient_public_key = destination_address;
                 sendRecord.hash = functions.getRecordHash(sendRecord);
