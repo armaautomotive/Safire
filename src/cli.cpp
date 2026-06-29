@@ -5,6 +5,7 @@
 #include "cli.h"
 
 #include <deque>
+#include <map>
 #include <sstream>
 #include <unistd.h>   // open and close
 #include <sys/stat.h> // temp because we removed util
@@ -252,11 +253,69 @@ std::vector<CFunctions::record_structure> acceptedMembershipRecords(){
     return members;
 }
 
+std::vector<CFunctions::record_structure> activeMembershipRecords(){
+    CBlockDB blockDB;
+    CSelector selector;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    std::vector<CFunctions::record_structure> members;
+    std::vector<CFunctions::record_structure> activeMembers;
+    std::map<std::string, long> latestHeartbeatBlockByUser;
+    bool sawHeartbeat = false;
+    if(firstBlockId < 0 || latestBlockId < 0){
+        return activeMembers;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::JOIN_NETWORK){
+                bool exists = false;
+                for(int m = 0; m < members.size(); m++){
+                    if(members.at(m).sender_public_key.compare(record.sender_public_key) == 0){
+                        exists = true;
+                    }
+                }
+                if(exists == false){
+                    members.push_back(record);
+                }
+            }
+            if(record.transaction_type == CFunctions::HEART_BEAT &&
+               record.sender_public_key.length() > 0){
+                sawHeartbeat = true;
+                latestHeartbeatBlockByUser[record.sender_public_key] = block.number;
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+
+    long heartbeatCutoff = selector.getCurrentTimeBlock() - CFunctions::HEARTBEAT_VALID_BLOCKS;
+    for(int m = 0; m < members.size(); m++){
+        std::string memberKey = members.at(m).sender_public_key;
+        if(sawHeartbeat == false ||
+           (latestHeartbeatBlockByUser.find(memberKey) != latestHeartbeatBlockByUser.end() &&
+            latestHeartbeatBlockByUser[memberKey] >= heartbeatCutoff)){
+            activeMembers.push_back(members.at(m));
+        }
+    }
+    return activeMembers;
+}
+
 void printSelectedBlockCreator(const std::vector<CFunctions::record_structure>& members, long timeBlock, const std::string& label, const std::string& localPublicKey){
     std::cout << " " << label << " block: " << timeBlock << std::endl;
     std::cout << " Time: " << formatSlotTime(timeBlock) << std::endl;
     if(members.size() == 0){
-        std::cout << " Creator: none selected; no accepted membership records loaded." << std::endl;
+        std::cout << " Creator: none selected; no active heartbeat members loaded." << std::endl;
         return;
     }
 
@@ -275,7 +334,8 @@ void printNextBlockSelection(const std::string& localPublicKey){
     CNetworkTime netTime;
     long currentBlock = selector.getCurrentTimeBlock();
     long nextBlock = currentBlock + 1;
-    std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
+    std::vector<CFunctions::record_structure> acceptedMembers = acceptedMembershipRecords();
+    std::vector<CFunctions::record_structure> members = activeMembershipRecords();
     long now = netTime.getEpoch();
     long secondsUntilNextBlock = (nextBlock * 15) - now;
     if(secondsUntilNextBlock < 0){
@@ -284,7 +344,8 @@ void printNextBlockSelection(const std::string& localPublicKey){
 
     std::cout << " Block creator selection:" << std::endl;
     std::cout << " Network time offset: " << netTime.getOffset() << "s" << std::endl;
-    std::cout << " Accepted members: " << members.size() << std::endl;
+    std::cout << " Accepted members: " << acceptedMembers.size() << std::endl;
+    std::cout << " Active heartbeat members: " << members.size() << std::endl;
     printSelectedBlockCreator(members, currentBlock, "Current", localPublicKey);
     std::cout << " Seconds until next block: " << secondsUntilNextBlock << std::endl;
     printSelectedBlockCreator(members, nextBlock, "Next", localPublicKey);
@@ -441,7 +502,8 @@ void printMembershipRecords(){
 */
 void CCLI::printCommands(){
 	std::cout << "Commands:\n" <<
-	" join                    - request membership in the main network.\n" <<
+    " join                    - request membership in the main network.\n" <<
+    " heartbeat               - renew block creator eligibility.\n" <<
     " switch [network name]   - switch current network. Default is 'main'.\n" <<
     //" swtch wallet            - change wallet" <<
 	" balance                 - print balance and transaction summary.\n" <<
@@ -556,6 +618,33 @@ void CCLI::processUserInput(){
 			}
 
 			// Print if pending or allready accepted.
+        } else if ( command.compare("heartbeat") == 0 ){
+            functions.scanChain(publicKey, false);
+            if(functions.joined == false){
+                std::cout << " Join the network before sending a heartbeat." << std::endl;
+            } else {
+                CFunctions::record_structure heartbeatRecord;
+                heartbeatRecord.network = "main";
+                CNetworkTime netTime;
+                std::stringstream ss;
+                ss << netTime.getEpoch();
+                heartbeatRecord.time = ss.str();
+                heartbeatRecord.transaction_type = CFunctions::HEART_BEAT;
+                heartbeatRecord.amount = 0.0;
+                heartbeatRecord.fee = 0.0;
+                heartbeatRecord.sender_public_key = publicKey;
+                heartbeatRecord.recipient_public_key = "";
+                heartbeatRecord.hash = functions.getRecordHash(heartbeatRecord);
+                std::string signature = "";
+                ecdsa.SignMessage(privateKey, heartbeatRecord.hash, signature);
+                heartbeatRecord.signature = signature;
+
+                functions.addToQueue(heartbeatRecord);
+                relayClient.sendRecord(heartbeatRecord);
+                CLocalPeerClient::broadcastRecord(heartbeatRecord);
+                std::cout << "Heartbeat queued and broadcast. Eligibility renews after a block includes this record." << std::endl;
+            }
+
 		} else if ( command.find("balance") != std::string::npos ){
 			
 
@@ -652,6 +741,14 @@ void CCLI::processUserInput(){
             std::cout << " Clock status: " << (networkTime.isClockHealthy() ? "ok" : "check local clock") << std::endl;
             
             std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
+            std::vector<CFunctions::record_structure> activeMembers = activeMembershipRecords();
+            bool activeHeartbeat = false;
+            for(int i = 0; i < activeMembers.size(); i++){
+                if(activeMembers.at(i).sender_public_key.compare(publicKey) == 0){
+                    activeHeartbeat = true;
+                }
+            }
+            std::cout << " Active heartbeat: " << (activeHeartbeat ? "yes" : "no") << std::endl;
             std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
                     std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
                     std::cout << " User count: " << functions.user_count << std::endl;

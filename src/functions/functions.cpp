@@ -384,6 +384,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     //std::map<std::string, CFunctions::user_structure> users_map;
     users_map.clear();
     CSelector::users.clear();
+    std::vector<CFunctions::record_structure> memberRecords;
+    std::map<std::string, long> latestHeartbeatBlockByUser;
+    bool sawHeartbeat = false;
     
     // Rebuild wallet/network state from the accepted chain. The previous scan cursor
     // skipped older membership records after clearing joined/balance state.
@@ -424,7 +427,21 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                 
                 if(record.transaction_type == CFunctions::JOIN_NETWORK){ // And block + previous chain is valid
                     user_count++;
-                    selector.addUser(record.sender_public_key);
+                    bool exists = false;
+                    for(int m = 0; m < memberRecords.size(); m++){
+                        if(memberRecords.at(m).sender_public_key.compare(record.sender_public_key) == 0){
+                            exists = true;
+                        }
+                    }
+                    if(exists == false){
+                        memberRecords.push_back(record);
+                    }
+                }
+
+                if(record.transaction_type == CFunctions::HEART_BEAT &&
+                   record.sender_public_key.length() > 0){
+                    sawHeartbeat = true;
+                    latestHeartbeatBlockByUser[record.sender_public_key] = block.number;
                 }
                 
                 // Recipient of transfer
@@ -661,6 +678,22 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             blockDB.setLatestBlockId(latest_block.number);
         }
         
+        long currentTimeBlock = selector.getCurrentTimeBlock();
+        long heartbeatCutoff = currentTimeBlock - CFunctions::HEARTBEAT_VALID_BLOCKS;
+        for(int m = 0; m < memberRecords.size(); m++){
+            std::string memberKey = memberRecords.at(m).sender_public_key;
+            bool active = false;
+            if(sawHeartbeat == false){
+                active = true; // Bootstrap existing chains until the first heartbeat is accepted.
+            } else if(latestHeartbeatBlockByUser.find(memberKey) != latestHeartbeatBlockByUser.end() &&
+                      latestHeartbeatBlockByUser[memberKey] >= heartbeatCutoff){
+                active = true;
+            }
+            if(active){
+                selector.addUser(memberKey);
+            }
+        }
+
         // Update balance variable
         balance = updatedBalance;
     }

@@ -22,6 +22,8 @@ private:
     //CFunctions::block_structure latest_block;    
     
 public:
+    static const long HEARTBEAT_VALID_BLOCKS = 5760; // 24 hours at 15 seconds per block.
+
     //! Construct an invalid private key.
     CFunctions()
     {
