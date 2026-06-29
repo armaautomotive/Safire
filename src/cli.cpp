@@ -12,6 +12,7 @@
 #include <deque>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <vector>
 #include <unistd.h>   // open and close
@@ -403,11 +404,18 @@ void printWalletHistory(const std::string& publicKey, const std::string& filter)
     const int limit = 25;
     std::deque<std::string> history;
     std::map<std::string, std::string> names = acceptedMemberNames();
+    std::set<std::string> acceptedRecordHashes;
     CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
     int guard = 0;
     while(block.number > 0 && guard < 100000){
         for(int i = 0; i < block.records.size(); i++){
             CFunctions::record_structure record = block.records.at(i);
+            if(record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end()){
+                continue;
+            }
+            if(record.hash.length() > 0){
+                acceptedRecordHashes.insert(record.hash);
+            }
 
             if(record.transaction_type == CFunctions::ISSUE_CURRENCY &&
                record.recipient_public_key.compare(publicKey) == 0){
@@ -599,10 +607,17 @@ std::map<std::string, double> acceptedLedgerBalances(){
 
     CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
     std::map<std::string, bool> acceptedCarryForwardKeys;
+    std::set<std::string> acceptedRecordHashes;
     int guard = 0;
     while(block.number > 0 && guard < 100000){
         for(int i = 0; i < block.records.size(); i++){
             CFunctions::record_structure record = block.records.at(i);
+            if(record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end()){
+                continue;
+            }
+            if(record.hash.length() > 0){
+                acceptedRecordHashes.insert(record.hash);
+            }
             if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
                 addBalanceDelta(balances, record.recipient_public_key, record.amount);
             } else if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
@@ -644,6 +659,7 @@ double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpoin
     double balance = 0.0;
     CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
     std::map<std::string, bool> acceptedCarryForwardKeys;
+    std::set<std::string> acceptedRecordHashes;
     int guard = 0;
     while(block.number > 0 && guard < 100000){
         if(block.number > checkpointBlock){
@@ -651,6 +667,12 @@ double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpoin
         }
         for(int i = 0; i < block.records.size(); i++){
             CFunctions::record_structure record = block.records.at(i);
+            if(record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end()){
+                continue;
+            }
+            if(record.hash.length() > 0){
+                acceptedRecordHashes.insert(record.hash);
+            }
             if(record.transaction_type == CFunctions::ISSUE_CURRENCY &&
                record.recipient_public_key.compare(accountPublicKey) == 0){
                 balance += record.amount;

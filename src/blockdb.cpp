@@ -213,10 +213,19 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         log.log("Reject block: too many records.\n");
         return false;
     }
+    std::set<std::string> recordHashes;
     for(int i = 0; i < block.records.size(); i++){
-        if(functions.isRecordSizeValid(block.records.at(i)) == false){
+        CFunctions::record_structure record = block.records.at(i);
+        if(functions.isRecordSizeValid(record) == false){
             log.log("Reject block: oversized record.\n");
             return false;
+        }
+        if(record.hash.length() > 0 && recordHashes.find(record.hash) != recordHashes.end()){
+            log.log("Reject block: duplicate record hash.\n");
+            return false;
+        }
+        if(record.hash.length() > 0){
+            recordHashes.insert(record.hash);
         }
     }
 

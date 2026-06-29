@@ -568,6 +568,7 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     std::vector<CFunctions::record_structure> memberRecords;
     std::map<std::string, long> latestHeartbeatBlockByUser;
     std::map<std::string, bool> acceptedCarryForwardKeys;
+    std::set<std::string> acceptedRecordHashes;
     bool sawHeartbeat = false;
     
     // Rebuild wallet/network state from the accepted chain. The previous scan cursor
@@ -595,6 +596,12 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
             //std::cout << "   records " << records.size() << " \n";
             for(int r = 0; r < records.size(); r++){
                 CFunctions::record_structure record = records[r];
+                if(record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end()){
+                    continue;
+                }
+                if(record.hash.length() > 0){
+                    acceptedRecordHashes.insert(record.hash);
+                }
                 //std::cout << "   record \n";
                 //std::cout << " pub " << record.sender_public_key << " mykey " << my_public_key << "\n";
                 //std::cout << " pubtype " << record.transaction_type << " mykey " << CFunctions::JOIN_NETWORK << "\n";
