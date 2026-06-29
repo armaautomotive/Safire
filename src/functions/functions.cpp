@@ -377,6 +377,7 @@ std::string CFunctions::blockJSON(CFunctions::block_structure block){
         "\"previous_block_id\":\"" << boost::lexical_cast<std::string>(block.previous_block_id) << "\"," <<
         "\"previous_block_hash\":\"" << block.previous_block_hash + "\"," <<
         "\"hash\":\"" << block.hash + "\"," <<
+        "\"signature\":\"" << block.signature + "\"," <<
         "\"records\":{\n";
     // Loop though block records
     for(int i = 0; i < block.records.size(); i++ ){
@@ -1026,6 +1027,7 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                     latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
                     std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                     latest_block.hash = hash;
+                    latest_block.signature = parseSectionString(block_section, "\"signature\":\"", "\"");
 
                     //std::cout << "  ---  latest_block.number  " << latest_block.number << std::endl;
                     //std::cout << "    hash: " << hash << std::endl; 
@@ -1218,6 +1220,7 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 latest_block.previous_block_hash = parseSectionString(block_section, "\"previous_block_hash\":\"", "\"");
                 std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                 latest_block.hash = hash;
+                latest_block.signature = parseSectionString(block_section, "\"signature\":\"", "\"");
                 
                 //std::string user_name = parseSectionString(block_section, "\"user_name\":\"", "\"" );
                 //latest_block.user_name = hash;
