@@ -653,16 +653,12 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         // No more blocks in chain.
         //std::cout << "End of chain." << std::endl;
         
-        // Update latest block record
+        // Update latest block record to the tip reachable from genesis. This also
+        // repairs nodes that stored disconnected blocks and accidentally advanced
+        // latest_block_id beyond the accepted chain.
         latestBlockId = blockDB.getLatestBlockId();
-        if(latest_block.number > latestBlockId){
+        if(latest_block.number != latestBlockId){
             blockDB.setLatestBlockId(latest_block.number);
-            // check this... values don't seem correct
-            
-            
-            // ****
-            //std::cout << " set latest block id " << latest_block.number << std::endl;
-            
         }
         
         // Update balance variable

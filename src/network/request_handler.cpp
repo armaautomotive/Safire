@@ -202,9 +202,10 @@ void request_handler::handle_request(const request& req, reply& rep)
         {
           blockDB.setFirstBlockId(block.number);
         }
-        if (block.number > blockDB.getLatestBlockId())
+        long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
+        if (connectedLatestBlockId > -1)
         {
-          blockDB.setLatestBlockId(block.number);
+          blockDB.setLatestBlockId(connectedLatestBlockId);
         }
         added = true;
       }

@@ -39,6 +39,7 @@ public:
     long getFirstBlockId();
     void setLatestBlockId(long number);
     long getLatestBlockId();
+    long getConnectedLatestBlockId();
     long getNextBlockId(long previousBlockId);
     CFunctions::block_structure getNextBlock(CFunctions::block_structure block);
     

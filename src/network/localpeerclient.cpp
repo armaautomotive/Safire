@@ -3,7 +3,6 @@
 #include "blockdb.h"
 #include "functions/functions.h"
 #include "wallet.h"
-#include <algorithm>
 #include <boost/lexical_cast.hpp>
 #include <curl/curl.h>
 #include <sstream>
@@ -106,8 +105,9 @@ bool storeBlock(const CFunctions::block_structure& block)
     if (blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0) {
         blockDB.setFirstBlockId(block.number);
     }
-    if (block.number > blockDB.getLatestBlockId()) {
-        blockDB.setLatestBlockId(block.number);
+    long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
+    if (connectedLatestBlockId > -1) {
+        blockDB.setLatestBlockId(connectedLatestBlockId);
     }
     return true;
 }
@@ -142,35 +142,36 @@ bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structur
     return response.find("accepted") != std::string::npos;
 }
 
-std::vector<CFunctions::block_structure> blocksAfter(long blockNumber)
+std::vector<CFunctions::block_structure> connectedBlocksAfter(long blockNumber)
 {
     std::vector<CFunctions::block_structure> blocks;
     CBlockDB blockDB;
-    leveldb::DB *db = blockDB.getDatabase();
-    if (!db) {
+    long firstBlockId = blockDB.getFirstBlockId();
+    if (firstBlockId < 0) {
         return blocks;
     }
 
-    CFunctions functions;
-    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
-    for (it->SeekToFirst(); it->Valid(); it->Next()) {
-        std::string key = it->key().ToString();
-        if (key.compare(0, 2, "b_") != 0) {
-            continue;
+    CFunctions::block_structure block;
+    if (blockNumber > 0) {
+        block = blockDB.getBlock(blockNumber);
+        if (block.number <= 0) {
+            return blocks;
         }
-
-        std::vector<CFunctions::block_structure> parsedBlocks = functions.parseBlockJson(it->value().ToString());
-        for (int i = 0; i < parsedBlocks.size(); ++i) {
-            if (parsedBlocks.at(i).number > blockNumber) {
-                blocks.push_back(parsedBlocks.at(i));
-            }
-        }
+        block = blockDB.getNextBlock(block);
+    } else {
+        block = blockDB.getBlock(firstBlockId);
     }
-    delete it;
 
-    std::sort(blocks.begin(), blocks.end(), [](const CFunctions::block_structure& left, const CFunctions::block_structure& right) {
-        return left.number < right.number;
-    });
+    int guard = 0;
+    while (block.number > 0 && guard < 100000) {
+        blocks.push_back(block);
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if (nextBlock.number <= 0 || nextBlock.number == block.number) {
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
     return blocks;
 }
 
@@ -311,7 +312,7 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
         return result;
     }
 
-    std::vector<CFunctions::block_structure> blocks = blocksAfter(peerLatestBlockId);
+    std::vector<CFunctions::block_structure> blocks = connectedBlocksAfter(peerLatestBlockId);
     result.candidateBlocks = blocks.size();
     for (int i = 0; i < blocks.size() && result.pushedBlocks < maxBlocksPerPush; ++i) {
         std::string response;

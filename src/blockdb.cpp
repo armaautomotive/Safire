@@ -109,11 +109,24 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     log.log("AddBlock to levelDB: \n");
     log.log("     key: " + keyStream.str() + "\n");
     log.log("     val: " + valueStream.str() + "\n");
-    
+
+    // Save index to next block
+    if(block.previous_block_id > -1){
+        ostringstream keyStream;
+        keyStream << "next_block_" << block.previous_block_id;
+        ostringstream valueStream;
+        valueStream << block.number;
+        std::string existingNextBlockId;
+        db->Get(leveldb::ReadOptions(), keyStream.str(), &existingNextBlockId);
+        if(existingNextBlockId.length() == 0 || existingNextBlockId.compare(valueStream.str()) == 0){
+            db->Put(writeOptions, keyStream.str(), valueStream.str());
+        }
+    }
+
     CFunctions::block_structure exists = getBlock(block.number);
     if(exists.number > 0){
         log.log("FYI block allready exists... \n");
-        return true; // For now just exit function.
+        return true; // The next-block index above may still repair a missing link.
     }
     
     db->Put(writeOptions, keyStream.str(), valueStream.str());
@@ -132,15 +145,6 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     // Insert all recipient_public_key->block_id records for fast lookup.
     for(int i = 0; i < block.records.size(); i++ ){
         
-    }
-    
-    // Save index to next block
-    if(block.previous_block_id > -1){
-        ostringstream keyStream;
-        keyStream << "next_block_" << block.previous_block_id;
-        ostringstream valueStream;
-        valueStream << block.number;
-        db->Put(writeOptions, keyStream.str(), valueStream.str());
     }
     
     // Close the database
@@ -251,6 +255,35 @@ long CBlockDB::getLatestBlockId(){
     
     //std::cout << " z \n ";
     return result;
+}
+
+/**
+ * getConnectedLatestBlockId
+ *
+ * Description: Return the latest block reachable from the genesis block by
+ * following next_block indexes. Stored blocks that are not connected to the
+ * accepted chain do not count as the chain tip.
+ */
+long CBlockDB::getConnectedLatestBlockId(){
+    long firstBlockId = getFirstBlockId();
+    if(firstBlockId < 0){
+        return -1;
+    }
+
+    CFunctions::block_structure block = getBlock(firstBlockId);
+    long latestConnectedBlockId = block.number;
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        latestConnectedBlockId = block.number;
+        CFunctions::block_structure nextBlock = getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+
+    return latestConnectedBlockId;
 }
 
 /**
@@ -394,7 +427,4 @@ void CBlockDB::DeleteAll(){
     delete it;
     //delete db;
 }
-
-
-
 
