@@ -278,9 +278,10 @@ void CCLI::processUserInput(){
 				ecdsa.SignMessage(privateKey, joinRecord.hash, message_siganture);
 				joinRecord.signature = message_siganture;	
 				
-                //functions.addToQueue( joinRecord );
+                functions.addToQueue( joinRecord );
                 relayClient.sendRecord(joinRecord);
                 CLocalPeerClient::broadcastRecord(joinRecord);
+                std::cout << "Join request queued and broadcast. Joined network will be yes after a block includes this record." << std::endl;
 	
 				// TODO: send request or say allready sent. 	
 			}
