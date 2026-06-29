@@ -195,9 +195,13 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         
         // Expected latest block number.
         long currBlock = selector.getCurrentTimeBlock();
-        std::cout << " Latest time block: " << blockDB.getLatestBlockId() << " current time block: " << currBlock << std::endl;
-        
-        relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
+        bool localPeerMode = CLocalPeerClient::getPeers().size() > 0;
+        if(localPeerMode){
+            std::cout << " Latest local block: " << blockDB.getLatestBlockId() << " peer latest block: " << CLocalPeerClient::getBestPeerLatestBlockId() << std::endl;
+        } else {
+            std::cout << " Latest local block: " << blockDB.getLatestBlockId() << " current time block: " << currBlock << std::endl;
+            relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
+        }
         //log.log("Request the beginning of the blockchain from our peer nodes. \n");
         
         // ISSUE: CRelayClient::receiveBlocks() will receive this block but not know it is the genesis (-1) block.
@@ -207,20 +211,20 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         int progressPos = 0;
         //long latestBlockId = blockDB.getLatestBlockId();
         // functions.IsChainUpToDate() == false
-        //while(blockDB.getLatestBlockId() < currBlock - 1 && isBuildingBlocks){
         while( functions.IsChainUpToDate() == false && isBuildingBlocks){
+            long targetBlock = localPeerMode ? CLocalPeerClient::getBestPeerLatestBlockId() : currBlock;
             if(progressPos == 0){
                 std::cout << "\rSynchronizing: " << "|" << " " <<
-                    blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos++;
+                    blockDB.getLatestBlockId() << "-" << targetBlock << std::flush; progressPos++;
             } else if(progressPos == 1){
                 std::cout << "\rSynchronizing: " << "/" << " " <<
-                    blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos++;
+                    blockDB.getLatestBlockId() << "-" << targetBlock << std::flush; progressPos++;
             } else if(progressPos == 2){
                 std::cout << "\rSynchronizing: " << "-" << " " <<
-                    blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos++;
+                    blockDB.getLatestBlockId() << "-" << targetBlock << std::flush; progressPos++;
             } else if(progressPos == 3){
                 std::cout << "\rSynchronizing: " << "-" << " " <<
-                    blockDB.getLatestBlockId() << "-" << currBlock << std::flush; progressPos = 0;
+                    blockDB.getLatestBlockId() << "-" << targetBlock << std::flush; progressPos = 0;
             }
             
             // if no progress, send request again.
@@ -228,7 +232,14 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             usleep(1000000);
             
             currBlock = selector.getCurrentTimeBlock();
-            relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+            if(localPeerMode){
+                std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
+                for(int i = 0; i < localPeers.size(); i++){
+                    CLocalPeerClient::syncFromPeer(localPeers.at(i));
+                }
+            } else {
+                relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+            }
         }
         //std::cout << "Chain is up to date. " << std::endl;
     }
@@ -379,10 +390,11 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         } else { // Not building this block
             //log.log(".\n");
             
-            if( functions.IsChainUpToDate() == false ){
+            bool needsLocalPeerSync = CLocalPeerClient::getPeers().size() > 0 && !CLocalPeerClient::isSyncedWithPeers();
+            if( functions.IsChainUpToDate() == false || needsLocalPeerSync ){
             
                 firstBlockId = blockDB.getFirstBlockId();
-                if(firstBlockId == -1){
+                if(firstBlockId == -1 && CLocalPeerClient::getPeers().size() == 0){
                     relayClient.sendRequestBlocks(-1);
                 }
                 
@@ -392,7 +404,14 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                     log.log("Block builder. Currently behind on chain. Requesting blocks from the network...\n");
                     
                     //std::cout << "Syncronizing Blockchain." << std::endl;
-                    relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+                    if(CLocalPeerClient::getPeers().size() > 0){
+                        std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
+                        for(int i = 0; i < localPeers.size(); i++){
+                            CLocalPeerClient::syncFromPeer(localPeers.at(i));
+                        }
+                    } else {
+                        relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+                    }
                 //}
                 
             }

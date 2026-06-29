@@ -215,7 +215,13 @@ void CCLI::processUserInput(){
             functions.scanChain(publicKey, false);
             
             std::cout << " Network up to date: " << (functions.IsChainUpToDate() == true ? "yes" : "no ") << std::endl;
-            std::cout << " Sync Porgress: " << functions.SyncProgress() << "% " << std::endl;
+            if(CLocalPeerClient::getPeers().size() > 0){
+                long peerLatestBlockId = CLocalPeerClient::getBestPeerLatestBlockId();
+                std::cout << " Peer sync: " << (CLocalPeerClient::isSyncedWithPeers() == true ? "yes" : "no ") << std::endl;
+                std::cout << " Peer latest block: " << peerLatestBlockId << std::endl;
+            } else {
+                std::cout << " Sync Progress: " << functions.SyncProgress() << "% " << std::endl;
+            }
             CBlockDB networkBlockDB;
             std::cout << " First block: " << networkBlockDB.getFirstBlockId() << std::endl;
             std::cout << " Latest block: " << networkBlockDB.getLatestBlockId() << std::endl;
@@ -326,9 +332,10 @@ void CCLI::processUserInput(){
                 std::cout << "  " << localPeers.at(i) << std::endl;
                 CBlockDB syncBlockDB;
                 long before = syncBlockDB.getLatestBlockId();
+                long peerLatest = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
                 CLocalPeerClient::syncFromPeer(localPeers.at(i));
                 long after = syncBlockDB.getLatestBlockId();
-                std::cout << "    latest block: " << before << " -> " << after << std::endl;
+                std::cout << "    latest block: " << before << " -> " << after << " (peer " << peerLatest << ")" << std::endl;
             }
             
         } else if(command.compare("users") == 0){
@@ -395,4 +402,3 @@ void CCLI::processUserInput(){
 	}
     }
 }
-

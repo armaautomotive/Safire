@@ -14,6 +14,9 @@ public:
 
     static void syncThread(int argc, char* argv[]);
     static bool syncFromPeer(const std::string& peerUrl);
+    static long getPeerLatestBlockId(const std::string& peerUrl);
+    static long getBestPeerLatestBlockId();
+    static bool isSyncedWithPeers();
     static void broadcastRecord(const CFunctions::record_structure& record);
     static void broadcastBlock(const CFunctions::block_structure& block);
 

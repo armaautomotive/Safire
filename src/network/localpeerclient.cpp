@@ -96,6 +96,15 @@ bool storeBlocks(const std::string& blockJson)
     return stored;
 }
 
+long latestBlockFromStatus(const std::string& statusJson)
+{
+    if (statusJson.find("\"latest_block_id\":\"") == std::string::npos) {
+        return -1;
+    }
+    CFunctions functions;
+    return functions.parseSectionLong(statusJson, "\"latest_block_id\":\"", "\"");
+}
+
 }
 
 void CLocalPeerClient::setPeers(const std::vector<std::string>& peerUrls)
@@ -134,6 +143,7 @@ void CLocalPeerClient::syncThread(int argc, char* argv[])
 
 bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
 {
+    const int maxBlocksPerSync = 10000;
     bool changed = false;
     std::string peer = trimTrailingSlash(peerUrl);
     if (peer.empty()) {
@@ -143,6 +153,15 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
+    long peerLatestBlockId = getPeerLatestBlockId(peer);
+
+    if (peerLatestBlockId < 0) {
+        return false;
+    }
+
+    if (peerLatestBlockId > -1 && latestBlockId >= peerLatestBlockId) {
+        return false;
+    }
 
     if (firstBlockId == -1) {
         changed = storeBlocks(httpGet(peer + "/api/blocks/first")) || changed;
@@ -151,24 +170,70 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     }
 
     int received = 0;
-    while (latestBlockId > -1 && received < 250) {
+    while (latestBlockId > -1 && received < maxBlocksPerSync) {
+        if (peerLatestBlockId > -1 && latestBlockId >= peerLatestBlockId) {
+            break;
+        }
+
         std::string path = "/api/blocks/after/" + boost::lexical_cast<std::string>(latestBlockId);
         std::string response = httpGet(peer + path);
         if (response.empty()) {
             break;
         }
 
-        bool stored = storeBlocks(response);
-        if (!stored) {
+        long beforeLatestBlockId = latestBlockId;
+        bool sawBlock = false;
+        CFunctions functions;
+        std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(response);
+        for (int i = 0; i < blocks.size(); ++i) {
+            sawBlock = true;
+            changed = storeBlock(blocks.at(i)) || changed;
+        }
+
+        if (!sawBlock) {
             break;
         }
 
-        changed = true;
         latestBlockId = blockDB.getLatestBlockId();
+        if (latestBlockId <= beforeLatestBlockId) {
+            break;
+        }
         ++received;
     }
 
     return changed;
+}
+
+long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)
+{
+    std::string peer = trimTrailingSlash(peerUrl);
+    if (peer.empty()) {
+        return -1;
+    }
+    return latestBlockFromStatus(httpGet(peer + "/api/status"));
+}
+
+long CLocalPeerClient::getBestPeerLatestBlockId()
+{
+    long bestLatestBlockId = -1;
+    for (int i = 0; i < peers.size(); ++i) {
+        long peerLatestBlockId = getPeerLatestBlockId(peers.at(i));
+        if (peerLatestBlockId > bestLatestBlockId) {
+            bestLatestBlockId = peerLatestBlockId;
+        }
+    }
+    return bestLatestBlockId;
+}
+
+bool CLocalPeerClient::isSyncedWithPeers()
+{
+    long peerLatestBlockId = getBestPeerLatestBlockId();
+    if (peerLatestBlockId < 0) {
+        return false;
+    }
+
+    CBlockDB blockDB;
+    return blockDB.getLatestBlockId() >= peerLatestBlockId;
 }
 
 void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& record)

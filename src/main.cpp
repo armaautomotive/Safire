@@ -142,6 +142,8 @@ int main(int argc, char* argv[])
 
     std::string privateKey;
     std::string publicKey;
+    std::vector<std::string> localPeers = getArgValues(argc, argv, "--peer");
+    CLocalPeerClient::setPeers(localPeers);
 
     CWallet wallet;
     bool e = wallet.fileExists("wallet.dat");
@@ -170,7 +172,15 @@ int main(int argc, char* argv[])
 
     
     std::cout << " Network up to date: " << (functions.IsChainUpToDate() == true ? "yes" : "no") << std::endl;
-    std::cout << " Sync Porgress: " << functions.SyncProgress() << "% " << std::endl;
+    if(localPeers.size() > 0){
+        CBlockDB statusBlockDB;
+        long peerLatestBlockId = CLocalPeerClient::getBestPeerLatestBlockId();
+        bool peerSynced = peerLatestBlockId > -1 && statusBlockDB.getLatestBlockId() >= peerLatestBlockId;
+        std::cout << " Peer sync: " << (peerSynced == true ? "yes" : "no") << std::endl;
+        std::cout << " Peer latest block: " << peerLatestBlockId << std::endl;
+    } else {
+        std::cout << " Sync Progress: " << functions.SyncProgress() << "% " << std::endl;
+    }
     std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
 
     std::cout << std::endl;
@@ -202,8 +212,6 @@ int main(int argc, char* argv[])
     relayClient.getNewNetworkPeer(publicKey);
 
     std::string localNodePort = getArgValue(argc, argv, "--node-port");
-    std::vector<std::string> localPeers = getArgValues(argc, argv, "--peer");
-    CLocalPeerClient::setPeers(localPeers);
     boost::shared_ptr<http::server3::server> localNodeServer;
     boost::shared_ptr<std::thread> localNodeThread;
     if(localNodePort.length() > 0){

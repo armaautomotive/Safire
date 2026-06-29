@@ -1161,48 +1161,26 @@ void CFunctions::DeleteAll(){
 /**
  * IsChainUpToDate
  *
- * Description: return true if the latest validated block is the current most recent time period.
+ * Description: return true when this node has a local chain tip.
+ * Time slots without blocks are valid, so wall-clock block number is not a sync target.
  *
  * @return: boolean true if up to date
  */
 bool CFunctions::IsChainUpToDate(){
-    CSelector selector;
-    selector.syncronizeTime();
     CBlockDB blockDB;
-    
-    long currBlock = selector.getCurrentTimeBlock();
     long latestBlockId = blockDB.getLatestBlockId();
-    
-    bool result = false;
-    
-    //std::cout << " ----- :  " << blockDB.getLatestBlockId() << " < " << currBlock << std::endl;
-    
-    if(blockDB.getLatestBlockId() < currBlock - 1 ){
-        result = false;
-    } else {
-        result = true;
-    }
-    return result;
+    return latestBlockId > -1;
 }
 
 /**
  * SyncProgress
  *
- * Description: calculate the percentage progress the local chain is at.
+ * Description: calculate local chain availability. Peer-aware progress is handled by CLocalPeerClient.
  *
  * @return double progress rate between 0 and 100.
  */
 double CFunctions::SyncProgress(){
-    double progress = 0;
-    CSelector selector;
-    selector.syncronizeTime();
     CBlockDB blockDB;
-    long currBlock = selector.getCurrentTimeBlock();
-    long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
-    if(firstBlockId > 0 && latestBlockId > firstBlockId){
-        progress = (double)( (double)(latestBlockId - firstBlockId) /  (double)(currBlock - firstBlockId) ) * 100.0;
-    }
-    return progress;
+    return latestBlockId > -1 ? 100.0 : 0.0;
 }
-
