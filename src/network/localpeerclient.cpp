@@ -97,16 +97,17 @@ bool storeBlocks(const std::string& blockJson)
     return stored;
 }
 
-bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structure& block)
+bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structure& block, std::string& response)
 {
     CFunctions functions;
     std::string blockJson = functions.blockJSON(block);
     std::string encodedBlock = urlEncode(blockJson);
     if (encodedBlock.empty()) {
+        response = "unable to encode block";
         return false;
     }
 
-    std::string response = httpGet(peer + "/api/blocks/submit?block=" + encodedBlock);
+    response = httpGet(peer + "/api/blocks/submit?block=" + encodedBlock);
     return response.find("accepted") != std::string::npos;
 }
 
@@ -253,10 +254,22 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
 
 int CLocalPeerClient::pushToPeer(const std::string& peerUrl)
 {
+    return pushToPeerDetailed(peerUrl).pushedBlocks;
+}
+
+CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::string& peerUrl)
+{
     const int maxBlocksPerPush = 10000;
+    push_result result;
+    result.candidateBlocks = 0;
+    result.pushedBlocks = 0;
+    result.failedBlockId = -1;
+    result.response = "";
+
     std::string peer = trimTrailingSlash(peerUrl);
     if (peer.empty()) {
-        return 0;
+        result.response = "empty peer URL";
+        return result;
     }
 
     CBlockDB blockDB;
@@ -264,19 +277,22 @@ int CLocalPeerClient::pushToPeer(const std::string& peerUrl)
     long localLatestBlockId = blockDB.getLatestBlockId();
     long peerLatestBlockId = getPeerLatestBlockId(peer);
     if (localLatestBlockId < 0 || firstBlockId < 0 || localLatestBlockId <= peerLatestBlockId) {
-        return 0;
+        return result;
     }
 
-    int pushed = 0;
     std::vector<CFunctions::block_structure> blocks = blocksAfter(peerLatestBlockId);
-    for (int i = 0; i < blocks.size() && pushed < maxBlocksPerPush; ++i) {
-        if (!submitBlockToPeer(peer, blocks.at(i))) {
+    result.candidateBlocks = blocks.size();
+    for (int i = 0; i < blocks.size() && result.pushedBlocks < maxBlocksPerPush; ++i) {
+        std::string response;
+        if (!submitBlockToPeer(peer, blocks.at(i), response)) {
+            result.failedBlockId = blocks.at(i).number;
+            result.response = response;
             break;
         }
-        pushed++;
+        result.pushedBlocks++;
     }
 
-    return pushed;
+    return result;
 }
 
 long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)

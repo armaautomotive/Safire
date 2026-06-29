@@ -8,6 +8,13 @@
 class CLocalPeerClient
 {
 public:
+    struct push_result {
+        int candidateBlocks;
+        int pushedBlocks;
+        long failedBlockId;
+        std::string response;
+    };
+
     static void setPeers(const std::vector<std::string>& peers);
     static std::vector<std::string> getPeers();
     static void stop();
@@ -15,6 +22,7 @@ public:
     static void syncThread(int argc, char* argv[]);
     static bool syncFromPeer(const std::string& peerUrl);
     static int pushToPeer(const std::string& peerUrl);
+    static push_result pushToPeerDetailed(const std::string& peerUrl);
     static long getPeerLatestBlockId(const std::string& peerUrl);
     static long getBestPeerLatestBlockId();
     static bool isSyncedWithPeers();

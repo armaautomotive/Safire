@@ -621,12 +621,17 @@ void CCLI::processUserInput(){
                 long before = syncBlockDB.getLatestBlockId();
                 long peerBefore = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
                 CLocalPeerClient::syncFromPeer(localPeers.at(i));
-                int pushed = CLocalPeerClient::pushToPeer(localPeers.at(i));
+                CLocalPeerClient::push_result pushResult = CLocalPeerClient::pushToPeerDetailed(localPeers.at(i));
                 long after = syncBlockDB.getLatestBlockId();
                 long peerAfter = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
                 std::cout << "    local latest: " << before << " -> " << after << std::endl;
                 std::cout << "    peer latest: " << peerBefore << " -> " << peerAfter << std::endl;
-                std::cout << "    pushed blocks: " << pushed << std::endl;
+                std::cout << "    candidate blocks: " << pushResult.candidateBlocks << std::endl;
+                std::cout << "    pushed blocks: " << pushResult.pushedBlocks << std::endl;
+                if(pushResult.failedBlockId > -1){
+                    std::cout << "    failed block: " << pushResult.failedBlockId << std::endl;
+                    std::cout << "    response: " << (pushResult.response.length() > 0 ? pushResult.response : "(empty response)") << std::endl;
+                }
             }
             
         } else if(command.compare("users") == 0){
