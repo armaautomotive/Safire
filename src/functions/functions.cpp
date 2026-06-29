@@ -376,18 +376,17 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     int i = 1;
     
     double updatedBalance = 0.0;
+    joined = false;
+    currency_circulation = 0;
+    user_count = 0;
     
     users.clear(); // depricate
     //std::map<std::string, CFunctions::user_structure> users_map;
     users_map.clear();
+    CSelector::users.clear();
     
-    // TODO: only start scanning at unprocessed sections of the chain.
-    //firstBlockId = blockDB.getScannedBlockId();
-    long scannedBlockId = userDB.getScannedBlockId();
-    if(scannedBlockId > 0){
-        firstBlockId = scannedBlockId;
-        //std::cout << "scannedBlockId " << scannedBlockId << " \n";
-    }
+    // Rebuild wallet/network state from the accepted chain. The previous scan cursor
+    // skipped older membership records after clearing joined/balance state.
     
     bool chainValid = true;
     
