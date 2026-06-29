@@ -361,19 +361,6 @@ QWidget *MainWindow::createBalancePage()
     summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 1, 0);
     m_balanceLabel = makeLabel(tr("0.9877 SFR"), "Balance");
     summaryLayout->addWidget(m_balanceLabel, 2, 0);
-    m_networkLabel = makeLabel(tr("Network: not joined"), "StatusGood");
-    summaryLayout->addWidget(m_networkLabel, 3, 0);
-    m_syncLabel = makeLabel(tr("Sync: waiting for backend"), "Muted");
-    summaryLayout->addWidget(m_syncLabel, 4, 0);
-    m_syncProgressBar = new QProgressBar;
-    m_syncProgressBar->setRange(0, 100);
-    m_syncProgressBar->setValue(0);
-    m_syncProgressBar->setTextVisible(false);
-    summaryLayout->addWidget(m_syncProgressBar, 5, 0);
-    m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
-    summaryLayout->addWidget(m_peerLabel, 6, 0);
-    m_supplyLabel = makeLabel(tr("Supply: -"), "Muted");
-    summaryLayout->addWidget(m_supplyLabel, 7, 0);
 
     QHBoxLayout *actions = new QHBoxLayout;
     QPushButton *sendNow = createPrimaryButton(tr("Send"));
@@ -383,7 +370,29 @@ QWidget *MainWindow::createBalancePage()
     actions->addWidget(receiveNow);
     actions->addWidget(historyNow);
     actions->addStretch();
-    summaryLayout->addLayout(actions, 8, 0);
+    summaryLayout->addLayout(actions, 3, 0);
+
+    QFrame *networkPanel = makePanel("Panel");
+    QGridLayout *networkLayout = new QGridLayout(networkPanel);
+    networkLayout->setContentsMargins(26, 22, 26, 22);
+    networkLayout->setSpacing(10);
+    networkLayout->setColumnStretch(0, 1);
+    networkLayout->setColumnStretch(1, 1);
+
+    networkLayout->addWidget(createSectionTitle(tr("Chain Sync")), 0, 0, 1, 2);
+    m_networkLabel = makeLabel(tr("Network: not joined"), "StatusGood");
+    networkLayout->addWidget(m_networkLabel, 1, 0, 1, 2);
+    m_syncLabel = makeLabel(tr("Sync: waiting for backend"), "Muted");
+    networkLayout->addWidget(m_syncLabel, 2, 0, 1, 2);
+    m_syncProgressBar = new QProgressBar;
+    m_syncProgressBar->setRange(0, 100);
+    m_syncProgressBar->setValue(0);
+    m_syncProgressBar->setTextVisible(false);
+    networkLayout->addWidget(m_syncProgressBar, 3, 0, 1, 2);
+    m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
+    networkLayout->addWidget(m_peerLabel, 4, 0);
+    m_supplyLabel = makeLabel(tr("Supply: -"), "Muted");
+    networkLayout->addWidget(m_supplyLabel, 4, 1);
 
     connect(sendNow, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
@@ -393,9 +402,9 @@ QWidget *MainWindow::createBalancePage()
     cards->setSpacing(14);
     cards->addWidget(createAccountCard(tr("Main Account"), tr("0.9877 SFR"), tr("Default wallet account")));
     cards->addWidget(createAccountCard(tr("Membership"), tr("Active"), tr("Eligible for future block selection")));
-    cards->addWidget(createAccountCard(tr("Chain Sync"), tr("0.13%"), tr("Prototype node status")));
 
     layout->addWidget(summary);
+    layout->addWidget(networkPanel);
     layout->addLayout(cards);
     layout->addStretch();
     return page;
