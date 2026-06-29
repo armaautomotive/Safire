@@ -1183,6 +1183,7 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 }
                 
                 latest_block.previous_block_id = parseSectionLong(block_section, "\"previous_block_id\":\"", "\"");
+                latest_block.previous_block_hash = parseSectionString(block_section, "\"previous_block_hash\":\"", "\"");
                 std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                 latest_block.hash = hash;
                 

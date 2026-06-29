@@ -98,7 +98,7 @@ bool storeBlock(const CFunctions::block_structure& block)
     }
 
     CBlockDB blockDB;
-    CFunctions::block_structure existing = blockDB.getBlock(block.number);
+    CFunctions::block_structure existing = blockDB.getBlockByHash(block.hash);
     if (existing.number > 0) {
         return false;
     }

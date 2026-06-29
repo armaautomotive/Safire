@@ -212,7 +212,7 @@ void request_handler::handle_request(const request& req, reply& rep)
       CFunctions::block_structure block = blocks.at(i);
       if (block.number > 0)
       {
-        bool alreadyStored = blockDB.getBlock(block.number).number > 0;
+        bool alreadyStored = blockDB.getBlockByHash(block.hash).number > 0;
         bool blockAdded = blockDB.AddBlock(block);
         if (alreadyStored == false && blockAdded && blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
         {

@@ -8,6 +8,7 @@
 #include "blockdb.h"
 #include <algorithm>
 #include <map>
+#include <set>
 #include <sstream>
 #include <unistd.h>   // open and close
 #include "leveldb/db.h"
@@ -34,7 +35,17 @@ bool preferBlockVariant(const CFunctions::block_structure& candidate, const CFun
 
 std::string forkBlockKey(const CFunctions::block_structure& block){
     std::stringstream ss;
-    ss << "bf_" << block.number << "_" << block.hash;
+    ss << "slot:" << block.number << ":" << block.hash;
+    return ss.str();
+}
+
+std::string blockHashKey(const std::string& hash){
+    return "block:" + hash;
+}
+
+std::string canonicalHashKey(long number){
+    std::stringstream ss;
+    ss << "canonical:" << number;
     return ss.str();
 }
 
@@ -143,20 +154,28 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         return false;
     }
 
-    CFunctions::block_structure exists = getBlock(block.number);
-    if(exists.number > 0){
-        if(exists.hash.compare(block.hash) == 0){
-            log.log("FYI block allready exists... \n");
-            return true;
-        }
+    std::string hashKey = blockHashKey(block.hash);
+    std::string existingHashJson;
+    db->Get(leveldb::ReadOptions(), hashKey, &existingHashJson);
+    if(existingHashJson.length() > 0){
+        log.log("FYI block hash allready exists... \n");
+        return true;
+    }
 
-        std::string forkKey = forkBlockKey(block);
-        std::string existingForkJson;
-        db->Get(leveldb::ReadOptions(), forkKey, &existingForkJson);
-        if(existingForkJson.length() == 0){
-            db->Put(writeOptions, forkKey, valueStream.str());
-            log.log("Store fork block variant: " + forkKey + "\n");
-        }
+    db->Put(writeOptions, hashKey, valueStream.str());
+    db->Put(writeOptions, forkBlockKey(block), block.hash);
+
+    CFunctions::block_structure canonicalBlock = getBlock(block.number);
+    bool shouldWriteCanonical = canonicalBlock.number <= 0 || preferBlockVariant(block, canonicalBlock);
+    if(shouldWriteCanonical){
+        db->Put(writeOptions, canonicalHashKey(block.number), block.hash);
+        ostringstream legacyCanonicalKey;
+        legacyCanonicalKey << "b_" << boost::lexical_cast<std::string>(block.number);
+        db->Put(writeOptions, legacyCanonicalKey.str(), valueStream.str());
+    }
+
+    if(canonicalBlock.number > 0){
+        log.log("Store same-slot block variant: " + hashKey + "\n");
         return true;
     }
    
@@ -182,17 +201,11 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         }
     }
 
-    // Insert block record into leveldb
-    ostringstream keyStream;
-    keyStream << "b_" << boost::lexical_cast<std::string>(block.number);
-    
     //std::cout << " key: " << keyStream.str() << " \n";
     //std::cout << " val: " << valueStream.str() << " \n";
     log.log("AddBlock to levelDB: \n");
-    log.log("     key: " + keyStream.str() + "\n");
+    log.log("     key: " + hashKey + "\n");
     log.log("     val: " + valueStream.str() + "\n");
-
-    db->Put(writeOptions, keyStream.str(), valueStream.str());
     
 
     // Insert all sender_key->block_id records for fast lookup.
@@ -478,7 +491,10 @@ long CBlockDB::rebuildBestChainIndex(){
             ostringstream blockKeyStream;
             blockKeyStream << "b_" << currentBlockId;
             CFunctions functions;
-            db->Put(writeOptions, blockKeyStream.str(), functions.blockJSON(blockByNumber[currentBlockId]));
+            CFunctions::block_structure canonicalBlock = blockByNumber[currentBlockId];
+            db->Put(writeOptions, canonicalHashKey(currentBlockId), canonicalBlock.hash);
+            db->Put(writeOptions, blockHashKey(canonicalBlock.hash), functions.blockJSON(canonicalBlock));
+            db->Put(writeOptions, blockKeyStream.str(), functions.blockJSON(canonicalBlock));
         }
         if(bestChildByBlock.find(currentBlockId) == bestChildByBlock.end()){
             break;
@@ -559,21 +575,50 @@ std::vector<CFunctions::block_structure> CBlockDB::getStoredBlocks(){
     }
 
     CFunctions functions;
+    std::set<std::string> seenHashes;
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
     for (it->SeekToFirst(); it->Valid(); it->Next())
     {
         std::string key = it->key().ToString();
-        if(boost::algorithm::starts_with(key, "b_") || boost::algorithm::starts_with(key, "bf_")){
+        if(boost::algorithm::starts_with(key, "block:") ||
+           boost::algorithm::starts_with(key, "b_") ||
+           boost::algorithm::starts_with(key, "bf_")){
             std::vector<CFunctions::block_structure> parsedBlocks = functions.parseBlockJson(it->value().ToString());
             for(int i = 0; i < parsedBlocks.size(); i++){
-                if(parsedBlocks.at(i).number > 0){
-                    blocks.push_back(parsedBlocks.at(i));
+                CFunctions::block_structure block = parsedBlocks.at(i);
+                if(block.number > 0 && seenHashes.find(block.hash) == seenHashes.end()){
+                    seenHashes.insert(block.hash);
+                    blocks.push_back(block);
                 }
             }
         }
     }
     delete it;
     return blocks;
+}
+
+/**
+ * getBlockByHash
+ *
+ * Description: Get a block by its content hash.
+ */
+CFunctions::block_structure CBlockDB::getBlockByHash(std::string hash){
+    CFunctions::block_structure block;
+    block.number = -1;
+    if(hash.length() == 0){
+        return block;
+    }
+
+    leveldb::DB* db = getDatabase();
+    std::string blockJson;
+    db->Get(leveldb::ReadOptions(), blockHashKey(hash), &blockJson);
+
+    CFunctions functions;
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
+    if(blocks.size() > 0){
+        block = blocks.at(0);
+    }
+    return block;
 }
 
 /**
@@ -589,6 +634,15 @@ CFunctions::block_structure CBlockDB::getBlock(long number){
     block.number = -1;
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
+
+    std::string canonicalHash;
+    db->Get(leveldb::ReadOptions(), canonicalHashKey(number), &canonicalHash);
+    if(canonicalHash.length() > 0){
+        block = getBlockByHash(canonicalHash);
+        if(block.number > 0){
+            return block;
+        }
+    }
 
     std::string key = "b_" + boost::lexical_cast<std::string>(number);
     std::string blockJson;
