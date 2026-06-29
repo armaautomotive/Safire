@@ -200,14 +200,6 @@ void CRelayClient::sendRecord(CFunctions::record_structure record){
             res = curl_easy_perform(curl);
             curl_easy_cleanup(curl);
 
-            // read server response
-            std::stringstream ss;
-            ss << readBuffer;
-            std::string line;
-            while(std::getline(ss,line,'\n')){
-                std::cout << "Response: " << line << std::endl;
-            
-            }
         }
     }
 }
@@ -561,5 +553,4 @@ bool CRelayClient::receiveRequestBlocks(){
     }   
     return result;
 }
-
 
