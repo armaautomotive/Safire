@@ -1634,8 +1634,10 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString publicName = object.value("public_name").toString();
     QString joined = object.value("joined").toString();
     QString sync = object.value("network_up_to_date").toString();
+    QString peerSync = object.value("peer_sync").toString();
     QString latestBlock = object.value("latest_block_id").toString();
     QString latestBlockTime = object.value("latest_block_time").toString();
+    QString peerLatestBlock = object.value("peer_latest_block_id").toString();
     QString peerCount = object.value("local_peers").toString();
     QString supply = object.value("currency_supply").toString();
     QString ledgerBalanceTotal = object.value("ledger_balance_total").toString();
@@ -1680,7 +1682,8 @@ void MainWindow::applyWalletStatus(const QString &json)
         }
     }
     if (m_networkLabel) {
-        m_networkLabel->setText(tr("Network up to date: %1").arg(sync));
+        QString peerSyncDisplay = peerSync.isEmpty() ? tr("-") : peerSync;
+        m_networkLabel->setText(tr("Network up to date: %1  Peer sync: %2").arg(sync).arg(peerSyncDisplay));
     }
     if (m_membershipJoinedLabel) {
         m_membershipJoinedLabel->setText(tr("Joined: %1").arg(joined));
@@ -1736,7 +1739,8 @@ void MainWindow::applyWalletStatus(const QString &json)
         }
     }
     if (m_peerLabel) {
-        m_peerLabel->setText(tr("Peers: %1").arg(peerCount));
+        QString peerLatestDisplay = (peerLatestBlock.isEmpty() || peerLatestBlock == "-1") ? tr("-") : peerLatestBlock;
+        m_peerLabel->setText(tr("Peers: %1  Peer latest block: %2").arg(peerCount).arg(peerLatestDisplay));
     }
     if (m_supplyLabel) {
         m_supplyLabel->setText(tr("Issued: %1 SFR").arg(supply));

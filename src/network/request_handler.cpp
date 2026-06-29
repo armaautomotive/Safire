@@ -1044,6 +1044,29 @@ double sync_progress_percent(long first_block_id,
   return progress;
 }
 
+long best_peer_latest_block_id(const std::vector<CLocalPeerClient::peer_status>& local_peers)
+{
+  long best_peer_latest_block_id = -1;
+  for (int i = 0; i < local_peers.size(); ++i)
+  {
+    CLocalPeerClient::peer_status peer = local_peers.at(i);
+    if (peer.reachable &&
+        peer.genesisMatch &&
+        peer.latestBlockId > best_peer_latest_block_id)
+    {
+      best_peer_latest_block_id = peer.latestBlockId;
+    }
+  }
+  return best_peer_latest_block_id;
+}
+
+bool synced_with_peer_latest(long latest_block_id,
+                             const std::vector<CLocalPeerClient::peer_status>& local_peers)
+{
+  long peer_latest_block_id = best_peer_latest_block_id(local_peers);
+  return peer_latest_block_id < 0 || latest_block_id >= peer_latest_block_id;
+}
+
 }
 
 request_handler::request_handler(const std::string& doc_root)
@@ -1144,6 +1167,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CNetworkTime netTime;
     std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
+    long peerLatestBlockId = best_peer_latest_block_id(localPeers);
+    bool peerSync = synced_with_peer_latest(latestBlockId, localPeers);
     std::map<std::string, std::string> memberNames = accepted_member_names(blockDB);
     std::vector<CFunctions::record_structure> acceptedMembers = accepted_membership_records(blockDB);
     std::map<std::string, double> ledgerBalances = accepted_ledger_balances(blockDB);
@@ -1194,6 +1219,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"supply_difference\":\"" << supplyDifference << "\",";
     ss << "\"user_count\":\"" << acceptedMembers.size() << "\",";
     ss << "\"network_up_to_date\":\"" << (functions.IsChainUpToDate() ? "yes" : "no") << "\",";
+    ss << "\"peer_sync\":\"" << (peerSync ? "yes" : "no") << "\",";
+    ss << "\"peer_latest_block_id\":\"" << peerLatestBlockId << "\",";
     ss << "\"sync_progress\":\"" << sync_progress_percent(firstBlockId, latestBlockId, localPeers) << "\",";
     ss << "\"first_block_id\":\"" << firstBlockId << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
