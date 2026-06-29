@@ -33,6 +33,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSettings>
+#include <QSizePolicy>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTimer>
@@ -41,11 +42,13 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRectF>
 #include <QStringList>
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QTextCursor>
 #include <QTextEdit>
+#include <QtMath>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -83,6 +86,110 @@ protected:
     }
 };
 
+}
+
+class PeerMapWidget : public QWidget
+{
+public:
+    explicit PeerMapWidget(QWidget *parent = 0) : QWidget(parent)
+    {
+        setMinimumHeight(280);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
+
+    void setCenterLabel(const QString &label)
+    {
+        m_centerLabel = label;
+        update();
+    }
+
+    void setPeers(const QStringList &labels, const QStringList &states)
+    {
+        m_labels = labels;
+        m_states = states;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event)
+    {
+        QWidget::paintEvent(event);
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.fillRect(rect(), QColor("#fbfdfe"));
+
+        QPointF center(width() / 2.0, height() / 2.0);
+        double radius = qMin(width(), height()) * 0.34;
+        if (radius < 82) {
+            radius = qMin(width(), height()) * 0.28;
+        }
+
+        painter.setPen(QPen(QColor("#c6d8dc"), 1));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(center, radius, radius);
+
+        int peerCount = m_labels.size();
+        const double pi = 3.14159265358979323846;
+        for (int i = 0; i < peerCount; ++i) {
+            double angle = peerCount == 1 ? -pi / 2.0 : (-pi / 2.0) + ((2.0 * pi * i) / peerCount);
+            QPointF peer(center.x() + qCos(angle) * radius, center.y() + qSin(angle) * radius);
+            QColor lineColor = peerColor(i);
+            lineColor.setAlpha(115);
+            painter.setPen(QPen(lineColor, 2));
+            painter.drawLine(center, peer);
+        }
+
+        for (int i = 0; i < peerCount; ++i) {
+            double angle = peerCount == 1 ? -pi / 2.0 : (-pi / 2.0) + ((2.0 * pi * i) / peerCount);
+            QPointF peer(center.x() + qCos(angle) * radius, center.y() + qSin(angle) * radius);
+            drawNode(&painter, peer, 34, peerColor(i), m_labels.at(i), false);
+        }
+
+        QString label = m_centerLabel.isEmpty() ? QObject::tr("This wallet") : m_centerLabel;
+        drawNode(&painter, center, 50, QColor("#166b76"), label, true);
+
+        if (peerCount == 0) {
+            painter.setPen(QColor("#6b7e84"));
+            painter.drawText(rect().adjusted(20, 20, -20, -20), Qt::AlignCenter, QObject::tr("No peers reported by the local node."));
+        }
+    }
+
+private:
+    QColor peerColor(int index) const
+    {
+        QString state = index < m_states.size() ? m_states.at(index) : QString();
+        if (state == "reachable") {
+            return QColor("#2f8d67");
+        }
+        if (state == "mismatch") {
+            return QColor("#b7791f");
+        }
+        return QColor("#8aa1a7");
+    }
+
+    void drawNode(QPainter *painter, const QPointF &center, int radius, const QColor &color, const QString &label, bool primary)
+    {
+        painter->setPen(QPen(color.darker(115), primary ? 3 : 2));
+        painter->setBrush(primary ? color : QColor("#ffffff"));
+        painter->drawEllipse(center, radius, radius);
+
+        painter->setPen(primary ? QColor("#ffffff") : QColor("#153139"));
+        QFont font = painter->font();
+        font.setBold(true);
+        font.setPointSize(primary ? 11 : 9);
+        painter->setFont(font);
+        QRectF textRect(center.x() - radius + 5, center.y() - radius + 6, radius * 2 - 10, radius * 2 - 12);
+        painter->drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, label);
+    }
+
+    QString m_centerLabel;
+    QStringList m_labels;
+    QStringList m_states;
+};
+
+namespace {
+
 QLabel *makeLabel(const QString &text, const QString &objectName)
 {
     QLabel *label = new QLabel(text);
@@ -105,6 +212,22 @@ QString shortAddress(const QString &address)
         return address;
     }
     return address.left(10) + QString("...") + address.right(6);
+}
+
+QString shortPeerLabel(const QString &url)
+{
+    QUrl parsed(url);
+    QString host = parsed.host();
+    if (host.isEmpty()) {
+        host = url;
+    }
+    if (!parsed.isEmpty() && parsed.port() > 0) {
+        host += QString(":%1").arg(parsed.port());
+    }
+    if (host.length() <= 18) {
+        return host;
+    }
+    return host.left(12) + QString("...") + host.right(4);
 }
 
 QString namedAccount(const QString &name, const QString &address)
@@ -167,6 +290,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_blockCountLabel(0),
       m_historyTable(0),
       m_mempoolTable(0),
+      m_peerMap(0),
+      m_peersTable(0),
       m_contactSearchEdit(0),
       m_networkUsersTable(0),
       m_contactsTable(0),
@@ -186,6 +311,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_contactsButton(0),
       m_historyButton(0),
       m_mempoolButton(0),
+      m_peersButton(0),
       m_terminalButton(0),
       m_optionsButton(0)
 {
@@ -319,6 +445,7 @@ QWidget *MainWindow::createShellPage()
     m_contactsButton = createNavButton(tr("Contacts"));
     m_historyButton = createNavButton(tr("History"));
     m_mempoolButton = createNavButton(tr("Mempool"));
+    m_peersButton = createNavButton(tr("Peers"));
     m_terminalButton = createNavButton(tr("Terminal"));
     m_optionsButton = createNavButton(tr("Options"));
 
@@ -328,6 +455,7 @@ QWidget *MainWindow::createShellPage()
     nav->addWidget(m_contactsButton);
     nav->addWidget(m_historyButton);
     nav->addWidget(m_mempoolButton);
+    nav->addWidget(m_peersButton);
     nav->addWidget(m_terminalButton);
     nav->addWidget(m_optionsButton);
     nav->addStretch();
@@ -342,6 +470,7 @@ QWidget *MainWindow::createShellPage()
     m_contentStack->addWidget(createContactsPage());
     m_contentStack->addWidget(createHistoryPage());
     m_contentStack->addWidget(createMempoolPage());
+    m_contentStack->addWidget(createPeersPage());
     m_contentStack->addWidget(createTerminalPage());
     m_contentStack->addWidget(createOptionsPage());
 
@@ -351,6 +480,7 @@ QWidget *MainWindow::createShellPage()
     connect(m_contactsButton, SIGNAL(clicked()), this, SLOT(showContacts()));
     connect(m_historyButton, SIGNAL(clicked()), this, SLOT(showHistory()));
     connect(m_mempoolButton, SIGNAL(clicked()), this, SLOT(showMempool()));
+    connect(m_peersButton, SIGNAL(clicked()), this, SLOT(showPeers()));
     connect(m_terminalButton, SIGNAL(clicked()), this, SLOT(showTerminal()));
     connect(m_optionsButton, SIGNAL(clicked()), this, SLOT(showOptions()));
     connect(signOutButton, SIGNAL(clicked()), this, SLOT(signOut()));
@@ -651,6 +781,36 @@ QWidget *MainWindow::createMempoolPage()
     m_mempoolTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_mempoolTable->setWordWrap(true);
     layout->addWidget(m_mempoolTable, 1);
+
+    return page;
+}
+
+QWidget *MainWindow::createPeersPage()
+{
+    QFrame *page = makePanel("Panel");
+    QVBoxLayout *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(26, 24, 26, 24);
+    layout->setSpacing(14);
+
+    layout->addWidget(createSectionTitle(tr("Peers")));
+    layout->addWidget(makeLabel(tr("Local peer connections reported by this node."), "Muted"));
+
+    m_peerMap = new PeerMapWidget;
+    layout->addWidget(m_peerMap, 2);
+
+    m_peersTable = new QTableWidget(0, 5);
+    QStringList headers;
+    headers << tr("Peer") << tr("Reachable") << tr("Genesis") << tr("Latest Block") << tr("Score");
+    m_peersTable->setHorizontalHeaderLabels(headers);
+    m_peersTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_peersTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_peersTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_peersTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    m_peersTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    m_peersTable->verticalHeader()->setVisible(false);
+    m_peersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_peersTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(m_peersTable, 1);
 
     return page;
 }
@@ -991,7 +1151,7 @@ void MainWindow::applySetNameResult(const QString &json, bool transportError)
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
-    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_terminalButton << m_optionsButton;
+    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_peersButton << m_terminalButton << m_optionsButton;
     for (int i = 0; i < buttons.size(); ++i) {
         QPushButton *button = buttons.at(i);
         if (!button) {
@@ -1168,6 +1328,9 @@ void MainWindow::applyWalletStatus(const QString &json)
     if (m_walletTitleLabel) {
         QString walletLabel = m_publicName.isEmpty() ? shortAddress(m_publicKey) : m_publicName;
         m_walletTitleLabel->setText(walletLabel.isEmpty() ? tr("Wallet") : tr("Wallet: %1").arg(walletLabel));
+        if (m_peerMap) {
+            m_peerMap->setCenterLabel(walletLabel.isEmpty() ? tr("This wallet") : walletLabel);
+        }
     }
     if (m_networkLabel) {
         m_networkLabel->setText(tr("Network up to date: %1").arg(sync));
@@ -1368,6 +1531,68 @@ void MainWindow::applyMempool(const QString &json)
     m_mempoolTable->resizeRowsToContents();
 }
 
+void MainWindow::applyPeers(const QString &json)
+{
+    if (!m_peersTable || !m_peerMap) {
+        return;
+    }
+
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        m_peersTable->setRowCount(0);
+        m_peerMap->setPeers(QStringList(), QStringList());
+        return;
+    }
+
+    QJsonArray peers = document.object().value("peers").toArray();
+    QStringList graphLabels;
+    QStringList graphStates;
+    m_peersTable->setRowCount(0);
+    for (int i = 0; i < peers.size(); ++i) {
+        QJsonObject peer = peers.at(i).toObject();
+        QString url = peer.value("url").toString();
+        QString reachable = peer.value("reachable").toString();
+        QString genesis = peer.value("genesis_match").toString();
+        QString latestBlock = peer.value("latest_block_id").toString();
+        QString score = peer.value("score").toString();
+
+        QString state = "offline";
+        if (reachable == "yes" && genesis == "yes") {
+            state = "reachable";
+        } else if (reachable == "yes" && genesis != "yes") {
+            state = "mismatch";
+        }
+        graphLabels << shortPeerLabel(url);
+        graphStates << state;
+
+        int row = m_peersTable->rowCount();
+        m_peersTable->insertRow(row);
+        QStringList values;
+        values << (url.isEmpty() ? tr("-") : url)
+               << (reachable.isEmpty() ? tr("-") : reachable)
+               << (genesis.isEmpty() ? tr("-") : genesis)
+               << (latestBlock.isEmpty() ? tr("-") : latestBlock)
+               << (score.isEmpty() ? tr("-") : score);
+        for (int column = 0; column < values.size(); ++column) {
+            QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
+            if (state == "reachable") {
+                item->setForeground(QColor("#18735d"));
+            } else if (state == "mismatch") {
+                item->setForeground(QColor("#9a5b00"));
+            } else {
+                item->setForeground(QColor("#6b7e84"));
+            }
+            m_peersTable->setItem(row, column, item);
+        }
+    }
+
+    QString centerLabel = m_publicName.isEmpty() ? shortAddress(m_publicKey) : m_publicName;
+    m_peerMap->setCenterLabel(centerLabel.isEmpty() ? tr("This wallet") : centerLabel);
+    m_peerMap->setPeers(graphLabels, graphStates);
+    m_peersTable->resizeRowsToContents();
+}
+
 void MainWindow::signIn()
 {
     if (m_userEdit->text().trimmed().isEmpty() || m_passwordEdit->text().isEmpty()) {
@@ -1433,15 +1658,22 @@ void MainWindow::showMempool()
     refreshWalletStatus();
 }
 
-void MainWindow::showTerminal()
+void MainWindow::showPeers()
 {
     m_contentStack->setCurrentIndex(6);
+    setActiveNav(m_peersButton);
+    refreshWalletStatus();
+}
+
+void MainWindow::showTerminal()
+{
+    m_contentStack->setCurrentIndex(7);
     setActiveNav(m_terminalButton);
 }
 
 void MainWindow::showOptions()
 {
-    m_contentStack->setCurrentIndex(7);
+    m_contentStack->setCurrentIndex(8);
     setActiveNav(m_optionsButton);
 }
 
@@ -1780,6 +2012,10 @@ void MainWindow::refreshWalletStatus()
     QUrl mempoolUrl(QString("http://127.0.0.1:%1/api/mempool").arg(m_backendPort));
     QNetworkRequest mempoolRequest(mempoolUrl);
     m_networkManager->get(mempoolRequest);
+
+    QUrl peersUrl(QString("http://127.0.0.1:%1/api/peers").arg(m_backendPort));
+    QNetworkRequest peersRequest(peersUrl);
+    m_networkManager->get(peersRequest);
 }
 
 void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
@@ -1815,6 +2051,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         applyWalletHistory(QString::fromUtf8(body));
     } else if (path == "/api/mempool") {
         applyMempool(QString::fromUtf8(body));
+    } else if (path == "/api/peers") {
+        applyPeers(QString::fromUtf8(body));
     } else if (path == "/api/network/users") {
         applyNetworkUsers(QString::fromUtf8(body));
     } else if (path == "/api/wallet/send") {

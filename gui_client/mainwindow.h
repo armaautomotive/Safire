@@ -18,6 +18,7 @@ class QTextEdit;
 class QTimer;
 class QWidget;
 class QCloseEvent;
+class PeerMapWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -36,6 +37,7 @@ private slots:
     void showContacts();
     void showHistory();
     void showMempool();
+    void showPeers();
     void showTerminal();
     void showOptions();
     void copyReceiveAddress();
@@ -65,6 +67,7 @@ private:
     QWidget *createContactsPage();
     QWidget *createHistoryPage();
     QWidget *createMempoolPage();
+    QWidget *createPeersPage();
     QWidget *createTerminalPage();
     QWidget *createOptionsPage();
     QWidget *createAccountCard(const QString &name, const QString &balance, const QString &detail);
@@ -77,6 +80,7 @@ private:
     void applyWalletStatus(const QString &json);
     void applyWalletHistory(const QString &json);
     void applyMempool(const QString &json);
+    void applyPeers(const QString &json);
     void applyNetworkUsers(const QString &json);
     void applySendPaymentResult(const QString &json, bool transportError);
     void applySetNameResult(const QString &json, bool transportError);
@@ -119,6 +123,8 @@ private:
     QLabel *m_blockCountLabel;
     QTableWidget *m_historyTable;
     QTableWidget *m_mempoolTable;
+    PeerMapWidget *m_peerMap;
+    QTableWidget *m_peersTable;
     QLineEdit *m_contactSearchEdit;
     QTableWidget *m_networkUsersTable;
     QTableWidget *m_contactsTable;
@@ -138,6 +144,7 @@ private:
     QPushButton *m_contactsButton;
     QPushButton *m_historyButton;
     QPushButton *m_mempoolButton;
+    QPushButton *m_peersButton;
     QPushButton *m_terminalButton;
     QPushButton *m_optionsButton;
 };
