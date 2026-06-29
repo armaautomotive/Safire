@@ -2,7 +2,9 @@
 
 #include "blockdb.h"
 #include "functions/functions.h"
+#include "networktime.h"
 #include "wallet.h"
+#include <algorithm>
 #include <boost/lexical_cast.hpp>
 #include <curl/curl.h>
 #include <sstream>
@@ -211,6 +213,7 @@ void CLocalPeerClient::stop()
 void CLocalPeerClient::syncThread(int argc, char* argv[])
 {
     while (running) {
+        syncNetworkTime();
         for (int i = 0; i < peers.size(); ++i) {
             syncFromPeer(peers.at(i));
             pushToPeer(peers.at(i));
@@ -357,6 +360,47 @@ bool CLocalPeerClient::isSyncedWithPeers()
 
     CBlockDB blockDB;
     return blockDB.getLatestBlockId() >= peerLatestBlockId;
+}
+
+bool CLocalPeerClient::syncNetworkTime()
+{
+    if (peers.empty()) {
+        return false;
+    }
+
+    std::vector<long> offsets;
+    CNetworkTime netTime;
+    CFunctions functions;
+    for (int i = 0; i < peers.size(); ++i) {
+        long before = netTime.getLocalEpoch();
+        std::string response = httpGet(peers.at(i) + "/api/time");
+        long after = netTime.getLocalEpoch();
+        if (response.find("\"epoch\":\"") == std::string::npos) {
+            continue;
+        }
+
+        long peerEpoch = functions.parseSectionLong(response, "\"epoch\":\"", "\"");
+        if (peerEpoch <= 0) {
+            continue;
+        }
+
+        long localMidpoint = before + ((after - before) / 2);
+        offsets.push_back(peerEpoch - localMidpoint);
+    }
+
+    if (offsets.empty()) {
+        return false;
+    }
+
+    std::sort(offsets.begin(), offsets.end());
+    netTime.setOffset(offsets.at(offsets.size() / 2));
+    return true;
+}
+
+long CLocalPeerClient::getNetworkTimeOffset()
+{
+    CNetworkTime netTime;
+    return netTime.getOffset();
 }
 
 void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& record)

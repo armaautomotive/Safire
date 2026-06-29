@@ -17,6 +17,7 @@
 #include "network/p2p.h"
 #include "network/relayclient.h"
 #include "network/localpeerclient.h"
+#include "networktime.h"
 #include "blockdb.h"
 #include "userdb.h"
 
@@ -128,17 +129,18 @@ void printSelectedBlockCreator(const std::vector<CFunctions::record_structure>& 
 
 void printNextBlockSelection(const std::string& localPublicKey){
     CSelector selector;
+    CNetworkTime netTime;
     long currentBlock = selector.getCurrentTimeBlock();
     long nextBlock = currentBlock + 1;
     std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
-    time_t now;
-    time(&now);
+    long now = netTime.getEpoch();
     long secondsUntilNextBlock = (nextBlock * 15) - now;
     if(secondsUntilNextBlock < 0){
         secondsUntilNextBlock = 0;
     }
 
     std::cout << " Block creator selection:" << std::endl;
+    std::cout << " Network time offset: " << netTime.getOffset() << "s" << std::endl;
     std::cout << " Accepted members: " << members.size() << std::endl;
     printSelectedBlockCreator(members, currentBlock, "Current", localPublicKey);
     std::cout << " Seconds until next block: " << secondsUntilNextBlock << std::endl;
@@ -385,10 +387,9 @@ void CCLI::processUserInput(){
 
 				CFunctions::record_structure joinRecord;
 				joinRecord.network = networkName;
-				time_t  timev;
-				time(&timev);
+                CNetworkTime netTime;
 				std::stringstream ss;
-				ss << timev;
+				ss << netTime.getEpoch();
 				std::string ts = ss.str();
 				joinRecord.time = ts;
 				joinRecord.transaction_type = CFunctions::JOIN_NETWORK;
@@ -458,10 +459,9 @@ void CCLI::processUserInput(){
 
                 CFunctions::record_structure sendRecord;
                 sendRecord.network = "main";
-                time_t  timev;
-                time(&timev);
+                CNetworkTime netTime;
                 std::stringstream ss;
-                ss << timev;
+                ss << netTime.getEpoch();
                 std::string ts = ss.str();
                 sendRecord.time = ts;
                 sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
@@ -481,6 +481,7 @@ void CCLI::processUserInput(){
 
         } else if ( command.find("network") != std::string::npos ){
 
+            CLocalPeerClient::syncNetworkTime();
             //functions.parseBlockFile(publicKey, false);
             functions.scanChain(publicKey, false);
             
@@ -495,6 +496,9 @@ void CCLI::processUserInput(){
             CBlockDB networkBlockDB;
             std::cout << " First block: " << networkBlockDB.getFirstBlockId() << std::endl;
             std::cout << " Latest block: " << networkBlockDB.getLatestBlockId() << std::endl;
+            CNetworkTime networkTime;
+            std::cout << " Network time offset: " << networkTime.getOffset() << "s" << std::endl;
+            std::cout << " Clock status: " << (networkTime.isClockHealthy() ? "ok" : "check local clock") << std::endl;
             
             std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
             std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
@@ -527,6 +531,7 @@ void CCLI::processUserInput(){
 
         } else if ( command.compare("nextblock") == 0 ){
 
+            CLocalPeerClient::syncNetworkTime();
             printNextBlockSelection(publicKey);
 
         } else if ( command.compare("memberships") == 0 || command.compare("members") == 0 ){
@@ -615,6 +620,9 @@ void CCLI::processUserInput(){
             if(localPeers.size() == 0){
                 std::cout << "  No local peers configured. Start with --peer http://host:port" << std::endl;
             }
+            CLocalPeerClient::syncNetworkTime();
+            CNetworkTime syncNetworkTime;
+            std::cout << "  Network time offset: " << syncNetworkTime.getOffset() << "s" << std::endl;
             for(int i = 0; i < localPeers.size(); i++){
                 std::cout << "  " << localPeers.at(i) << std::endl;
                 CBlockDB syncBlockDB;
@@ -667,10 +675,9 @@ void CCLI::processUserInput(){
 
              CFunctions::record_structure voteRecord;
              voteRecord.network = "main"; // networkName;
-             time_t  timev;
-             time(&timev);
+             CNetworkTime netTime;
              std::stringstream ss;
-             ss << timev;
+             ss << netTime.getEpoch();
              std::string ts = ss.str();
              voteRecord.time = ts;
              CFunctions::transaction_types voteType = CFunctions::VOTE;

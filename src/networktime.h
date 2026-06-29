@@ -33,6 +33,13 @@ public:
     }
 
     long getEpoch();
+    long getLocalEpoch();
+    long getOffset();
+    void setOffset(long offset);
+    bool isClockHealthy();
+
+private:
+    static long networkTimeOffset;
 };
 
 #endif // MAGNITE_NETWORK_TIME_H

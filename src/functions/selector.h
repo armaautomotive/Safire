@@ -16,7 +16,6 @@ class CSelector
 {
 private:
     int secondsPerBlock = 15;
-    long networkTimeOffset = 0;
 public:
     //! Construct
     CSelector()
@@ -38,5 +37,4 @@ public:
 };
 
 #endif // SAFIRE_SELECTOR_H
-
 

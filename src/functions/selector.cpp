@@ -12,19 +12,12 @@
 
 #include "functions/selector.h"
 #include "global.h"
-#include <ctime>
 #include <cstdlib>
-#include <curl/curl.h>
+#include "networktime.h"
 #include "userdb.h"
 
 std::vector< std::string > CSelector::users;
 
-
-static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
-{
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
-    return size * nmemb;
-}
 
 /**
 * syncronizeTime
@@ -33,39 +26,7 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 * Apply time difference when using local time so that the network is syncronized.
 */
 void CSelector::syncronizeTime(){
-    // Get time from server
-    std::string readBuffer;
-    CURLcode res;
-    CURL * curl;
-    curl_global_init(CURL_GLOBAL_ALL); //pretty obvious
-    curl = curl_easy_init();
-    if(curl) {
-        std::string url_string = "http://173.255.218.54/time.php";
-        std::string post_data = "";
-        //post_data.append(publicKey);
-        curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-        res = curl_easy_perform(curl);
-        curl_easy_cleanup(curl);
-        if (res != CURLE_OK || readBuffer.empty()) {
-            return;
-        }
-
-        char *end = NULL;
-        long server_long = std::strtol(readBuffer.c_str(), &end, 10);
-        if (end == readBuffer.c_str()) {
-            return;
-        }
-
-        // get time from local system
-        time_t  timev;
-        time(&timev);
-
-        networkTimeOffset = server_long - timev;
-        //std::cout << "Server syncronization time offset: " << networkTimeOffset << std::endl;   
-    }
+    // Peer-based time synchronization is handled by CLocalPeerClient.
 }
 
 /**
@@ -73,9 +34,8 @@ void CSelector::syncronizeTime(){
  *
  */
 long CSelector::getCurrentTimeBlock(){
-    time_t  timev;
-    time(&timev);
-    long timeBlock = (long)(timev / 15); // 30 second blocks
+    CNetworkTime netTime;
+    long timeBlock = (long)(netTime.getEpoch() / 15);
     return timeBlock; 
 }
 
@@ -122,15 +82,14 @@ bool CSelector::isSelected(std::string publicKey){
         return false;
     }
 
-    time_t  timev;
-    time(&timev);
+    CNetworkTime netTime;
     //std::stringstream ss;
     //ss << timev;
     //std::string ts = ss.str();
 
     // TODO: get time from central or synced set of servers for syncronization.
 
-    long timeBlock = (long)(timev / 15); // 30 second blocks
+    long timeBlock = (long)(netTime.getEpoch() / 15);
     long userIndex = timeBlock % users.size();
 
     std::string selectedUser = users.at(userIndex);

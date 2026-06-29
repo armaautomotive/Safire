@@ -158,6 +158,20 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
+  if (request_path == "/api/time")
+  {
+    CNetworkTime netTime;
+    long epoch = netTime.getEpoch();
+    std::stringstream ss;
+    ss << "{\"epoch\":\"" << epoch << "\",";
+    ss << "\"local_epoch\":\"" << netTime.getLocalEpoch() << "\",";
+    ss << "\"offset\":\"" << netTime.getOffset() << "\",";
+    ss << "\"slot\":\"" << (epoch / 15) << "\",";
+    ss << "\"block_interval\":\"15\"}";
+    text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
   if (request_path == "/api/blocks/first")
   {
     long firstBlockId = blockDB.getFirstBlockId();

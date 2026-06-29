@@ -14,6 +14,7 @@
 #include "functions/functions.h"
 #include "network/relayclient.h"
 #include "network/localpeerclient.h"
+#include "networktime.h"
 #include "functions/selector.h"
 #include "functions/chain.h"
 #include "wallet.h"
@@ -89,10 +90,9 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         
         CFunctions::record_structure joinRecord;
         joinRecord.network = networkName;
-        time_t  timev;
-        time(&timev);
+        CNetworkTime netTime;
         std::stringstream ss;
-        ss << timev;
+        ss << netTime.getEpoch();
         std::string ts = ss.str();
         joinRecord.time = ts;
         CFunctions::transaction_types joinType = CFunctions::JOIN_NETWORK;
@@ -289,10 +289,9 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                 return;
             }
             
-            time_t  timev;
-            time(&timev);
+            CNetworkTime netTime;
             std::stringstream ss;
-            ss << timev;
+            ss << netTime.getEpoch();
             std::string ts = ss.str();
             
             CFunctions::record_structure blockRewardRecord;

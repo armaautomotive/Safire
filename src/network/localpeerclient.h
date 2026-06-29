@@ -26,6 +26,8 @@ public:
     static long getPeerLatestBlockId(const std::string& peerUrl);
     static long getBestPeerLatestBlockId();
     static bool isSyncedWithPeers();
+    static bool syncNetworkTime();
+    static long getNetworkTimeOffset();
     static void broadcastRecord(const CFunctions::record_structure& record);
     static void broadcastBlock(const CFunctions::block_structure& block);
 

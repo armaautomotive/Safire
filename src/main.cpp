@@ -13,6 +13,7 @@
 #include "network/p2p.h"
 #include "network/localpeerclient.h"
 #include "network/server.h"
+#include "networktime.h"
 #include "functions/selector.h"
 #include "functions/chain.h"
 //#include "wallet/wallet.h"
@@ -144,6 +145,7 @@ int main(int argc, char* argv[])
     std::string publicKey;
     std::vector<std::string> localPeers = getArgValues(argc, argv, "--peer");
     CLocalPeerClient::setPeers(localPeers);
+    CLocalPeerClient::syncNetworkTime();
 
     CWallet wallet;
     bool e = wallet.fileExists("wallet.dat");
@@ -181,6 +183,8 @@ int main(int argc, char* argv[])
     } else {
         std::cout << " Sync Progress: " << functions.SyncProgress() << "% " << std::endl;
     }
+    CNetworkTime startupNetworkTime;
+    std::cout << " Network time offset: " << startupNetworkTime.getOffset() << "s" << std::endl;
     std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
 
     std::cout << std::endl;
