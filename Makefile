@@ -36,7 +36,7 @@ LIBS_MAC= -L/usr/local/opt/openssl/lib -L/usr/local/lib /usr/local/opt/leveldb/l
 # -Bstatic
 # -lboost_system-mt not found
 CFLAGS_LINUX= -pthread -Wdeprecated -w  `pkg-config --cflags nice`
-LIBS_LINUX= -L/usr/local/lib/  -L./src/leveldb  -L/usr/lib/x86_64-linux-gnu/ -pthread  -lboost_system  -lssl -lcrypto -lboost_filesystem -lleveldb -lcurl -lz  `pkg-config --libs nice`
+LIBS_LINUX= -L/usr/local/lib/  -L./src/leveldb  -L/usr/lib/x86_64-linux-gnu/ -pthread  -lboost_system -lboost_thread  -lssl -lcrypto -lboost_filesystem -lleveldb -lcurl -lz  `pkg-config --libs nice`
 # -L/usr/lib/
 # -lsecp256k1
 # -Weverything  
