@@ -309,7 +309,7 @@ bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structur
     CFunctions functions;
     std::string blockJson = functions.blockJSON(block);
     response = httpPost(peer + "/api/blocks/submit", blockJson);
-    if (response.find("accepted") != std::string::npos) {
+    if (response.find("\"status\":\"accepted\"") != std::string::npos || response == "accepted") {
         return true;
     }
 
@@ -320,7 +320,7 @@ bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structur
     }
 
     response = httpGet(peer + "/api/blocks/submit?block=" + encodedBlock);
-    return response.find("accepted") != std::string::npos;
+    return response.find("\"status\":\"accepted\"") != std::string::npos || response == "accepted";
 }
 
 std::vector<CFunctions::block_structure> connectedBlocksAfter(long blockNumber)
@@ -1142,7 +1142,7 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
             continue;
         }
         std::string response = httpPost(peers.at(i) + "/api/blocks/submit", blockJson);
-        if (response.find("accepted") != std::string::npos) {
+        if (response.find("\"status\":\"accepted\"") != std::string::npos || response == "accepted") {
             continue;
         }
 

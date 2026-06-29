@@ -1602,15 +1602,22 @@ void request_handler::handle_request(const request& req, reply& rep)
   {
     std::string blockJson = submitted_value(req, request_path, "block");
     std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
-    bool accepted = false;
+    bool stored = false;
+    bool canonical = false;
     bool added = false;
+    bool rebroadcast = false;
+    std::string message = "invalid block";
+    long lastSubmittedBlockId = -1;
+    std::string lastSubmittedHash = "";
     for (int i = 0; i < blocks.size(); ++i)
     {
       CFunctions::block_structure block = blocks.at(i);
       if (block.number > 0)
       {
+        long latestBefore = blockDB.getLatestBlockId();
         bool alreadyStored = blockDB.getBlockByHash(block.hash).number > 0;
         bool blockAdded = blockDB.AddBlock(block);
+        bool blockStored = alreadyStored || blockAdded;
         if (alreadyStored == false && blockAdded && blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
         {
           blockDB.setFirstBlockId(block.number);
@@ -1622,9 +1629,36 @@ void request_handler::handle_request(const request& req, reply& rep)
           {
             blockDB.setLatestBlockId(connectedLatestBlockId);
           }
+          blockDB.rebuildBestChainIndex();
         }
-        accepted = alreadyStored || blockAdded || accepted;
+        long latestAfter = blockDB.getLatestBlockId();
+        CFunctions::block_structure canonicalBlock = blockDB.getBlock(block.number);
+        bool blockCanonical = canonicalBlock.number == block.number &&
+          canonicalBlock.hash.compare(block.hash) == 0 &&
+          blockDB.getConnectedLatestBlockId() >= block.number;
+
+        if (blockStored)
+        {
+          stored = true;
+          message = blockCanonical ? "block accepted into canonical chain" : "block stored but not connected";
+          lastSubmittedBlockId = block.number;
+          lastSubmittedHash = block.hash;
+        }
+        if (blockCanonical)
+        {
+          canonical = true;
+        }
         added = (alreadyStored == false && blockAdded) || added;
+
+        CNetworkTime netTime;
+        long currentSlot = netTime.getEpoch() / 15;
+        bool recentBlock = block.number + 120 >= currentSlot;
+        bool advancedTip = latestAfter >= block.number && latestAfter >= latestBefore;
+        if (alreadyStored == false && blockAdded && blockCanonical && advancedTip && recentBlock)
+        {
+          CLocalPeerClient::broadcastBlock(block);
+          rebroadcast = true;
+        }
       }
     }
 
@@ -1633,7 +1667,18 @@ void request_handler::handle_request(const request& req, reply& rep)
       blockDB.rebuildBestChainIndex();
     }
 
-    text_reply(rep, accepted ? reply::accepted : reply::bad_request, accepted ? "accepted" : "invalid block", "text/plain");
+    long latestBlockId = blockDB.getLatestBlockId();
+    std::string status = canonical ? "accepted" : (stored ? "stored" : "invalid");
+    std::stringstream ss;
+    ss << "{\"status\":\"" << status << "\",";
+    ss << "\"stored\":\"" << (stored ? "yes" : "no") << "\",";
+    ss << "\"canonical\":\"" << (canonical ? "yes" : "no") << "\",";
+    ss << "\"rebroadcast\":\"" << (rebroadcast ? "yes" : "no") << "\",";
+    ss << "\"block\":\"" << lastSubmittedBlockId << "\",";
+    ss << "\"hash\":\"" << json_escape(lastSubmittedHash) << "\",";
+    ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
+    ss << "\"message\":\"" << json_escape(message) << "\"}";
+    text_reply(rep, stored ? reply::accepted : reply::bad_request, ss.str(), "application/json");
     return;
   }
 

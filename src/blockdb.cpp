@@ -45,7 +45,7 @@ bool childConnectsToParent(const CFunctions::block_structure& child, const CFunc
         return false;
     }
     if(child.previous_block_hash.length() == 0 || parent.hash.length() == 0){
-        return true;
+        return false;
     }
     return child.previous_block_hash.compare(parent.hash) == 0;
 }
