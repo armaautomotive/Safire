@@ -5,6 +5,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QColor>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QCloseEvent>
 #include <QDateTime>
@@ -30,6 +31,7 @@
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSettings>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTimer>
@@ -151,6 +153,10 @@ MainWindow::MainWindow(QWidget *parent)
       m_peerLabel(0),
       m_supplyLabel(0),
       m_historyTable(0),
+      m_contactSearchEdit(0),
+      m_networkUsersTable(0),
+      m_contactsTable(0),
+      m_sendContactCombo(0),
       m_sendToEdit(0),
       m_sendAmountEdit(0),
       m_sendMemoEdit(0),
@@ -163,6 +169,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_balanceButton(0),
       m_sendButton(0),
       m_receiveButton(0),
+      m_contactsButton(0),
       m_historyButton(0),
       m_terminalButton(0),
       m_optionsButton(0)
@@ -184,8 +191,8 @@ MainWindow::MainWindow(QWidget *parent)
         "#StatusGood { color: #18735d; font-weight: 700; }"
         "#Error { color: #b3261e; font-weight: 600; }"
         "#TerminalOutput { background: #0d171b; color: #d9f7ef; border: 1px solid #17343b; border-radius: 6px; font-family: Menlo, Consolas, monospace; font-size: 13px; padding: 10px; }"
-        "QLineEdit, QTextEdit { background: #ffffff; border: 1px solid #cddadd; border-radius: 6px; padding: 10px; selection-background-color: #1b7f8a; }"
-        "QLineEdit:focus, QTextEdit:focus { border-color: #1b7f8a; }"
+        "QLineEdit, QTextEdit, QComboBox { background: #ffffff; border: 1px solid #cddadd; border-radius: 6px; padding: 10px; selection-background-color: #1b7f8a; }"
+        "QLineEdit:focus, QTextEdit:focus, QComboBox:focus { border-color: #1b7f8a; }"
         "QPushButton { border-radius: 6px; padding: 10px 14px; font-weight: 700; }"
         "QPushButton#PrimaryButton { background: #166b76; color: white; border: 1px solid #166b76; }"
         "QPushButton#PrimaryButton:hover { background: #0f5963; }"
@@ -203,6 +210,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_rootStack->addWidget(createLoginPage());
     m_rootStack->addWidget(createShellPage());
     setCentralWidget(m_rootStack);
+    loadContacts();
 
     m_statusTimer->setInterval(3000);
     connect(m_statusTimer, SIGNAL(timeout()), this, SLOT(refreshWalletStatus()));
@@ -293,6 +301,7 @@ QWidget *MainWindow::createShellPage()
     m_balanceButton = createNavButton(tr("Accounts"));
     m_sendButton = createNavButton(tr("Send"));
     m_receiveButton = createNavButton(tr("Receive"));
+    m_contactsButton = createNavButton(tr("Contacts"));
     m_historyButton = createNavButton(tr("History"));
     m_terminalButton = createNavButton(tr("Terminal"));
     m_optionsButton = createNavButton(tr("Options"));
@@ -300,6 +309,7 @@ QWidget *MainWindow::createShellPage()
     nav->addWidget(m_balanceButton);
     nav->addWidget(m_sendButton);
     nav->addWidget(m_receiveButton);
+    nav->addWidget(m_contactsButton);
     nav->addWidget(m_historyButton);
     nav->addWidget(m_terminalButton);
     nav->addWidget(m_optionsButton);
@@ -312,6 +322,7 @@ QWidget *MainWindow::createShellPage()
     m_contentStack->addWidget(createBalancePage());
     m_contentStack->addWidget(createSendPage());
     m_contentStack->addWidget(createReceivePage());
+    m_contentStack->addWidget(createContactsPage());
     m_contentStack->addWidget(createHistoryPage());
     m_contentStack->addWidget(createTerminalPage());
     m_contentStack->addWidget(createOptionsPage());
@@ -319,6 +330,7 @@ QWidget *MainWindow::createShellPage()
     connect(m_balanceButton, SIGNAL(clicked()), this, SLOT(showBalance()));
     connect(m_sendButton, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(m_receiveButton, SIGNAL(clicked()), this, SLOT(showReceive()));
+    connect(m_contactsButton, SIGNAL(clicked()), this, SLOT(showContacts()));
     connect(m_historyButton, SIGNAL(clicked()), this, SLOT(showHistory()));
     connect(m_terminalButton, SIGNAL(clicked()), this, SLOT(showTerminal()));
     connect(m_optionsButton, SIGNAL(clicked()), this, SLOT(showOptions()));
@@ -397,6 +409,10 @@ QWidget *MainWindow::createSendPage()
     layout->addWidget(createSectionTitle(tr("Send Payment")));
     layout->addWidget(makeLabel(tr("Create a draft transfer. Core transaction signing will be wired in a later step."), "Muted"));
 
+    m_sendContactCombo = new QComboBox;
+    m_sendContactCombo->addItem(tr("Choose saved contact"), QString());
+    layout->addWidget(m_sendContactCombo);
+
     m_sendToEdit = new QLineEdit;
     m_sendToEdit->setPlaceholderText(tr("Recipient address"));
     layout->addWidget(m_sendToEdit);
@@ -423,6 +439,7 @@ QWidget *MainWindow::createSendPage()
     connect(clear, SIGNAL(clicked()), m_sendToEdit, SLOT(clear()));
     connect(clear, SIGNAL(clicked()), m_sendAmountEdit, SLOT(clear()));
     connect(clear, SIGNAL(clicked()), m_sendMemoEdit, SLOT(clear()));
+    connect(m_sendContactCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSendRecipientFromContact(int)));
 
     return page;
 }
@@ -453,6 +470,76 @@ QWidget *MainWindow::createReceivePage()
     layout->addStretch();
 
     connect(copyButton, SIGNAL(clicked()), this, SLOT(copyReceiveAddress()));
+    return page;
+}
+
+QWidget *MainWindow::createContactsPage()
+{
+    QWidget *page = new QWidget;
+    QHBoxLayout *layout = new QHBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(16);
+
+    QFrame *directoryPanel = makePanel("Panel");
+    QVBoxLayout *directoryLayout = new QVBoxLayout(directoryPanel);
+    directoryLayout->setContentsMargins(26, 24, 26, 24);
+    directoryLayout->setSpacing(14);
+    directoryLayout->addWidget(createSectionTitle(tr("Network Users")));
+
+    m_contactSearchEdit = new QLineEdit;
+    m_contactSearchEdit->setPlaceholderText(tr("Search by name or address"));
+    directoryLayout->addWidget(m_contactSearchEdit);
+
+    m_networkUsersTable = new QTableWidget(0, 3);
+    QStringList networkHeaders;
+    networkHeaders << tr("Name") << tr("Address") << tr("Balance");
+    m_networkUsersTable->setHorizontalHeaderLabels(networkHeaders);
+    m_networkUsersTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_networkUsersTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_networkUsersTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_networkUsersTable->verticalHeader()->setVisible(false);
+    m_networkUsersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_networkUsersTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_networkUsersTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    directoryLayout->addWidget(m_networkUsersTable, 1);
+
+    QPushButton *addButton = createPrimaryButton(tr("Add Contact"));
+    directoryLayout->addWidget(addButton, 0, Qt::AlignLeft);
+
+    QFrame *contactsPanel = makePanel("Panel");
+    QVBoxLayout *contactsLayout = new QVBoxLayout(contactsPanel);
+    contactsLayout->setContentsMargins(26, 24, 26, 24);
+    contactsLayout->setSpacing(14);
+    contactsLayout->addWidget(createSectionTitle(tr("Contacts")));
+
+    m_contactsTable = new QTableWidget(0, 2);
+    QStringList contactHeaders;
+    contactHeaders << tr("Name") << tr("Address");
+    m_contactsTable->setHorizontalHeaderLabels(contactHeaders);
+    m_contactsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_contactsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_contactsTable->verticalHeader()->setVisible(false);
+    m_contactsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_contactsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_contactsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    contactsLayout->addWidget(m_contactsTable, 1);
+
+    QHBoxLayout *contactActions = new QHBoxLayout;
+    QPushButton *useButton = createPrimaryButton(tr("Use for Send"));
+    QPushButton *removeButton = createSecondaryButton(tr("Remove"));
+    contactActions->addWidget(useButton);
+    contactActions->addWidget(removeButton);
+    contactActions->addStretch();
+    contactsLayout->addLayout(contactActions);
+
+    layout->addWidget(directoryPanel, 3);
+    layout->addWidget(contactsPanel, 2);
+
+    connect(m_contactSearchEdit, SIGNAL(textChanged(QString)), this, SLOT(filterNetworkUsers(QString)));
+    connect(addButton, SIGNAL(clicked()), this, SLOT(addSelectedNetworkUserToContacts()));
+    connect(removeButton, SIGNAL(clicked()), this, SLOT(removeSelectedContact()));
+    connect(useButton, SIGNAL(clicked()), this, SLOT(useSelectedContactForSend()));
+
     return page;
 }
 
@@ -613,10 +700,136 @@ void MainWindow::appendHistory(const QString &date, const QString &type, const Q
     m_historyTable->resizeRowsToContents();
 }
 
+void MainWindow::appendContact(const QString &name, const QString &address)
+{
+    if (!m_contactsTable || address.trimmed().isEmpty()) {
+        return;
+    }
+
+    QString trimmedAddress = address.trimmed();
+    for (int row = 0; row < m_contactsTable->rowCount(); ++row) {
+        QTableWidgetItem *addressItem = m_contactsTable->item(row, 1);
+        if (addressItem && addressItem->text() == trimmedAddress) {
+            return;
+        }
+    }
+
+    int row = m_contactsTable->rowCount();
+    m_contactsTable->insertRow(row);
+    QTableWidgetItem *nameItem = new QTableWidgetItem(name.trimmed().isEmpty() ? shortAddress(trimmedAddress) : name.trimmed());
+    QTableWidgetItem *addressItem = new QTableWidgetItem(trimmedAddress);
+    nameItem->setData(Qt::UserRole, trimmedAddress);
+    addressItem->setData(Qt::UserRole, trimmedAddress);
+    m_contactsTable->setItem(row, 0, nameItem);
+    m_contactsTable->setItem(row, 1, addressItem);
+    m_contactsTable->resizeRowsToContents();
+}
+
+void MainWindow::loadContacts()
+{
+    if (!m_contactsTable) {
+        return;
+    }
+
+    QSettings settings("Safire", "SafireWallet");
+    int count = settings.beginReadArray("contacts");
+    for (int i = 0; i < count; ++i) {
+        settings.setArrayIndex(i);
+        appendContact(settings.value("name").toString(), settings.value("address").toString());
+    }
+    settings.endArray();
+    refreshContactDropdown();
+}
+
+void MainWindow::saveContacts()
+{
+    if (!m_contactsTable) {
+        return;
+    }
+
+    QSettings settings("Safire", "SafireWallet");
+    settings.beginWriteArray("contacts", m_contactsTable->rowCount());
+    for (int row = 0; row < m_contactsTable->rowCount(); ++row) {
+        settings.setArrayIndex(row);
+        QTableWidgetItem *nameItem = m_contactsTable->item(row, 0);
+        QTableWidgetItem *addressItem = m_contactsTable->item(row, 1);
+        settings.setValue("name", nameItem ? nameItem->text() : QString());
+        settings.setValue("address", addressItem ? addressItem->text() : QString());
+    }
+    settings.endArray();
+}
+
+void MainWindow::refreshContactDropdown()
+{
+    if (!m_sendContactCombo) {
+        return;
+    }
+
+    m_sendContactCombo->blockSignals(true);
+    m_sendContactCombo->clear();
+    m_sendContactCombo->addItem(tr("Choose saved contact"), QString());
+    if (m_contactsTable) {
+        for (int row = 0; row < m_contactsTable->rowCount(); ++row) {
+            QTableWidgetItem *nameItem = m_contactsTable->item(row, 0);
+            QTableWidgetItem *addressItem = m_contactsTable->item(row, 1);
+            QString name = nameItem ? nameItem->text() : QString();
+            QString address = addressItem ? addressItem->text() : QString();
+            if (!address.isEmpty()) {
+                m_sendContactCombo->addItem(namedAccount(name, address), address);
+            }
+        }
+    }
+    m_sendContactCombo->blockSignals(false);
+}
+
+void MainWindow::applyNetworkUsers(const QString &json)
+{
+    if (!m_networkUsersTable) {
+        return;
+    }
+
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        return;
+    }
+
+    QJsonObject object = document.object();
+    if (object.value("status").toString() != "ok") {
+        return;
+    }
+
+    QJsonArray users = object.value("users").toArray();
+    m_networkUsersTable->setRowCount(0);
+    for (int i = 0; i < users.size(); ++i) {
+        QJsonObject user = users.at(i).toObject();
+        QString address = user.value("public_key").toString();
+        if (address.isEmpty()) {
+            continue;
+        }
+        QString name = user.value("name").toString();
+        QString balance = user.value("balance").toString();
+        int row = m_networkUsersTable->rowCount();
+        m_networkUsersTable->insertRow(row);
+
+        QTableWidgetItem *nameItem = new QTableWidgetItem(name.isEmpty() ? tr("-") : name);
+        QTableWidgetItem *addressItem = new QTableWidgetItem(address);
+        QTableWidgetItem *balanceItem = new QTableWidgetItem(tr("%1 SFR").arg(balance));
+        nameItem->setData(Qt::UserRole, address);
+        addressItem->setData(Qt::UserRole, address);
+        balanceItem->setData(Qt::UserRole, address);
+        m_networkUsersTable->setItem(row, 0, nameItem);
+        m_networkUsersTable->setItem(row, 1, addressItem);
+        m_networkUsersTable->setItem(row, 2, balanceItem);
+    }
+    m_networkUsersTable->resizeRowsToContents();
+    filterNetworkUsers(m_contactSearchEdit ? m_contactSearchEdit->text() : QString());
+}
+
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
-    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_historyButton << m_terminalButton << m_optionsButton;
+    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_terminalButton << m_optionsButton;
     for (int i = 0; i < buttons.size(); ++i) {
         QPushButton *button = buttons.at(i);
         if (!button) {
@@ -903,22 +1116,29 @@ void MainWindow::showReceive()
     setActiveNav(m_receiveButton);
 }
 
-void MainWindow::showHistory()
+void MainWindow::showContacts()
 {
     m_contentStack->setCurrentIndex(3);
+    setActiveNav(m_contactsButton);
+    refreshWalletStatus();
+}
+
+void MainWindow::showHistory()
+{
+    m_contentStack->setCurrentIndex(4);
     setActiveNav(m_historyButton);
     refreshWalletStatus();
 }
 
 void MainWindow::showTerminal()
 {
-    m_contentStack->setCurrentIndex(4);
+    m_contentStack->setCurrentIndex(5);
     setActiveNav(m_terminalButton);
 }
 
 void MainWindow::showOptions()
 {
-    m_contentStack->setCurrentIndex(5);
+    m_contentStack->setCurrentIndex(6);
     setActiveNav(m_optionsButton);
 }
 
@@ -926,6 +1146,106 @@ void MainWindow::copyReceiveAddress()
 {
     QApplication::clipboard()->setText(receiveAddress());
     QMessageBox::information(this, tr("Safire"), tr("Address copied."));
+}
+
+void MainWindow::filterNetworkUsers(const QString &text)
+{
+    if (!m_networkUsersTable) {
+        return;
+    }
+
+    QString needle = text.trimmed().toLower();
+    for (int row = 0; row < m_networkUsersTable->rowCount(); ++row) {
+        QString haystack;
+        for (int column = 0; column < m_networkUsersTable->columnCount(); ++column) {
+            QTableWidgetItem *item = m_networkUsersTable->item(row, column);
+            if (item) {
+                haystack += item->text().toLower() + QString(" ");
+            }
+        }
+        m_networkUsersTable->setRowHidden(row, !needle.isEmpty() && !haystack.contains(needle));
+    }
+}
+
+void MainWindow::addSelectedNetworkUserToContacts()
+{
+    if (!m_networkUsersTable) {
+        return;
+    }
+
+    QList<QTableWidgetItem *> selectedItems = m_networkUsersTable->selectedItems();
+    if (selectedItems.isEmpty()) {
+        QMessageBox::information(this, tr("Safire"), tr("Select a network user first."));
+        return;
+    }
+
+    int row = selectedItems.first()->row();
+    QTableWidgetItem *nameItem = m_networkUsersTable->item(row, 0);
+    QTableWidgetItem *addressItem = m_networkUsersTable->item(row, 1);
+    QString name = nameItem ? nameItem->text() : QString();
+    QString address = addressItem ? addressItem->data(Qt::UserRole).toString() : QString();
+    if (address.isEmpty() && addressItem) {
+        address = addressItem->text();
+    }
+    if (name == tr("-")) {
+        name.clear();
+    }
+
+    int before = m_contactsTable ? m_contactsTable->rowCount() : 0;
+    appendContact(name, address);
+    if (m_contactsTable && m_contactsTable->rowCount() > before) {
+        saveContacts();
+        refreshContactDropdown();
+    }
+}
+
+void MainWindow::removeSelectedContact()
+{
+    if (!m_contactsTable) {
+        return;
+    }
+
+    QList<QTableWidgetItem *> selectedItems = m_contactsTable->selectedItems();
+    if (selectedItems.isEmpty()) {
+        QMessageBox::information(this, tr("Safire"), tr("Select a contact first."));
+        return;
+    }
+
+    m_contactsTable->removeRow(selectedItems.first()->row());
+    saveContacts();
+    refreshContactDropdown();
+}
+
+void MainWindow::useSelectedContactForSend()
+{
+    if (!m_contactsTable) {
+        return;
+    }
+
+    QList<QTableWidgetItem *> selectedItems = m_contactsTable->selectedItems();
+    if (selectedItems.isEmpty()) {
+        QMessageBox::information(this, tr("Safire"), tr("Select a contact first."));
+        return;
+    }
+
+    int row = selectedItems.first()->row();
+    QTableWidgetItem *addressItem = m_contactsTable->item(row, 1);
+    if (addressItem && m_sendToEdit) {
+        m_sendToEdit->setText(addressItem->text());
+    }
+    showSend();
+}
+
+void MainWindow::setSendRecipientFromContact(int index)
+{
+    if (!m_sendContactCombo || !m_sendToEdit || index <= 0) {
+        return;
+    }
+
+    QString address = m_sendContactCombo->itemData(index).toString();
+    if (!address.isEmpty()) {
+        m_sendToEdit->setText(address);
+    }
 }
 
 void MainWindow::submitPayment()
@@ -1069,6 +1389,10 @@ void MainWindow::refreshWalletStatus()
     QUrl historyUrl(QString("http://127.0.0.1:%1/api/wallet/history").arg(m_backendPort));
     QNetworkRequest historyRequest(historyUrl);
     m_networkManager->get(historyRequest);
+
+    QUrl usersUrl(QString("http://127.0.0.1:%1/api/network/users").arg(m_backendPort));
+    QNetworkRequest usersRequest(usersUrl);
+    m_networkManager->get(usersRequest);
 }
 
 void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
@@ -1092,6 +1416,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
     QString path = reply->url().path();
     if (path == "/api/wallet/history") {
         applyWalletHistory(QString::fromUtf8(body));
+    } else if (path == "/api/network/users") {
+        applyNetworkUsers(QString::fromUtf8(body));
     } else {
         applyWalletStatus(QString::fromUtf8(body));
     }

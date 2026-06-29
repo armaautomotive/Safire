@@ -5,6 +5,7 @@
 #include <QProcess>
 
 class QLabel;
+class QComboBox;
 class QLineEdit;
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -32,11 +33,17 @@ private slots:
     void showBalance();
     void showSend();
     void showReceive();
+    void showContacts();
     void showHistory();
     void showTerminal();
     void showOptions();
     void copyReceiveAddress();
     void submitPayment();
+    void filterNetworkUsers(const QString &text);
+    void addSelectedNetworkUserToContacts();
+    void removeSelectedContact();
+    void useSelectedContactForSend();
+    void setSendRecipientFromContact(int index);
     void startTerminal();
     void stopTerminal();
     void sendTerminalCommand();
@@ -53,6 +60,7 @@ private:
     QWidget *createBalancePage();
     QWidget *createSendPage();
     QWidget *createReceivePage();
+    QWidget *createContactsPage();
     QWidget *createHistoryPage();
     QWidget *createTerminalPage();
     QWidget *createOptionsPage();
@@ -65,6 +73,11 @@ private:
     void appendTerminalText(const QString &text);
     void applyWalletStatus(const QString &json);
     void applyWalletHistory(const QString &json);
+    void applyNetworkUsers(const QString &json);
+    void loadContacts();
+    void saveContacts();
+    void refreshContactDropdown();
+    void appendContact(const QString &name, const QString &address);
     void setActiveNav(QPushButton *activeButton);
     QString receiveAddress() const;
     QString coreBinaryPath() const;
@@ -88,6 +101,10 @@ private:
     QLabel *m_peerLabel;
     QLabel *m_supplyLabel;
     QTableWidget *m_historyTable;
+    QLineEdit *m_contactSearchEdit;
+    QTableWidget *m_networkUsersTable;
+    QTableWidget *m_contactsTable;
+    QComboBox *m_sendContactCombo;
     QLineEdit *m_sendToEdit;
     QLineEdit *m_sendAmountEdit;
     QTextEdit *m_sendMemoEdit;
@@ -100,6 +117,7 @@ private:
     QPushButton *m_balanceButton;
     QPushButton *m_sendButton;
     QPushButton *m_receiveButton;
+    QPushButton *m_contactsButton;
     QPushButton *m_historyButton;
     QPushButton *m_terminalButton;
     QPushButton *m_optionsButton;

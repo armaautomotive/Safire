@@ -355,6 +355,145 @@ std::string name_for_key(const std::map<std::string, std::string>& names, const 
   return "";
 }
 
+void add_balance_delta(std::map<std::string, double>& balances, const std::string& public_key, double amount)
+{
+  if (public_key.length() == 0)
+  {
+    return;
+  }
+  balances[public_key] += amount;
+}
+
+long parse_carry_forward_value_long(const std::string& value, const std::string& key)
+{
+  std::string prefix = key + "=";
+  std::size_t start = value.find(prefix);
+  if (start == std::string::npos)
+  {
+    return -1;
+  }
+  start += prefix.length();
+  std::size_t end = value.find(";", start);
+  std::string section = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+  if (section.length() == 0)
+  {
+    return -1;
+  }
+  return ::atol(section.c_str());
+}
+
+std::string carry_forward_unique_key(const CFunctions::record_structure& record)
+{
+  long period = parse_carry_forward_value_long(record.value, "period");
+  if (record.recipient_public_key.length() == 0 || period < 0)
+  {
+    return "";
+  }
+
+  std::stringstream ss;
+  ss << record.recipient_public_key << ":" << period;
+  return ss.str();
+}
+
+std::map<std::string, double> accepted_ledger_balances(CBlockDB& block_db)
+{
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  std::map<std::string, double> balances;
+  if (first_block_id < 0 || latest_block_id < 0)
+  {
+    return balances;
+  }
+
+  CFunctions::block_structure block = block_db.getBlock(first_block_id);
+  std::set<std::string> accepted_record_hashes;
+  std::set<std::string> accepted_carry_forward_keys;
+  int guard = 0;
+  while (block.number > 0 && guard < 100000)
+  {
+    for (int i = 0; i < block.records.size(); ++i)
+    {
+      CFunctions::record_structure record = block.records.at(i);
+      if (record.hash.length() > 0 && accepted_record_hashes.find(record.hash) != accepted_record_hashes.end())
+      {
+        continue;
+      }
+      if (record.hash.length() > 0)
+      {
+        accepted_record_hashes.insert(record.hash);
+      }
+
+      if (record.transaction_type == CFunctions::ISSUE_CURRENCY)
+      {
+        add_balance_delta(balances, record.recipient_public_key, record.amount);
+      }
+      else if (record.transaction_type == CFunctions::TRANSFER_CURRENCY)
+      {
+        add_balance_delta(balances, record.recipient_public_key, record.amount);
+        add_balance_delta(balances, record.sender_public_key, -record.amount - record.fee);
+        add_balance_delta(balances, block.creator_key, record.fee);
+      }
+      else if (record.transaction_type == CFunctions::VOTE)
+      {
+        add_balance_delta(balances, record.sender_public_key, -record.fee);
+        add_balance_delta(balances, block.creator_key, record.fee);
+      }
+      else if (record.transaction_type == CFunctions::CARRY_FORWARD)
+      {
+        std::string carry_forward_key = carry_forward_unique_key(record);
+        if (carry_forward_key.length() > 0 &&
+            accepted_carry_forward_keys.find(carry_forward_key) == accepted_carry_forward_keys.end())
+        {
+          accepted_carry_forward_keys.insert(carry_forward_key);
+          add_balance_delta(balances, record.sender_public_key, CFunctions::CARRY_FORWARD_REWARD);
+        }
+      }
+    }
+
+    if (block.number == latest_block_id)
+    {
+      break;
+    }
+    CFunctions::block_structure next_block = block_db.getNextBlock(block);
+    if (next_block.number <= 0 || next_block.number == block.number)
+    {
+      break;
+    }
+    block = next_block;
+    ++guard;
+  }
+  return balances;
+}
+
+std::string network_users_json(CBlockDB& block_db)
+{
+  std::vector<CFunctions::record_structure> members = accepted_membership_records(block_db);
+  std::map<std::string, double> balances = accepted_ledger_balances(block_db);
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",\"users\":[";
+  bool wrote_user = false;
+  for (int i = 0; i < members.size(); ++i)
+  {
+    CFunctions::record_structure member = members.at(i);
+    if (member.sender_public_key.length() == 0)
+    {
+      continue;
+    }
+    if (wrote_user)
+    {
+      ss << ",";
+    }
+    wrote_user = true;
+    ss << "{";
+    ss << "\"public_key\":\"" << json_escape(member.sender_public_key) << "\",";
+    ss << "\"name\":\"" << json_escape(member.name) << "\",";
+    ss << "\"balance\":\"" << balances[member.sender_public_key] << "\"";
+    ss << "}";
+  }
+  ss << "]}";
+  return ss.str();
+}
+
 std::string wallet_history_json(CBlockDB& block_db, const std::string& public_key)
 {
   long first_block_id = block_db.getFirstBlockId();
@@ -645,6 +784,12 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::string publicKey;
     wallet.read(privateKey, publicKey);
     text_reply(rep, reply::ok, wallet_history_json(blockDB, publicKey), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/network/users")
+  {
+    text_reply(rep, reply::ok, network_users_json(blockDB), "application/json");
     return;
   }
 
