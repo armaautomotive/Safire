@@ -186,6 +186,34 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
+  if (request_path.find("/api/blocks/submit?") == 0
+      || (req.method == "POST" && request_path == "/api/blocks/submit"))
+  {
+    std::string blockJson = submitted_value(req, request_path, "block");
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
+    bool added = false;
+    for (int i = 0; i < blocks.size(); ++i)
+    {
+      CFunctions::block_structure block = blocks.at(i);
+      if (block.number > 0)
+      {
+        blockDB.AddBlock(block);
+        if (blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
+        {
+          blockDB.setFirstBlockId(block.number);
+        }
+        if (block.number > blockDB.getLatestBlockId())
+        {
+          blockDB.setLatestBlockId(block.number);
+        }
+        added = true;
+      }
+    }
+
+    text_reply(rep, added ? reply::accepted : reply::bad_request, added ? "accepted" : "invalid block", "text/plain");
+    return;
+  }
+
   std::string blockPrefix = "/api/blocks/";
   if (request_path.find(blockPrefix) == 0 && request_path.find("/api/blocks/after/") != 0)
   {
@@ -222,34 +250,6 @@ void request_handler::handle_request(const request& req, reply& rep)
     }
 
     text_reply(rep, reply::ok, functions.blockJSON(nextBlock), "application/json");
-    return;
-  }
-
-  if (request_path.find("/api/blocks/submit?") == 0
-      || (req.method == "POST" && request_path == "/api/blocks/submit"))
-  {
-    std::string blockJson = submitted_value(req, request_path, "block");
-    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
-    bool added = false;
-    for (int i = 0; i < blocks.size(); ++i)
-    {
-      CFunctions::block_structure block = blocks.at(i);
-      if (block.number > 0)
-      {
-        blockDB.AddBlock(block);
-        if (blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
-        {
-          blockDB.setFirstBlockId(block.number);
-        }
-        if (block.number > blockDB.getLatestBlockId())
-        {
-          blockDB.setLatestBlockId(block.number);
-        }
-        added = true;
-      }
-    }
-
-    text_reply(rep, added ? reply::accepted : reply::bad_request, added ? "accepted" : "invalid block", "text/plain");
     return;
   }
 
