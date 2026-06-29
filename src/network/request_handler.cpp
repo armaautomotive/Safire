@@ -1060,11 +1060,50 @@ long best_peer_latest_block_id(const std::vector<CLocalPeerClient::peer_status>&
   return best_peer_latest_block_id;
 }
 
-bool synced_with_peer_latest(long latest_block_id,
+bool best_peer_status(const std::vector<CLocalPeerClient::peer_status>& local_peers,
+                      CLocalPeerClient::peer_status& best_peer)
+{
+  bool found = false;
+  for (int i = 0; i < local_peers.size(); ++i)
+  {
+    CLocalPeerClient::peer_status peer = local_peers.at(i);
+    if (peer.reachable == false || peer.genesisMatch == false)
+    {
+      continue;
+    }
+    if (found == false || peer.latestBlockId > best_peer.latestBlockId)
+    {
+      best_peer = peer;
+      found = true;
+    }
+  }
+  return found;
+}
+
+bool local_chain_matches_peer(CBlockDB& block_db,
+                              const CLocalPeerClient::peer_status& peer)
+{
+  if (peer.latestBlockId < 0 || peer.latestBlockHash.length() == 0)
+  {
+    return true;
+  }
+
+  CFunctions::block_structure local_peer_tip = block_db.getBlock(peer.latestBlockId);
+  return local_peer_tip.hash.length() > 0 &&
+         local_peer_tip.hash.compare(peer.latestBlockHash) == 0;
+}
+
+bool synced_with_peer_latest(CBlockDB& block_db,
+                             long latest_block_id,
                              const std::vector<CLocalPeerClient::peer_status>& local_peers)
 {
-  long peer_latest_block_id = best_peer_latest_block_id(local_peers);
-  return peer_latest_block_id < 0 || latest_block_id >= peer_latest_block_id;
+  CLocalPeerClient::peer_status peer;
+  if (best_peer_status(local_peers, peer) == false)
+  {
+    return true;
+  }
+  return latest_block_id >= peer.latestBlockId &&
+         local_chain_matches_peer(block_db, peer);
 }
 
 }
@@ -1168,7 +1207,10 @@ void request_handler::handle_request(const request& req, reply& rep)
     CNetworkTime netTime;
     std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
     long peerLatestBlockId = best_peer_latest_block_id(localPeers);
-    bool peerSync = synced_with_peer_latest(latestBlockId, localPeers);
+    CLocalPeerClient::peer_status bestPeer;
+    bool hasBestPeer = best_peer_status(localPeers, bestPeer);
+    bool peerChainMatch = hasBestPeer ? local_chain_matches_peer(blockDB, bestPeer) : true;
+    bool peerSync = synced_with_peer_latest(blockDB, latestBlockId, localPeers);
     std::map<std::string, std::string> memberNames = accepted_member_names(blockDB);
     std::vector<CFunctions::record_structure> acceptedMembers = accepted_membership_records(blockDB);
     std::map<std::string, double> ledgerBalances = accepted_ledger_balances(blockDB);
@@ -1221,9 +1263,12 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"network_up_to_date\":\"" << (functions.IsChainUpToDate() ? "yes" : "no") << "\",";
     ss << "\"peer_sync\":\"" << (peerSync ? "yes" : "no") << "\",";
     ss << "\"peer_latest_block_id\":\"" << peerLatestBlockId << "\",";
+    ss << "\"peer_latest_block_hash\":\"" << json_escape(hasBestPeer ? bestPeer.latestBlockHash : "") << "\",";
+    ss << "\"peer_chain_match\":\"" << (peerChainMatch ? "yes" : "no") << "\",";
     ss << "\"sync_progress\":\"" << sync_progress_percent(firstBlockId, latestBlockId, localPeers) << "\",";
     ss << "\"first_block_id\":\"" << firstBlockId << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
+    ss << "\"latest_block_hash\":\"" << json_escape(latestBlock.hash) << "\",";
     ss << "\"latest_block_time\":\"" << json_escape(latestBlockTime) << "\",";
     ss << "\"block_count\":\"" << blockCount << "\",";
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";

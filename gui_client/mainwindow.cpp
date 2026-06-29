@@ -1635,6 +1635,7 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString joined = object.value("joined").toString();
     QString sync = object.value("network_up_to_date").toString();
     QString peerSync = object.value("peer_sync").toString();
+    QString peerChainMatch = object.value("peer_chain_match").toString();
     QString latestBlock = object.value("latest_block_id").toString();
     QString latestBlockTime = object.value("latest_block_time").toString();
     QString peerLatestBlock = object.value("peer_latest_block_id").toString();
@@ -1683,6 +1684,9 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
     if (m_networkLabel) {
         QString peerSyncDisplay = peerSync.isEmpty() ? tr("-") : peerSync;
+        if (peerChainMatch == "no") {
+            peerSyncDisplay = tr("fork");
+        }
         m_networkLabel->setText(tr("Network up to date: %1  Peer sync: %2").arg(sync).arg(peerSyncDisplay));
     }
     if (m_membershipJoinedLabel) {
