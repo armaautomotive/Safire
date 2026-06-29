@@ -143,6 +143,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_networkManager(new QNetworkAccessManager(this)),
       m_backendPort(4899),
       m_backendStartBlocked(false),
+      m_backendLockDetected(false),
       m_transactionFee(0.0),
       m_userEdit(0),
       m_passwordEdit(0),
@@ -1144,6 +1145,7 @@ void MainWindow::signIn()
     m_passwordEdit->clear();
     m_rootStack->setCurrentIndex(1);
     m_backendStartBlocked = false;
+    m_backendLockDetected = false;
     ensureBackendRunning();
     refreshWalletStatus();
     m_statusTimer->start();
@@ -1352,6 +1354,7 @@ void MainWindow::submitPayment()
 void MainWindow::startTerminal()
 {
     m_backendStartBlocked = false;
+    m_backendLockDetected = false;
     if (ensureBackendRunning() && m_terminalInput) {
         m_terminalInput->setFocus();
     }
@@ -1408,7 +1411,26 @@ void MainWindow::readTerminalOutput()
     }
 
     QByteArray bytes = m_terminalProcess->readAllStandardOutput();
-    appendTerminalText(QString::fromLocal8Bit(bytes));
+    QString text = QString::fromLocal8Bit(bytes);
+    appendTerminalText(text);
+    if (text.contains("Resource temporarily unavailable") ||
+        text.contains("Another Safire process")) {
+        m_backendLockDetected = true;
+        m_backendStartBlocked = true;
+        if (m_terminalStatusLabel) {
+            m_terminalStatusLabel->setText(tr("Database locked"));
+        }
+        if (m_networkLabel) {
+            m_networkLabel->setText(tr("Backend: database locked"));
+        }
+        if (m_syncLabel) {
+            m_syncLabel->setText(tr("Sync: close the other Safire app or node"));
+        }
+        if (m_syncProgressBar) {
+            m_syncProgressBar->setRange(0, 100);
+            m_syncProgressBar->setValue(0);
+        }
+    }
 }
 
 void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
@@ -1423,7 +1445,7 @@ void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
         m_backendStartBlocked = true;
     }
     if (m_terminalStatusLabel) {
-        m_terminalStatusLabel->setText(tr("Stopped"));
+        m_terminalStatusLabel->setText(m_backendLockDetected ? tr("Database locked") : tr("Stopped"));
     }
     if (m_terminalStartButton) {
         m_terminalStartButton->setEnabled(true);
@@ -1432,7 +1454,10 @@ void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
         m_terminalStopButton->setEnabled(false);
     }
     if (m_networkLabel) {
-        m_networkLabel->setText(tr("Backend: stopped"));
+        m_networkLabel->setText(m_backendLockDetected ? tr("Backend: database locked") : tr("Backend: stopped"));
+    }
+    if (m_backendLockDetected && m_syncLabel) {
+        m_syncLabel->setText(tr("Sync: close the other Safire app or node"));
     }
 }
 

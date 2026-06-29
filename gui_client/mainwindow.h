@@ -91,6 +91,7 @@ private:
     QNetworkAccessManager *m_networkManager;
     int m_backendPort;
     bool m_backendStartBlocked;
+    bool m_backendLockDetected;
     double m_transactionFee;
     QLineEdit *m_userEdit;
     QLineEdit *m_passwordEdit;
