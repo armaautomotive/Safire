@@ -4,6 +4,8 @@
 
 #include "cli.h"
 
+#include <cctype>
+#include <cstdio>
 #include <deque>
 #include <map>
 #include <sstream>
@@ -11,6 +13,9 @@
 #include <sys/stat.h> // temp because we removed util
 #include <fcntl.h> // temp removed util.h
 #include <time.h>
+#ifndef _WIN32
+#include <termios.h>
+#endif
 #include "ecdsacrypto.h"
 #include "functions/functions.h"
 #include "functions/selector.h"
@@ -23,6 +28,64 @@
 #include "userdb.h"
 
 namespace {
+
+std::string readCommandLine(std::string& lastCommand){
+#ifndef _WIN32
+    if(isatty(STDIN_FILENO)){
+        termios oldTerm;
+        termios newTerm;
+        tcgetattr(STDIN_FILENO, &oldTerm);
+        newTerm = oldTerm;
+        newTerm.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &newTerm);
+
+        std::string command;
+        bool done = false;
+        while(done == false){
+            int c = std::getchar();
+            if(c == EOF){
+                break;
+            }
+            if(c == '\n' || c == '\r'){
+                std::cout << std::endl;
+                done = true;
+            } else if(c == 127 || c == 8){
+                if(command.length() > 0){
+                    command.erase(command.length() - 1);
+                    std::cout << "\b \b" << std::flush;
+                }
+            } else if(c == 27){
+                int c1 = std::getchar();
+                int c2 = std::getchar();
+                if(c1 == '[' && c2 == 'A' && lastCommand.length() > 0){
+                    while(command.length() > 0){
+                        command.erase(command.length() - 1);
+                        std::cout << "\b \b";
+                    }
+                    command = lastCommand;
+                    std::cout << command << std::flush;
+                }
+            } else if(std::isprint(c)){
+                command.push_back(static_cast<char>(c));
+                std::cout << static_cast<char>(c) << std::flush;
+            }
+        }
+
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldTerm);
+        if(command.length() > 0){
+            lastCommand = command;
+        }
+        return command;
+    }
+#endif
+
+    std::string command;
+    std::cin >> command;
+    if(command.length() > 0){
+        lastCommand = command;
+    }
+    return command;
+}
 
 std::string recordTypeName(CFunctions::transaction_types type){
     if(type == CFunctions::JOIN_NETWORK){
@@ -427,8 +490,14 @@ void printRecentBlockchainRecords(int limit){
     std::deque<std::string> recentRecords;
     CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
     int guard = 0;
+    long connectedBlockCount = 0;
+    long totalRecordCount = 0;
+    long connectedLatestBlockId = -1;
     while(block.number > 0 && guard < 100000){
+        connectedBlockCount++;
+        connectedLatestBlockId = block.number;
         for(int i = 0; i < block.records.size(); i++){
+            totalRecordCount++;
             recentRecords.push_back(recordSummary(block.number, i, block.records.at(i), false));
             if(recentRecords.size() > limit){
                 recentRecords.pop_front();
@@ -454,6 +523,17 @@ void printRecentBlockchainRecords(int limit){
     for(std::deque<std::string>::iterator it = recentRecords.begin(); it != recentRecords.end(); ++it){
         std::cout << "  " << *it << std::endl;
     }
+
+    long slotSpan = connectedLatestBlockId > firstBlockId ? connectedLatestBlockId - firstBlockId : 0;
+    long secondsSpan = slotSpan * 15;
+    double daysSpan = secondsSpan / 86400.0;
+    std::cout << " Blockchain stats:" << std::endl;
+    std::cout << "  first block: " << firstBlockId << std::endl;
+    std::cout << "  latest connected block: " << connectedLatestBlockId << std::endl;
+    std::cout << "  latest indexed block: " << latestBlockId << std::endl;
+    std::cout << "  connected blocks: " << connectedBlockCount << std::endl;
+    std::cout << "  block span: " << slotSpan << " slots (~" << daysSpan << " days)" << std::endl;
+    std::cout << "  records: " << totalRecordCount << std::endl;
 }
 
 void printMembershipRecords(){
@@ -561,11 +641,18 @@ void CCLI::processUserInput(){
 	}
 
 	printCommands();
+    std::string lastCommand;
 	while(running){
 		std::cout << ">";		
 
-		std::string command;
-		std::cin >> command;
+		std::string command = readCommandLine(lastCommand);
+        if(!std::cin && command.length() == 0){
+            running = false;
+            continue;
+        }
+        if(command.length() == 0){
+            continue;
+        }
 
 		if( command.find("join") != std::string::npos ){
 			
