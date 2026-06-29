@@ -1131,6 +1131,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
     long blockCount = connected_block_count(blockDB);
+    CFunctions::block_structure latestBlock = latestBlockId > 0 ? blockDB.getBlock(latestBlockId) : CFunctions::block_structure();
     CNetworkConfig config = CNetworkConfig::load();
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CNetworkTime netTime;
@@ -1184,6 +1185,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"sync_progress\":\"" << sync_progress_percent(firstBlockId, latestBlockId, localPeers) << "\",";
     ss << "\"first_block_id\":\"" << firstBlockId << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
+    ss << "\"latest_block_time\":\"" << json_escape(latestBlock.time) << "\",";
     ss << "\"block_count\":\"" << blockCount << "\",";
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"network_time_offset\":\"" << netTime.getOffset() << "\",";

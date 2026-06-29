@@ -1615,6 +1615,7 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString joined = object.value("joined").toString();
     QString sync = object.value("network_up_to_date").toString();
     QString latestBlock = object.value("latest_block_id").toString();
+    QString latestBlockTime = object.value("latest_block_time").toString();
     QString peerCount = object.value("local_peers").toString();
     QString supply = object.value("currency_supply").toString();
     QString ledgerBalanceTotal = object.value("ledger_balance_total").toString();
@@ -1686,10 +1687,18 @@ void MainWindow::applyWalletStatus(const QString &json)
         }
     }
     if (m_syncLabel) {
+        QString latestBlockDate = tr("-");
+        bool latestTimeOk = false;
+        qint64 latestEpoch = latestBlockTime.toLongLong(&latestTimeOk);
+        if (latestTimeOk && latestEpoch > 0) {
+            latestBlockDate = QDateTime::fromSecsSinceEpoch(latestEpoch).toString("yyyy-MM-dd HH:mm");
+        } else if (!latestBlockTime.isEmpty()) {
+            latestBlockDate = latestBlockTime;
+        }
         if (progressOk) {
-            m_syncLabel->setText(tr("Sync: %1%  Latest block: %2").arg(progressValue).arg(latestBlock));
+            m_syncLabel->setText(tr("Sync: %1%  Latest block: %2  Date: %3").arg(progressValue).arg(latestBlock).arg(latestBlockDate));
         } else {
-            m_syncLabel->setText(tr("Sync: %1  Latest block: %2").arg(sync).arg(latestBlock));
+            m_syncLabel->setText(tr("Sync: %1  Latest block: %2  Date: %3").arg(sync).arg(latestBlock).arg(latestBlockDate));
         }
     }
     if (m_syncProgressBar) {
