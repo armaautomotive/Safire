@@ -749,6 +749,14 @@ void CCLI::processUserInput(){
                 }
             }
             std::cout << " Active heartbeat: " << (activeHeartbeat ? "yes" : "no") << std::endl;
+            std::cout << " Heartbeat renewal due: " << (functions.heartbeat_renewal_due ? "yes" : "no") << std::endl;
+            std::cout << " Last heartbeat block: ";
+            if(functions.last_heartbeat_block > -1){
+                std::cout << functions.last_heartbeat_block;
+            } else {
+                std::cout << "-";
+            }
+            std::cout << std::endl;
             std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
                     std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
                     std::cout << " User count: " << functions.user_count << std::endl;

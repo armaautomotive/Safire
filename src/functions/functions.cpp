@@ -377,6 +377,10 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
     
     double updatedBalance = 0.0;
     joined = false;
+    active_heartbeat = false;
+    heartbeat_renewal_due = false;
+    chain_has_heartbeat_records = false;
+    last_heartbeat_block = -1;
     currency_circulation = 0;
     user_count = 0;
     
@@ -442,6 +446,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                    record.sender_public_key.length() > 0){
                     sawHeartbeat = true;
                     latestHeartbeatBlockByUser[record.sender_public_key] = block.number;
+                    if(record.sender_public_key.compare(my_public_key) == 0){
+                        last_heartbeat_block = block.number;
+                    }
                 }
                 
                 // Recipient of transfer
@@ -680,6 +687,20 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
         
         long currentTimeBlock = selector.getCurrentTimeBlock();
         long heartbeatCutoff = currentTimeBlock - CFunctions::HEARTBEAT_VALID_BLOCKS;
+        long heartbeatRenewCutoff = currentTimeBlock - CFunctions::HEARTBEAT_RENEW_BLOCKS;
+        chain_has_heartbeat_records = sawHeartbeat;
+        if(joined){
+            if(sawHeartbeat == false){
+                active_heartbeat = true;
+                heartbeat_renewal_due = true;
+            } else if(last_heartbeat_block >= heartbeatCutoff){
+                active_heartbeat = true;
+                heartbeat_renewal_due = last_heartbeat_block < heartbeatRenewCutoff;
+            } else {
+                active_heartbeat = false;
+                heartbeat_renewal_due = true;
+            }
+        }
         for(int m = 0; m < memberRecords.size(); m++){
             std::string memberKey = memberRecords.at(m).sender_public_key;
             bool active = false;

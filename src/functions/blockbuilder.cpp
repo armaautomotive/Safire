@@ -24,6 +24,58 @@
 
 volatile bool isBuildingBlocks = true;
 
+namespace {
+
+bool hasPendingHeartbeat(CFunctions& functions, const std::string& publicKey)
+{
+    std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        if(record.transaction_type == CFunctions::HEART_BEAT &&
+           record.sender_public_key.compare(publicKey) == 0){
+            return true;
+        }
+    }
+    return false;
+}
+
+void queueHeartbeatIfDue(
+    CFunctions& functions,
+    CRelayClient& relayClient,
+    CECDSACrypto& ecdsa,
+    const std::string& privateKey,
+    const std::string& publicKey
+){
+    if(functions.joined == false || functions.heartbeat_renewal_due == false){
+        return;
+    }
+    if(hasPendingHeartbeat(functions, publicKey)){
+        return;
+    }
+
+    CFunctions::record_structure heartbeatRecord;
+    heartbeatRecord.network = "main";
+    CNetworkTime netTime;
+    std::stringstream ss;
+    ss << netTime.getEpoch();
+    heartbeatRecord.time = ss.str();
+    heartbeatRecord.transaction_type = CFunctions::HEART_BEAT;
+    heartbeatRecord.amount = 0.0;
+    heartbeatRecord.fee = 0.0;
+    heartbeatRecord.sender_public_key = publicKey;
+    heartbeatRecord.recipient_public_key = "";
+    heartbeatRecord.hash = functions.getRecordHash(heartbeatRecord);
+    std::string signature = "";
+    ecdsa.SignMessage(privateKey, heartbeatRecord.hash, signature);
+    heartbeatRecord.signature = signature;
+
+    functions.addToQueue(heartbeatRecord);
+    relayClient.sendRecord(heartbeatRecord);
+    CLocalPeerClient::broadcastRecord(heartbeatRecord);
+}
+
+}
+
 /**
  * blockBuilderThread TODO: Move this to blockbuilder.cpp
  *
@@ -251,6 +303,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     while(isBuildingBlocks){
         //functions.parseBlockFile(publicKey, false); // depricate
         functions.scanChain(publicKey, false); // ??? check this
+        queueHeartbeatIfDue(functions, relayClient, ecdsa, privateKey, publicKey);
         
         timeBlock = selector.getCurrentTimeBlock();
         //std::cout << "here " << std::endl;

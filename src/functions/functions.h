@@ -23,6 +23,7 @@ private:
     
 public:
     static const long HEARTBEAT_VALID_BLOCKS = 5760; // 24 hours at 15 seconds per block.
+    static const long HEARTBEAT_RENEW_BLOCKS = 5520; // About 23 hours at 15 seconds per block.
 
     //! Construct an invalid private key.
     CFunctions()
@@ -31,6 +32,10 @@ public:
         joined = false;
         currency_circulation = 0;
         user_count = 0;
+        active_heartbeat = false;
+        heartbeat_renewal_due = false;
+        chain_has_heartbeat_records = false;
+        last_heartbeat_block = -1;
     }
     
     //! Destructor (again necessary because of memlocking).
@@ -144,6 +149,10 @@ public:
     bool joined;
     double currency_circulation;
     double user_count;
+    bool active_heartbeat;
+    bool heartbeat_renewal_due;
+    bool chain_has_heartbeat_records;
+    long last_heartbeat_block;
 };
 
 #endif // SAFIRE_FUNCTIONS_H
