@@ -50,6 +50,7 @@
 #include <QTextEdit>
 #include <QtMath>
 #include <QVBoxLayout>
+#include <QVector>
 #include <QWidget>
 
 namespace {
@@ -188,6 +189,166 @@ private:
     QStringList m_states;
 };
 
+class HistoryChartWidget : public QWidget
+{
+public:
+    explicit HistoryChartWidget(QWidget *parent = 0) : QWidget(parent), m_receivedTotal(0.0), m_outgoingTotal(0.0)
+    {
+        setMinimumHeight(190);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+
+    void setSeries(const QVector<QPointF> &received, const QVector<QPointF> &outgoing, double receivedTotal, double outgoingTotal)
+    {
+        m_received = received;
+        m_outgoing = outgoing;
+        m_receivedTotal = receivedTotal;
+        m_outgoingTotal = outgoingTotal;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event)
+    {
+        QWidget::paintEvent(event);
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.fillRect(rect(), QColor("#fbfdfe"));
+
+        QRectF plot = rect().adjusted(46, 20, -22, -38);
+        if (plot.width() < 40 || plot.height() < 40) {
+            return;
+        }
+
+        painter.setPen(QPen(QColor("#d7e3e6"), 1));
+        painter.drawRect(plot);
+
+        double maxAbs = 1.0;
+        updateMaxAbs(m_received, maxAbs);
+        updateMaxAbs(m_outgoing, maxAbs);
+        double minX = firstX();
+        double maxX = lastX();
+        if (maxX <= minX) {
+            maxX = minX + 1.0;
+        }
+
+        double zeroY = valueToY(0.0, plot, maxAbs);
+        painter.setPen(QPen(QColor("#afc4c9"), 1));
+        painter.drawLine(QPointF(plot.left(), zeroY), QPointF(plot.right(), zeroY));
+
+        drawSeries(&painter, m_received, plot, minX, maxX, maxAbs, QColor("#18735d"));
+        drawSeries(&painter, m_outgoing, plot, minX, maxX, maxAbs, QColor("#b3261e"));
+
+        painter.setPen(QColor("#41545a"));
+        painter.drawText(QRectF(plot.left(), plot.bottom() + 8, plot.width(), 22), Qt::AlignLeft | Qt::AlignVCenter,
+                         QObject::tr("Received +%1 SFR").arg(formatLegendAmount(m_receivedTotal)));
+        painter.drawText(QRectF(plot.left(), plot.bottom() + 8, plot.width(), 22), Qt::AlignRight | Qt::AlignVCenter,
+                         QObject::tr("Outgoing -%1 SFR").arg(formatLegendAmount(qAbs(m_outgoingTotal))));
+
+        if (m_received.isEmpty() && m_outgoing.isEmpty()) {
+            painter.setPen(QColor("#6b7e84"));
+            painter.drawText(plot, Qt::AlignCenter, QObject::tr("No wallet history in this range."));
+        }
+    }
+
+private:
+    QString formatLegendAmount(double value) const
+    {
+        QString text = QString::number(value, 'f', 4);
+        while (text.contains(".") && text.endsWith("0")) {
+            text.chop(1);
+        }
+        if (text.endsWith(".")) {
+            text.chop(1);
+        }
+        return text;
+    }
+
+    void updateMaxAbs(const QVector<QPointF> &points, double &maxAbs) const
+    {
+        for (int i = 0; i < points.size(); ++i) {
+            maxAbs = qMax(maxAbs, qAbs(points.at(i).y()));
+        }
+    }
+
+    double firstX() const
+    {
+        bool hasValue = false;
+        double value = 0.0;
+        applyFirstX(m_received, hasValue, value);
+        applyFirstX(m_outgoing, hasValue, value);
+        return value;
+    }
+
+    double lastX() const
+    {
+        bool hasValue = false;
+        double value = 0.0;
+        applyLastX(m_received, hasValue, value);
+        applyLastX(m_outgoing, hasValue, value);
+        return value;
+    }
+
+    void applyFirstX(const QVector<QPointF> &points, bool &hasValue, double &value) const
+    {
+        if (points.isEmpty()) {
+            return;
+        }
+        if (!hasValue || points.first().x() < value) {
+            value = points.first().x();
+            hasValue = true;
+        }
+    }
+
+    void applyLastX(const QVector<QPointF> &points, bool &hasValue, double &value) const
+    {
+        if (points.isEmpty()) {
+            return;
+        }
+        if (!hasValue || points.last().x() > value) {
+            value = points.last().x();
+            hasValue = true;
+        }
+    }
+
+    double valueToY(double value, const QRectF &plot, double maxAbs) const
+    {
+        double normalized = value / (maxAbs * 2.2);
+        return plot.center().y() - (normalized * plot.height());
+    }
+
+    QPointF mapPoint(const QPointF &point, const QRectF &plot, double minX, double maxX, double maxAbs) const
+    {
+        double x = plot.left() + ((point.x() - minX) / (maxX - minX)) * plot.width();
+        return QPointF(x, valueToY(point.y(), plot, maxAbs));
+    }
+
+    void drawSeries(QPainter *painter, const QVector<QPointF> &points, const QRectF &plot, double minX, double maxX, double maxAbs, const QColor &color)
+    {
+        if (points.isEmpty()) {
+            return;
+        }
+        painter->setPen(QPen(color, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        QPointF previous = mapPoint(points.first(), plot, minX, maxX, maxAbs);
+        for (int i = 1; i < points.size(); ++i) {
+            QPointF current = mapPoint(points.at(i), plot, minX, maxX, maxAbs);
+            painter->drawLine(previous, current);
+            previous = current;
+        }
+        painter->setBrush(color);
+        painter->setPen(Qt::NoPen);
+        for (int i = 0; i < points.size(); ++i) {
+            painter->drawEllipse(mapPoint(points.at(i), plot, minX, maxX, maxAbs), 3, 3);
+        }
+    }
+
+    QVector<QPointF> m_received;
+    QVector<QPointF> m_outgoing;
+    double m_receivedTotal;
+    double m_outgoingTotal;
+};
+
 namespace {
 
 QLabel *makeLabel(const QString &text, const QString &objectName)
@@ -300,6 +461,9 @@ MainWindow::MainWindow(QWidget *parent)
       m_userCountLabel(0),
       m_blockCountLabel(0),
       m_historyTable(0),
+      m_historyRangeCombo(0),
+      m_historyChart(0),
+      m_walletHistoryRecords(),
       m_mempoolTable(0),
       m_blockchainSearchEdit(0),
       m_blockchainTable(0),
@@ -756,7 +920,20 @@ QWidget *MainWindow::createHistoryPage()
     layout->setContentsMargins(26, 24, 26, 24);
     layout->setSpacing(14);
 
-    layout->addWidget(createSectionTitle(tr("History")));
+    QHBoxLayout *header = new QHBoxLayout;
+    header->addWidget(createSectionTitle(tr("History")));
+    header->addStretch();
+    m_historyRangeCombo = new QComboBox;
+    m_historyRangeCombo->addItem(tr("7 days"), 7);
+    m_historyRangeCombo->addItem(tr("30 days"), 30);
+    m_historyRangeCombo->addItem(tr("90 days"), 90);
+    m_historyRangeCombo->addItem(tr("All loaded"), 0);
+    m_historyRangeCombo->setCurrentIndex(1);
+    header->addWidget(m_historyRangeCombo);
+    layout->addLayout(header);
+
+    m_historyChart = new HistoryChartWidget;
+    layout->addWidget(m_historyChart);
 
     m_historyTable = new QTableWidget(0, 5);
     QStringList headers;
@@ -769,6 +946,7 @@ QWidget *MainWindow::createHistoryPage()
     m_historyTable->setWordWrap(true);
     layout->addWidget(m_historyTable, 1);
 
+    connect(m_historyRangeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(updateHistoryChart()));
     return page;
 }
 
@@ -1455,6 +1633,8 @@ void MainWindow::applyWalletHistory(const QString &json)
     QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         m_historyTable->setRowCount(0);
+        m_walletHistoryRecords = QJsonArray();
+        updateHistoryChart();
         appendHistory(tr("-"), tr("Error"), tr("Wallet history"), tr("-"), tr("Invalid response"));
         return;
     }
@@ -1462,11 +1642,15 @@ void MainWindow::applyWalletHistory(const QString &json)
     QJsonObject object = document.object();
     if (object.value("status").toString() != "ok") {
         m_historyTable->setRowCount(0);
+        m_walletHistoryRecords = QJsonArray();
+        updateHistoryChart();
         appendHistory(tr("-"), tr("Status"), tr("Wallet history"), tr("-"), object.value("status").toString());
         return;
     }
 
     QJsonArray records = object.value("records").toArray();
+    m_walletHistoryRecords = records;
+    updateHistoryChart();
     m_historyTable->setRowCount(0);
     if (records.isEmpty()) {
         appendHistory(tr("-"), tr("History"), tr("Wallet"), tr("-"), tr("No records"));
@@ -1889,6 +2073,62 @@ void MainWindow::filterBlockchainBlocks(const QString &text)
         }
         m_blockchainTable->setRowHidden(row, !needle.isEmpty() && !haystack.contains(needle));
     }
+}
+
+void MainWindow::updateHistoryChart()
+{
+    if (!m_historyChart) {
+        return;
+    }
+
+    int days = 30;
+    if (m_historyRangeCombo) {
+        days = m_historyRangeCombo->currentData().toInt();
+    }
+
+    qint64 newestEpoch = 0;
+    for (int i = 0; i < m_walletHistoryRecords.size(); ++i) {
+        QJsonObject record = m_walletHistoryRecords.at(i).toObject();
+        bool timeOk = false;
+        qint64 epoch = record.value("time").toString().toLongLong(&timeOk);
+        if (timeOk && epoch > newestEpoch) {
+            newestEpoch = epoch;
+        }
+    }
+    if (newestEpoch <= 0) {
+        newestEpoch = QDateTime::currentSecsSinceEpoch();
+    }
+
+    qint64 cutoff = days > 0 ? newestEpoch - (static_cast<qint64>(days) * 86400) : 0;
+    QVector<QPointF> received;
+    QVector<QPointF> outgoing;
+    double receivedTotal = 0.0;
+    double outgoingTotal = 0.0;
+
+    for (int i = 0; i < m_walletHistoryRecords.size(); ++i) {
+        QJsonObject record = m_walletHistoryRecords.at(i).toObject();
+        bool timeOk = false;
+        qint64 epoch = record.value("time").toString().toLongLong(&timeOk);
+        if (!timeOk || epoch <= 0 || (cutoff > 0 && epoch < cutoff)) {
+            continue;
+        }
+
+        bool netOk = false;
+        double netAmount = record.value("net").toString().toDouble(&netOk);
+        if (!netOk || netAmount == 0.0) {
+            continue;
+        }
+
+        if (netAmount > 0.0) {
+            receivedTotal += netAmount;
+            received.append(QPointF(static_cast<double>(epoch), receivedTotal));
+        } else {
+            outgoingTotal += netAmount;
+            outgoing.append(QPointF(static_cast<double>(epoch), outgoingTotal));
+        }
+    }
+
+    m_historyChart->setSeries(received, outgoing, receivedTotal, outgoingTotal);
 }
 
 void MainWindow::addSelectedNetworkUserToContacts()

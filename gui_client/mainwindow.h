@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QJsonArray>
 #include <QMainWindow>
 #include <QProcess>
 
@@ -19,6 +20,7 @@ class QTimer;
 class QWidget;
 class QCloseEvent;
 class PeerMapWidget;
+class HistoryChartWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -46,6 +48,7 @@ private slots:
     void setWalletName();
     void filterNetworkUsers(const QString &text);
     void filterBlockchainBlocks(const QString &text);
+    void updateHistoryChart();
     void addSelectedNetworkUserToContacts();
     void removeSelectedContact();
     void useSelectedContactForSend();
@@ -126,6 +129,9 @@ private:
     QLabel *m_userCountLabel;
     QLabel *m_blockCountLabel;
     QTableWidget *m_historyTable;
+    QComboBox *m_historyRangeCombo;
+    HistoryChartWidget *m_historyChart;
+    QJsonArray m_walletHistoryRecords;
     QTableWidget *m_mempoolTable;
     QLineEdit *m_blockchainSearchEdit;
     QTableWidget *m_blockchainTable;

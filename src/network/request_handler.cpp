@@ -878,7 +878,7 @@ std::string wallet_history_json(CBlockDB& block_db, const std::string& public_ke
     return "{\"status\":\"ok\",\"records\":[]}";
   }
 
-  const int limit = 25;
+  const int limit = 500;
   std::deque<wallet_history_record> history;
   std::set<std::string> accepted_record_hashes;
   CFunctions::block_structure block = block_db.getBlock(first_block_id);
