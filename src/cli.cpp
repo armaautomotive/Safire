@@ -316,6 +316,51 @@ std::vector<CFunctions::record_structure> acceptedMembershipRecords(){
     return members;
 }
 
+void addBalanceDelta(std::map<std::string, double>& balances, const std::string& publicKey, double amount){
+    if(publicKey.length() == 0){
+        return;
+    }
+    balances[publicKey] += amount;
+}
+
+std::map<std::string, double> acceptedLedgerBalances(){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    std::map<std::string, double> balances;
+    if(firstBlockId < 0 || latestBlockId < 0){
+        return balances;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::ISSUE_CURRENCY){
+                addBalanceDelta(balances, record.recipient_public_key, record.amount);
+            } else if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
+                addBalanceDelta(balances, record.recipient_public_key, record.amount);
+                addBalanceDelta(balances, record.sender_public_key, -record.amount - record.fee);
+                addBalanceDelta(balances, block.creator_key, record.fee);
+            } else if(record.transaction_type == CFunctions::VOTE){
+                addBalanceDelta(balances, record.sender_public_key, -record.fee);
+                addBalanceDelta(balances, block.creator_key, record.fee);
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+    return balances;
+}
+
 std::vector<CFunctions::record_structure> activeMembershipRecords(){
     CBlockDB blockDB;
     CSelector selector;
@@ -1012,24 +1057,17 @@ void CCLI::processUserInput(){
             
         } else if(command.compare("users") == 0){
             std::cout << "Users: " << std::endl;
-            
-            CUserDB userDB;
-            
-            long count = userDB.getUserCount();
-            std::cout << "User count: " << count << std::endl;
-            
-            std::vector<CFunctions::user_structure> users = userDB.getUsers();
-            for(int i = 0; i < users.size(); i++){
-                CFunctions::user_structure user = users.at(i);
-                std::cout << "  user: " << user.public_key << " " << user.balance << " sfr " << std::endl;
+            std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
+            std::map<std::string, double> balances = acceptedLedgerBalances();
+
+            std::cout << "User count: " << members.size() << std::endl;
+
+            for(int i = 0; i < members.size(); i++){
+                CFunctions::record_structure member = members.at(i);
+                std::string name = member.name.length() > 0 ? member.name : "-";
+                std::cout << "  user: " << member.sender_public_key << " " << balances[member.sender_public_key] << " sfr";
+                std::cout << " name " << name << std::endl;
             }
-            /*
-            for(int i = 0; i < functions.users.size(); i++){
-                CFunctions::user_structure user = functions.users.at(i);
-                std::cout << "  user: " << user.public_key << " " << user.balance << " sfr " << std::endl;
-                // if current user publicKey mark
-            }
-             */
         } else if ( command.compare("vote") == 0){ 
              std::cout << " Block reward (min 0.1 - max 100): " << std::endl;
 	

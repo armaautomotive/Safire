@@ -58,11 +58,11 @@ public:
     std::vector<CFunctions::chain_state_structure> chain_state;
     
     struct user_structure {
-        std::string public_key;
-        std::string name;                   // Todo: optional public name.
-        double balance;
-        long start_date;
-        long last_date;
+        std::string public_key = "";
+        std::string name = "";              // Todo: optional public name.
+        double balance = 0.0;
+        long start_date = 0;
+        long last_date = 0;
     };
     std::vector<CFunctions::user_structure> users; // Depricate for map based struct.
     std::map<std::string, CFunctions::user_structure> users_map;

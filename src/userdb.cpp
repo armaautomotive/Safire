@@ -147,7 +147,6 @@ void CUserDB::setUser(CFunctions::user_structure user){
  */
 CFunctions::user_structure CUserDB::getUser(std::string public_key){
     CFunctions::user_structure user;
-    user.public_key = -1;
     
     leveldb::WriteOptions writeOptions;
     leveldb::DB* db = getDatabase();
@@ -156,8 +155,10 @@ CFunctions::user_structure CUserDB::getUser(std::string public_key){
     std::string userJson;
     db->Get(leveldb::ReadOptions(), key, &userJson);
     
-    CFunctions functions;
-    user = functions.parseUserJson(userJson);
+    if(userJson.length() > 0){
+        CFunctions functions;
+        user = functions.parseUserJson(userJson);
+    }
     
     // Close the database
     //delete db;
@@ -181,10 +182,15 @@ std::vector<CFunctions::user_structure> CUserDB::getUsers(){
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
     for (it->SeekToFirst(); it->Valid(); it->Next())
     {
+        if(boost::starts_with(it->key().ToString(), "u_") == false){
+            continue;
+        }
         //cout << it->key().ToString() << " : " << it->value().ToString() << endl;
         CFunctions::user_structure user;
         user = functions.parseUserJson(it->value().ToString());
-        users.push_back(user);
+        if(user.public_key.length() > 0){
+            users.push_back(user);
+        }
     }
     if (false == it->status().ok())
     {
