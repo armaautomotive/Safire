@@ -70,6 +70,149 @@ std::string formatSlotTime(long timeBlock){
     return std::string(buffer);
 }
 
+std::string formatEpochTimeString(const std::string& epochString){
+    if(epochString.length() == 0){
+        return "-";
+    }
+
+    long epoch = ::atol(epochString.c_str());
+    if(epoch <= 0){
+        return epochString;
+    }
+
+    time_t recordTime = (time_t)epoch;
+    struct tm * timeInfo = localtime(&recordTime);
+    if(timeInfo == NULL){
+        return epochString;
+    }
+
+    char buffer[32];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeInfo);
+    return std::string(buffer);
+}
+
+std::string walletHistoryLine(
+    const std::string& direction,
+    long blockNumber,
+    int recordIndex,
+    CFunctions::record_structure record,
+    const std::string& counterparty,
+    double netAmount
+){
+    std::stringstream ss;
+    ss << " " << direction;
+    ss << " block " << blockNumber << " #" << recordIndex;
+    ss << " time " << formatEpochTimeString(record.time);
+    ss << " net " << netAmount << " sfr";
+    ss << " amt " << record.amount;
+    if(record.fee > 0){
+        ss << " fee " << record.fee;
+    }
+    if(counterparty.length() > 0){
+        ss << " with " << shortKey(counterparty);
+    }
+    if(record.name.length() > 0){
+        ss << " note \"" << record.name << "\"";
+    }
+    if(record.hash.length() > 0){
+        ss << " hash " << shortKey(record.hash);
+    }
+    return ss.str();
+}
+
+void addWalletHistoryRecord(
+    std::deque<std::string>& history,
+    int limit,
+    const std::string& filter,
+    const std::string& direction,
+    long blockNumber,
+    int recordIndex,
+    CFunctions::record_structure record,
+    const std::string& counterparty,
+    double netAmount
+){
+    if(filter.compare("sent") == 0 && direction.compare("SENT") != 0 && direction.compare("SELF") != 0){
+        return;
+    }
+    if(filter.compare("received") == 0 &&
+       direction.compare("RECEIVED") != 0 &&
+       direction.compare("REWARD") != 0 &&
+       direction.compare("FEE") != 0 &&
+       direction.compare("SELF") != 0){
+        return;
+    }
+
+    history.push_back(walletHistoryLine(direction, blockNumber, recordIndex, record, counterparty, netAmount));
+    if(history.size() > limit){
+        history.pop_front();
+    }
+}
+
+void printWalletHistory(const std::string& publicKey, const std::string& filter){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId < 0 || latestBlockId < 0){
+        std::cout << " No blockchain records found." << std::endl;
+        return;
+    }
+
+    const int limit = 25;
+    std::deque<std::string> history;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+
+            if(record.transaction_type == CFunctions::ISSUE_CURRENCY &&
+               record.recipient_public_key.compare(publicKey) == 0){
+                addWalletHistoryRecord(history, limit, filter, "REWARD", block.number, i, record, block.creator_key, record.amount);
+            }
+
+            if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
+                bool sentByWallet = record.sender_public_key.compare(publicKey) == 0;
+                bool receivedByWallet = record.recipient_public_key.compare(publicKey) == 0;
+
+                if(sentByWallet && receivedByWallet){
+                    addWalletHistoryRecord(history, limit, filter, "SELF", block.number, i, record, publicKey, 0);
+                } else if(sentByWallet){
+                    addWalletHistoryRecord(history, limit, filter, "SENT", block.number, i, record, record.recipient_public_key, -(record.amount + record.fee));
+                } else if(receivedByWallet){
+                    addWalletHistoryRecord(history, limit, filter, "RECEIVED", block.number, i, record, record.sender_public_key, record.amount);
+                }
+            }
+
+            if((record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
+                record.transaction_type == CFunctions::VOTE) &&
+               block.creator_key.compare(publicKey) == 0 &&
+               record.fee > 0){
+                addWalletHistoryRecord(history, limit, filter, "FEE", block.number, i, record, record.sender_public_key, record.fee);
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+
+    if(history.size() == 0){
+        std::cout << " No wallet history found." << std::endl;
+        return;
+    }
+
+    std::string label = filter.length() > 0 ? filter : "wallet";
+    std::cout << " Last " << history.size() << " " << label << " history records:" << std::endl;
+    for(std::deque<std::string>::iterator it = history.begin(); it != history.end(); ++it){
+        std::cout << "  " << *it << std::endl;
+    }
+}
+
 std::vector<CFunctions::record_structure> acceptedMembershipRecords(){
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
@@ -302,6 +445,7 @@ void CCLI::printCommands(){
     " switch [network name]   - switch current network. Default is 'main'.\n" <<
     //" swtch wallet            - change wallet" <<
 	" balance                 - print balance and transaction summary.\n" <<
+    " history                 - print sent and received wallet history.\n" <<
 	" sent                    - print sent transaction list details.\n" <<
 	" received                - print received transaction list details.\n" <<
 	" network                 - print network stats including currency and volumes.\n" <<
@@ -433,14 +577,21 @@ void CCLI::processUserInput(){
 				std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
 
 			//}
-        } else if ( command.find("sent") != std::string::npos ){
-			std::cout << "This feature is not implemented yet.\n" << std::endl;
+        } else if ( command.compare("history") == 0 ){
+            printWalletHistory(publicKey, "");
+
+        } else if ( command.compare("sent") == 0 ){
+            printWalletHistory(publicKey, "sent");
             
-        } else if ( command.find("receive") != std::string::npos ){
+        } else if ( command.compare("received") == 0 ){
+            std::cout << "Your receiving address is: " << publicKey << "\n" << std::endl;
+            printWalletHistory(publicKey, "received");
+
+        } else if ( command.compare("receive") == 0 ){
             
             std::cout << "Your receiving address is: " << publicKey << "\n" << std::endl;
  
-        } else if ( command.find("send") != std::string::npos ){
+        } else if ( command.compare("send") == 0 ){
             std::cout << "Enter destination address: \n" << std::endl;
             std::string destination_address;
             std::cin >> destination_address;
