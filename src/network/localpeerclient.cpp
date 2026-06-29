@@ -3,6 +3,7 @@
 #include "blockdb.h"
 #include "functions/functions.h"
 #include "wallet.h"
+#include <algorithm>
 #include <boost/lexical_cast.hpp>
 #include <curl/curl.h>
 #include <sstream>
@@ -107,6 +108,38 @@ bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structur
 
     std::string response = httpGet(peer + "/api/blocks/submit?block=" + encodedBlock);
     return response.find("accepted") != std::string::npos;
+}
+
+std::vector<CFunctions::block_structure> blocksAfter(long blockNumber)
+{
+    std::vector<CFunctions::block_structure> blocks;
+    CBlockDB blockDB;
+    leveldb::DB *db = blockDB.getDatabase();
+    if (!db) {
+        return blocks;
+    }
+
+    CFunctions functions;
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next()) {
+        std::string key = it->key().ToString();
+        if (key.compare(0, 2, "b_") != 0) {
+            continue;
+        }
+
+        std::vector<CFunctions::block_structure> parsedBlocks = functions.parseBlockJson(it->value().ToString());
+        for (int i = 0; i < parsedBlocks.size(); ++i) {
+            if (parsedBlocks.at(i).number > blockNumber) {
+                blocks.push_back(parsedBlocks.at(i));
+            }
+        }
+    }
+    delete it;
+
+    std::sort(blocks.begin(), blocks.end(), [](const CFunctions::block_structure& left, const CFunctions::block_structure& right) {
+        return left.number < right.number;
+    });
+    return blocks;
 }
 
 long latestBlockFromStatus(const std::string& statusJson)
@@ -235,24 +268,12 @@ int CLocalPeerClient::pushToPeer(const std::string& peerUrl)
     }
 
     int pushed = 0;
-    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
-    while (block.number > 0 && pushed < maxBlocksPerPush) {
-        if (block.number > peerLatestBlockId) {
-            if (!submitBlockToPeer(peer, block)) {
-                break;
-            }
-            pushed++;
-        }
-
-        if (block.number >= localLatestBlockId) {
+    std::vector<CFunctions::block_structure> blocks = blocksAfter(peerLatestBlockId);
+    for (int i = 0; i < blocks.size() && pushed < maxBlocksPerPush; ++i) {
+        if (!submitBlockToPeer(peer, blocks.at(i))) {
             break;
         }
-
-        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
-        if (nextBlock.number <= 0 || nextBlock.number == block.number) {
-            break;
-        }
-        block = nextBlock;
+        pushed++;
     }
 
     return pushed;
