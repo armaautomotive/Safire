@@ -168,7 +168,7 @@ void printMembershipRecords(){
 */
 void CCLI::printCommands(){
 	std::cout << "Commands:\n" <<
-	" join [network name]     - request membership in the network. The default network is 'main'.\n" <<
+	" join                    - request membership in the main network.\n" <<
     " switch [network name]   - switch current network. Default is 'main'.\n" <<
     //" swtch wallet            - change wallet" <<
 	" balance                 - print balance and transaction summary.\n" <<
@@ -243,17 +243,10 @@ void CCLI::processUserInput(){
                 functions.scanChain(publicKey, false);
             //}
 
-			std::cout << "Enter network name to join (blank for default): \n" << std::endl;
-			std::string networkName;
-			std::cin >> networkName;
-			if(networkName.compare("") == 0 ){
-				networkName = "main";
-			}
-            
-            std::cout << "Enter public user name (blank for default): \n" << std::endl;
+            std::string networkName = "main";
+            std::cout << "Enter public user name: \n" << std::endl;
             std::string userName;
             std::cin >> userName;
-            // TODO: add
 
 			if(functions.joined == true){ // TODO this needs to track different networks.
 				std::cout << "Allready joined network. \n" << std::endl;
@@ -273,6 +266,7 @@ void CCLI::processUserInput(){
                 joinRecord.fee = 0.0;
 				joinRecord.sender_public_key = publicKey;
 				joinRecord.recipient_public_key = "";
+                joinRecord.name = userName;
 				joinRecord.hash = functions.getRecordHash(joinRecord);
                 std::string message_siganture = "";
 				ecdsa.SignMessage(privateKey, joinRecord.hash, message_siganture);

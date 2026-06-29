@@ -39,7 +39,7 @@ int CFunctions::tokenClose(std::string content, std::string open, std::string cl
 std::string CFunctions::recordJSON(record_structure record){
 	std::string json = "{\"record\":{ \"network\":\"" + record.network + "\","+
                 "\"time\":\"" + record.time + "\"," +
-                "\"name:\":\"" + record.name + "\"," +
+                "\"name\":\"" + record.name + "\"," +
                 "\"typ\":\"" + boost::lexical_cast<std::string>(record.transaction_type) + "\"," +
                 "\"amt\":\"" + boost::lexical_cast<std::string>(record.amount) + "\"," +
                 "\"fee\":\"" + boost::lexical_cast<std::string>(record.fee) + "\"," +
@@ -998,6 +998,9 @@ CFunctions::record_structure CFunctions::parseRecordJson(std::string record_sect
     record.fee = parseSectionDouble(record_section, "\"fee\":\"", "\"");
 
     record.name = parseSectionString(record_section, "\"name\":\"", "\"");
+    if(record.name.length() == 0){
+        record.name = parseSectionString(record_section, "\"name:\":\"", "\"");
+    }
     record.value = parseSectionString(record_section, "\"value\":\"", "\"");
 
     record.hash = parseSectionString(record_section, "\"hash\":\"", "\"");
