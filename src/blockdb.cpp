@@ -317,6 +317,7 @@ long CBlockDB::rebuildBestChainIndex(){
     if(firstBlockId < 0){
         return -1;
     }
+    long currentConnectedLatestBlockId = getConnectedLatestBlockId();
 
     leveldb::DB* db = getDatabase();
     if(!db){
@@ -368,6 +369,23 @@ long CBlockDB::rebuildBestChainIndex(){
         }
     }
 
+    long latestBestBlockId = firstBlockId;
+    long currentBlockId = firstBlockId;
+    int guard = 0;
+    while(currentBlockId > 0 && guard < 100000){
+        latestBestBlockId = currentBlockId;
+        if(bestChildByBlock.find(currentBlockId) == bestChildByBlock.end()){
+            break;
+        }
+        currentBlockId = bestChildByBlock[currentBlockId];
+        guard++;
+    }
+
+    if(currentConnectedLatestBlockId > latestBestBlockId){
+        setLatestBlockId(currentConnectedLatestBlockId);
+        return currentConnectedLatestBlockId;
+    }
+
     leveldb::WriteOptions writeOptions;
     std::vector<std::string> nextIndexKeys;
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
@@ -383,11 +401,9 @@ long CBlockDB::rebuildBestChainIndex(){
         db->Delete(writeOptions, nextIndexKeys.at(i));
     }
 
-    long latestBestBlockId = firstBlockId;
-    long currentBlockId = firstBlockId;
-    int guard = 0;
+    currentBlockId = firstBlockId;
+    guard = 0;
     while(currentBlockId > 0 && guard < 100000){
-        latestBestBlockId = currentBlockId;
         if(bestChildByBlock.find(currentBlockId) == bestChildByBlock.end()){
             break;
         }
