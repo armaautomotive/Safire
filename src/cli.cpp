@@ -649,6 +649,19 @@ std::map<std::string, double> acceptedLedgerBalances(){
     return balances;
 }
 
+double acceptedMemberSupply(){
+    std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
+    std::map<std::string, double> balances = acceptedLedgerBalances();
+    double supply = 0.0;
+    for(int i = 0; i < members.size(); i++){
+        std::string publicKey = members.at(i).sender_public_key;
+        if(publicKey.length() > 0){
+            supply += balances[publicKey];
+        }
+    }
+    return supply;
+}
+
 double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpointBlock){
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
@@ -1620,9 +1633,10 @@ void CCLI::processUserInput(){
                 std::cout << "-";
             }
             std::cout << std::endl;
+            std::vector<CFunctions::record_structure> acceptedMembers = acceptedMembershipRecords();
             std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
-                    std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
-                    std::cout << " User count: " << functions.user_count << std::endl;
+                    std::cout << " Currency supply: " << acceptedMemberSupply() << " sfr" << std::endl;
+                    std::cout << " User count: " << acceptedMembers.size() << std::endl;
 
             // Block chain size?
             std::cout << " Blockchain size: " << " 0MB" << std::endl;
