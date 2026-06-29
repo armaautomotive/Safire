@@ -65,6 +65,8 @@ std::string peerCachePath()
 }
 
 const long PEER_PURGE_SECONDS = 3L * 24L * 60L * 60L;
+const int MAX_BLOCKS_PER_SYNC_BATCH = 200;
+const int MAX_BLOCKS_PER_PUSH_BATCH = 200;
 
 CLocalPeerClient::peer_status emptyPeerStatus(const std::string& peer)
 {
@@ -741,7 +743,7 @@ void CLocalPeerClient::syncThread(int argc, char* argv[])
 
 bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
 {
-    const int maxBlocksPerSync = 10000;
+    const int maxBlocksPerSync = MAX_BLOCKS_PER_SYNC_BATCH;
     bool changed = false;
     if (!running) {
         return false;
@@ -862,7 +864,7 @@ int CLocalPeerClient::pushToPeer(const std::string& peerUrl)
 
 CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::string& peerUrl)
 {
-    const int maxBlocksPerPush = 10000;
+    const int maxBlocksPerPush = MAX_BLOCKS_PER_PUSH_BATCH;
     const long forkRepairLookbackBlocks = 100;
     push_result result;
     result.candidateBlocks = 0;
@@ -946,7 +948,7 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
 
 CLocalPeerClient::push_result CLocalPeerClient::pushFullChainToPeerDetailed(const std::string& peerUrl)
 {
-    const int maxBlocksPerPush = 10000;
+    const int maxBlocksPerPush = MAX_BLOCKS_PER_PUSH_BATCH;
     push_result result;
     result.candidateBlocks = 0;
     result.pushedBlocks = 0;

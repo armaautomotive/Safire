@@ -1902,6 +1902,9 @@ void CCLI::processUserInput(){
                 std::cout << "    peer latest: " << peerBefore << " -> " << peerAfter << std::endl;
                 std::cout << "    candidate blocks: " << pushResult.candidateBlocks << std::endl;
                 std::cout << "    pushed blocks: " << pushResult.pushedBlocks << std::endl;
+                if(pushResult.failedBlockId == -1 && pushResult.candidateBlocks > pushResult.pushedBlocks){
+                    std::cout << "    more blocks remain; run sync again to continue this batch repair." << std::endl;
+                }
                 if(pushResult.failedBlockId > -1){
                     std::cout << "    failed block: " << pushResult.failedBlockId << std::endl;
                     std::cout << "    response: " << (pushResult.response.length() > 0 ? pushResult.response : "(empty response)") << std::endl;
@@ -1930,6 +1933,9 @@ void CCLI::processUserInput(){
                 std::cout << "    peer latest: " << peerBefore << " -> " << peerAfter << std::endl;
                 std::cout << "    candidate blocks: " << pushResult.candidateBlocks << std::endl;
                 std::cout << "    pushed blocks: " << pushResult.pushedBlocks << std::endl;
+                if(pushResult.failedBlockId == -1 && pushResult.candidateBlocks > pushResult.pushedBlocks){
+                    std::cout << "    more blocks remain; run syncfull again to continue this batch repair." << std::endl;
+                }
                 if(pushResult.failedBlockId > -1){
                     std::cout << "    failed block: " << pushResult.failedBlockId << std::endl;
                     std::cout << "    response: " << (pushResult.response.length() > 0 ? pushResult.response : "(empty response)") << std::endl;
