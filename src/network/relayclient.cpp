@@ -173,6 +173,10 @@ void CRelayClient::exit(){
 void CRelayClient::sendRecord(CFunctions::record_structure record){
     CFileLogger log;
     CFunctions functions;
+    if(functions.isRecordSizeValid(record) == false){
+        log.log("Relay skipped oversized record: " + functions.recordSizeError(record) + "\n");
+        return;
+    }
     std::string publicKey;
     std::string privateKey;
     CWallet wallet;
@@ -258,6 +262,18 @@ void CRelayClient::receiveRecords(){
 void CRelayClient::sendBlock(CFunctions::block_structure block){
     CFileLogger log;
     CFunctions functions;
+    std::string blockJson = functions.blockJSON(block);
+    if(block.records.size() > CFunctions::MAX_BLOCK_RECORDS ||
+       blockJson.length() > CFunctions::MAX_BLOCK_JSON_BYTES){
+        log.log("Relay skipped oversized block.\n");
+        return;
+    }
+    for(int i = 0; i < block.records.size(); i++){
+        if(functions.isRecordSizeValid(block.records.at(i)) == false){
+            log.log("Relay skipped block with oversized record.\n");
+            return;
+        }
+    }
     std::string publicKey;
     std::string privateKey;
     CWallet wallet;
@@ -277,7 +293,7 @@ void CRelayClient::sendBlock(CFunctions::block_structure block){
             post_data.append("&receiver_key=");
             post_data.append(node.public_key);
             post_data.append("&message=");
-            post_data.append(functions.blockJSON(block));
+            post_data.append(blockJson);
             curl_easy_setopt(curl, CURLOPT_URL, url_string.c_str());
             curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -553,4 +569,3 @@ bool CRelayClient::receiveRequestBlocks(){
     }   
     return result;
 }
-

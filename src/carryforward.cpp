@@ -235,10 +235,12 @@ bool queueCarryForwardIfDue(
     ecdsa.SignMessage(privateKey, carryForwardRecord.hash, signature);
     carryForwardRecord.signature = signature;
 
-    functions.addToQueue(carryForwardRecord);
-    relayClient.sendRecord(carryForwardRecord);
-    CLocalPeerClient::broadcastRecord(carryForwardRecord);
-    return true;
+    if(functions.addToQueue(carryForwardRecord)){
+        relayClient.sendRecord(carryForwardRecord);
+        CLocalPeerClient::broadcastRecord(carryForwardRecord);
+        return true;
+    }
+    return false;
 }
 
 }

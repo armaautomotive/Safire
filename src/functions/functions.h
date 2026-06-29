@@ -27,6 +27,16 @@ public:
     static const long CARRY_FORWARD_PERIOD_BLOCKS = 2102400; // About 1 year at 15 seconds per block.
     static const long CARRY_FORWARD_PRUNE_BLOCKS = 6307200; // About 3 years at 15 seconds per block.
     static constexpr double CARRY_FORWARD_REWARD = 1.0;
+    static const int MAX_RECORD_NAME_BYTES = 64;
+    static const int MAX_RECORD_VALUE_BYTES = 256;
+    static const int MAX_RECORD_NETWORK_BYTES = 32;
+    static const int MAX_RECORD_TIME_BYTES = 32;
+    static const int MAX_RECORD_KEY_BYTES = 256;
+    static const int MAX_RECORD_HASH_BYTES = 128;
+    static const int MAX_RECORD_SIGNATURE_BYTES = 512;
+    static const int MAX_RECORD_JSON_BYTES = 2048;
+    static const int MAX_BLOCK_RECORDS = 1000;
+    static const int MAX_BLOCK_JSON_BYTES = 131072;
 
     //! Construct an invalid private key.
     CFunctions()
@@ -118,6 +128,8 @@ public:
     int existsInQueue(record_structure record);
     int getRecordsInQueue( int limit );
     int validateRecord(record_structure record);
+    bool isRecordSizeValid(record_structure record);
+    std::string recordSizeError(record_structure record);
     int generateBlock( std::vector<CFunctions::record_structure> records, std::string time );
     int addToBlockFile( block_structure block );
     double parseSectionDouble(std::string content, std::string start, std::string end);

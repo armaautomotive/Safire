@@ -410,6 +410,9 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
     }
 
     CFunctions functions;
+    if(functions.isRecordSizeValid(record) == false){
+        return;
+    }
     std::string recordJson = functions.recordJSON(record);
     for (int i = 0; i < peers.size(); ++i) {
         std::string response = httpPost(peers.at(i) + "/api/records/submit", recordJson);
@@ -432,6 +435,15 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
 
     CFunctions functions;
     std::string blockJson = functions.blockJSON(block);
+    if(block.records.size() > CFunctions::MAX_BLOCK_RECORDS ||
+       blockJson.length() > CFunctions::MAX_BLOCK_JSON_BYTES){
+        return;
+    }
+    for(int i = 0; i < block.records.size(); i++){
+        if(functions.isRecordSizeValid(block.records.at(i)) == false){
+            return;
+        }
+    }
     for (int i = 0; i < peers.size(); ++i) {
         std::string response = httpPost(peers.at(i) + "/api/blocks/submit", blockJson);
         if (response.find("accepted") != std::string::npos) {

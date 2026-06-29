@@ -173,6 +173,41 @@ std::string CFunctions::recordJSON(record_structure record){
 	return json;
 }
 
+std::string CFunctions::recordSizeError(record_structure record){
+    if(record.network.length() > CFunctions::MAX_RECORD_NETWORK_BYTES){
+        return "network field is too long";
+    }
+    if(record.time.length() > CFunctions::MAX_RECORD_TIME_BYTES){
+        return "time field is too long";
+    }
+    if(record.name.length() > CFunctions::MAX_RECORD_NAME_BYTES){
+        return "name field is too long";
+    }
+    if(record.value.length() > CFunctions::MAX_RECORD_VALUE_BYTES){
+        return "value field is too long";
+    }
+    if(record.sender_public_key.length() > CFunctions::MAX_RECORD_KEY_BYTES){
+        return "sender public key is too long";
+    }
+    if(record.recipient_public_key.length() > CFunctions::MAX_RECORD_KEY_BYTES){
+        return "recipient public key is too long";
+    }
+    if(record.hash.length() > CFunctions::MAX_RECORD_HASH_BYTES){
+        return "hash field is too long";
+    }
+    if(record.signature.length() > CFunctions::MAX_RECORD_SIGNATURE_BYTES){
+        return "signature field is too long";
+    }
+    if(recordJSON(record).length() > CFunctions::MAX_RECORD_JSON_BYTES){
+        return "serialized record is too large";
+    }
+    return "";
+}
+
+bool CFunctions::isRecordSizeValid(record_structure record){
+    return recordSizeError(record).length() == 0;
+}
+
 /**
  * addToQueue
  *
@@ -183,6 +218,9 @@ std::string CFunctions::recordJSON(record_structure record){
  * @param
  */
 int CFunctions::addToQueue(record_structure record){
+    if(isRecordSizeValid(record) == false){
+        return 0;
+    }
     std::ofstream outfile;
     outfile.open("queue.dat", std::fstream::out | std::fstream::app | std::ios_base::app);
     outfile << recordJSON(record);
@@ -212,7 +250,8 @@ std::vector<CFunctions::record_structure> CFunctions::peekQueueRecords(){
     {
         CFunctions::record_structure record;
         record = parseRecordJson(line);
-        if(record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0){
+        if((record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0) &&
+           isRecordSizeValid(record)){
             records.push_back(record);
         }
     }
@@ -237,8 +276,10 @@ std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
         record = parseRecordJson(line);
    
         // TODO: delete record if it allready exists in the queue???? ***
-     
-        records.push_back (record);
+
+        if(isRecordSizeValid(record)){
+            records.push_back (record);
+        }
     }
 
     // TEMP: delete queue file.

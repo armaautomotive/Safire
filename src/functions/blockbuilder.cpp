@@ -69,9 +69,10 @@ void queueHeartbeatIfDue(
     ecdsa.SignMessage(privateKey, heartbeatRecord.hash, signature);
     heartbeatRecord.signature = signature;
 
-    functions.addToQueue(heartbeatRecord);
-    relayClient.sendRecord(heartbeatRecord);
-    CLocalPeerClient::broadcastRecord(heartbeatRecord);
+    if(functions.addToQueue(heartbeatRecord)){
+        relayClient.sendRecord(heartbeatRecord);
+        CLocalPeerClient::broadcastRecord(heartbeatRecord);
+    }
 }
 
 }

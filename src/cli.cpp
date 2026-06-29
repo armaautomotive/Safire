@@ -356,6 +356,20 @@ void addBalanceDelta(std::map<std::string, double>& balances, const std::string&
     balances[publicKey] += amount;
 }
 
+bool queueAndBroadcastRecord(CFunctions& functions, CRelayClient& relayClient, CFunctions::record_structure record){
+    if(functions.isRecordSizeValid(record) == false){
+        std::cout << " Record not sent: " << functions.recordSizeError(record) << "." << std::endl;
+        return false;
+    }
+    if(functions.addToQueue(record) == 0){
+        std::cout << " Record not sent: unable to queue record." << std::endl;
+        return false;
+    }
+    relayClient.sendRecord(record);
+    CLocalPeerClient::broadcastRecord(record);
+    return true;
+}
+
 long parseCarryForwardValueLong(const std::string& value, const std::string& key){
     std::string prefix = key + "=";
     std::size_t start = value.find(prefix);
@@ -1080,10 +1094,9 @@ void CCLI::processUserInput(){
 				ecdsa.SignMessage(privateKey, joinRecord.hash, message_siganture);
 				joinRecord.signature = message_siganture;	
 				
-                functions.addToQueue( joinRecord );
-                relayClient.sendRecord(joinRecord);
-                CLocalPeerClient::broadcastRecord(joinRecord);
-                std::cout << "Join request queued and broadcast. Joined network will be yes after a block includes this record." << std::endl;
+                if(queueAndBroadcastRecord(functions, relayClient, joinRecord)){
+                    std::cout << "Join request queued and broadcast. Joined network will be yes after a block includes this record." << std::endl;
+                }
 	
 				// TODO: send request or say allready sent. 	
 			}
@@ -1110,10 +1123,9 @@ void CCLI::processUserInput(){
                 ecdsa.SignMessage(privateKey, heartbeatRecord.hash, signature);
                 heartbeatRecord.signature = signature;
 
-                functions.addToQueue(heartbeatRecord);
-                relayClient.sendRecord(heartbeatRecord);
-                CLocalPeerClient::broadcastRecord(heartbeatRecord);
-                std::cout << "Heartbeat queued and broadcast. Eligibility renews after a block includes this record." << std::endl;
+                if(queueAndBroadcastRecord(functions, relayClient, heartbeatRecord)){
+                    std::cout << "Heartbeat queued and broadcast. Eligibility renews after a block includes this record." << std::endl;
+                }
             }
 
 		} else if ( command.find("balance") != std::string::npos ){
@@ -1184,10 +1196,9 @@ void CCLI::processUserInput(){
                 std::string signature = "";
                 ecdsa.SignMessage(privateKey, sendRecord.hash, signature);
                 sendRecord.signature = signature;
-                functions.addToQueue( sendRecord );
-                relayClient.sendRecord(sendRecord);
-                CLocalPeerClient::broadcastRecord(sendRecord);
-                std::cout << "Sent transfer request. " << std::endl;
+                if(queueAndBroadcastRecord(functions, relayClient, sendRecord)){
+                    std::cout << "Sent transfer request. " << std::endl;
+                }
             }
 
         } else if ( command.find("network") != std::string::npos ){
@@ -1313,16 +1324,14 @@ void CCLI::processUserInput(){
                         ecdsa.SignMessage(privateKey, carryForwardRecord.hash, signature);
                         carryForwardRecord.signature = signature;
 
-                        functions.addToQueue(carryForwardRecord);
-                        relayClient.sendRecord(carryForwardRecord);
-                        CLocalPeerClient::broadcastRecord(carryForwardRecord);
-
-                        std::cout << " Carry-forward queued and broadcast." << std::endl;
-                        std::cout << " Account: " << publicKey << std::endl;
-                        std::cout << " Checkpoint block: " << checkpointBlock << std::endl;
-                        std::cout << " Period: " << period << std::endl;
-                        std::cout << " Snapshot balance: " << checkpointBalance << " sfr" << std::endl;
-                        std::cout << " Reward after accepted: " << CFunctions::CARRY_FORWARD_REWARD << " sfr" << std::endl;
+                        if(queueAndBroadcastRecord(functions, relayClient, carryForwardRecord)){
+                            std::cout << " Carry-forward queued and broadcast." << std::endl;
+                            std::cout << " Account: " << publicKey << std::endl;
+                            std::cout << " Checkpoint block: " << checkpointBlock << std::endl;
+                            std::cout << " Period: " << period << std::endl;
+                            std::cout << " Snapshot balance: " << checkpointBalance << " sfr" << std::endl;
+                            std::cout << " Reward after accepted: " << CFunctions::CARRY_FORWARD_REWARD << " sfr" << std::endl;
+                        }
                     }
                 }
             }
@@ -1481,13 +1490,11 @@ void CCLI::processUserInput(){
                 ecdsa.SignMessage(privateKey, voteRecord.hash, signature);
                 voteRecord.signature = signature;
 
-                functions.addToQueue(voteRecord);
-                relayClient.sendRecord(voteRecord);
-                CLocalPeerClient::broadcastRecord(voteRecord);
-
-                std::cout << "Vote queued and broadcast. It will appear in votes after a block includes it." << std::endl;
-                std::cout << " Name: " << voteName << std::endl;
-                std::cout << " Value: " << voteValue << std::endl;
+                if(queueAndBroadcastRecord(functions, relayClient, voteRecord)){
+                    std::cout << "Vote queued and broadcast. It will appear in votes after a block includes it." << std::endl;
+                    std::cout << " Name: " << voteName << std::endl;
+                    std::cout << " Value: " << voteValue << std::endl;
+                }
             }
 
 	} else {

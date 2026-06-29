@@ -97,12 +97,27 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         std::cout << "Error: CBlockDB::AddBlock \n";
         return false;
     }
+
+    if(block.records.size() > CFunctions::MAX_BLOCK_RECORDS){
+        log.log("Reject block: too many records.\n");
+        return false;
+    }
+    for(int i = 0; i < block.records.size(); i++){
+        if(functions.isRecordSizeValid(block.records.at(i)) == false){
+            log.log("Reject block: oversized record.\n");
+            return false;
+        }
+    }
    
     // Insert block record into leveldb
     ostringstream keyStream;
     keyStream << "b_" << boost::lexical_cast<std::string>(block.number);
     ostringstream valueStream;
     valueStream << functions.blockJSON(block);
+    if(valueStream.str().length() > CFunctions::MAX_BLOCK_JSON_BYTES){
+        log.log("Reject block: serialized block is too large.\n");
+        return false;
+    }
     
     //std::cout << " key: " << keyStream.str() << " \n";
     //std::cout << " val: " << valueStream.str() << " \n";
@@ -427,4 +442,3 @@ void CBlockDB::DeleteAll(){
     delete it;
     //delete db;
 }
-
