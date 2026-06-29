@@ -2,12 +2,15 @@
 #define SAFIRE_LOCAL_PEER_CLIENT_H
 
 #include "functions/functions.h"
+#include <map>
 #include <string>
 #include <vector>
 
 class CLocalPeerClient
 {
 public:
+    static const int PROTOCOL_VERSION = 1;
+
     struct push_result {
         int candidateBlocks;
         int pushedBlocks;
@@ -15,8 +18,27 @@ public:
         std::string response;
     };
 
+    struct peer_status {
+        std::string url;
+        long firstBlockId;
+        std::string firstBlockHash;
+        long latestBlockId;
+        std::string latestBlockHash;
+        int protocolVersion;
+        int score;
+        int successes;
+        int failures;
+        long lastSeenEpoch;
+        bool genesisMatch;
+        bool reachable;
+        std::string lastError;
+    };
+
     static void setPeers(const std::vector<std::string>& peers);
+    static bool addPeer(const std::string& peerUrl, bool persist = true);
     static std::vector<std::string> getPeers();
+    static std::vector<peer_status> getPeerStatuses();
+    static void discoverPeers();
     static void stop();
 
     static void syncThread(int argc, char* argv[]);
@@ -34,6 +56,7 @@ public:
 
 private:
     static std::vector<std::string> peers;
+    static std::map<std::string, peer_status> peerStatuses;
     static bool running;
 };
 

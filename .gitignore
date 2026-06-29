@@ -21,6 +21,7 @@ moc_predefs.h
 accounts.txt
 chain.index
 queue.dat
+peers.dat
 wallet.dat
 safire_*.log
 /bin/chain.index

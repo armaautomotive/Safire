@@ -19,6 +19,7 @@
 #include "wallet.h"
 #include "blockdb.h"
 #include "functions/functions.h"
+#include "network/localpeerclient.h"
 #include "networkconfig.h"
 
 #include "networktime.h"
@@ -27,6 +28,32 @@ namespace http {
 namespace server3 {
 
 namespace {
+
+std::string json_escape(const std::string& value)
+{
+  std::stringstream escaped;
+  for (std::size_t i = 0; i < value.length(); ++i)
+  {
+    char c = value[i];
+    if (c == '"' || c == '\\')
+    {
+      escaped << '\\' << c;
+    }
+    else if (c == '\n')
+    {
+      escaped << "\\n";
+    }
+    else if (c == '\r')
+    {
+      escaped << "\\r";
+    }
+    else
+    {
+      escaped << c;
+    }
+  }
+  return escaped.str();
+}
 
 std::string query_value(const std::string& path, const std::string& key)
 {
@@ -158,6 +185,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     CNetworkConfig config = CNetworkConfig::load();
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
+    ss << "\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
     ss << "\"network\":\"" << config.network << "\",";
     ss << "\"first_block_id\":\"" << firstBlockId << "\",";
     ss << "\"first_block_hash\":\"" << firstBlock.hash << "\",";
@@ -166,6 +194,32 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << latestBlock.hash << "\"}";
+    text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/peers")
+  {
+    std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
+    std::stringstream ss;
+    ss << "{\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
+    ss << "\"peers\":[";
+    for (int i = 0; i < peers.size(); ++i)
+    {
+      if (i > 0)
+      {
+        ss << ",";
+      }
+      ss << "{";
+      ss << "\"url\":\"" << json_escape(peers.at(i).url) << "\",";
+      ss << "\"latest_block_id\":\"" << peers.at(i).latestBlockId << "\",";
+      ss << "\"latest_block_hash\":\"" << peers.at(i).latestBlockHash << "\",";
+      ss << "\"genesis_match\":\"" << (peers.at(i).genesisMatch ? "yes" : "no") << "\",";
+      ss << "\"reachable\":\"" << (peers.at(i).reachable ? "yes" : "no") << "\",";
+      ss << "\"score\":\"" << peers.at(i).score << "\"";
+      ss << "}";
+    }
+    ss << "]}";
     text_reply(rep, reply::ok, ss.str(), "application/json");
     return;
   }

@@ -1303,6 +1303,7 @@ void CCLI::printCommands(){
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
 	" users                   - prints user address and balance information.\n" <<
+    " peers                   - print peer discovery and health information.\n" <<
     " vote                    - submit a signed vote with a name and value.\n" <<
     " votes                   - print accepted vote submissions and tallies.\n" <<
     " debug                   - log debug information.\n" <<
@@ -1644,6 +1645,36 @@ void CCLI::processUserInput(){
         } else if ( command.compare("mempool") == 0 || command.compare("pending") == 0 ){
 
             printMempoolRecords();
+
+        } else if ( command.compare("peers") == 0 ){
+
+            CLocalPeerClient::discoverPeers();
+            std::vector<CLocalPeerClient::peer_status> peerStatuses = CLocalPeerClient::getPeerStatuses();
+            std::cout << " Local peers: " << peerStatuses.size() << std::endl;
+            if(peerStatuses.size() == 0){
+                std::cout << "  No local peers configured. Start a wallet normally or use --peer http://host:port" << std::endl;
+            }
+            for(int i = 0; i < peerStatuses.size(); i++){
+                CLocalPeerClient::peer_status peer = peerStatuses.at(i);
+                if(peer.lastSeenEpoch == 0){
+                    CLocalPeerClient::getPeerLatestBlockId(peer.url);
+                    peerStatuses = CLocalPeerClient::getPeerStatuses();
+                    peer = peerStatuses.at(i);
+                }
+                std::cout << "  " << peer.url << std::endl;
+                std::cout << "    reachable: " << (peer.reachable ? "yes" : "no") << std::endl;
+                std::cout << "    genesis match: " << (peer.genesisMatch ? "yes" : "no") << std::endl;
+                std::cout << "    protocol: " << peer.protocolVersion << std::endl;
+                std::cout << "    latest: " << peer.latestBlockId;
+                if(peer.latestBlockHash.length() > 0){
+                    std::cout << " hash " << shortKey(peer.latestBlockHash);
+                }
+                std::cout << std::endl;
+                std::cout << "    score: " << peer.score << " successes " << peer.successes << " failures " << peer.failures << std::endl;
+                if(peer.lastError.length() > 0){
+                    std::cout << "    last error: " << peer.lastError << std::endl;
+                }
+            }
 
         } else if ( command.compare("nextblock") == 0 ){
 
