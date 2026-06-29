@@ -9,6 +9,7 @@ class QLineEdit;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QPlainTextEdit;
+class QProgressBar;
 class QPushButton;
 class QStackedWidget;
 class QTableWidget;
@@ -83,6 +84,7 @@ private:
     QLabel *m_balanceLabel;
     QLabel *m_networkLabel;
     QLabel *m_syncLabel;
+    QProgressBar *m_syncProgressBar;
     QLabel *m_peerLabel;
     QLabel *m_supplyLabel;
     QTableWidget *m_historyTable;

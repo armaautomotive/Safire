@@ -28,6 +28,7 @@
 #include <QPlainTextEdit>
 #include <QPointF>
 #include <QProcess>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QStyle>
@@ -146,6 +147,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_balanceLabel(0),
       m_networkLabel(0),
       m_syncLabel(0),
+      m_syncProgressBar(0),
       m_peerLabel(0),
       m_supplyLabel(0),
       m_historyTable(0),
@@ -192,6 +194,8 @@ MainWindow::MainWindow(QWidget *parent)
         "QPushButton#NavButton { background: transparent; color: #31525a; border: 1px solid transparent; text-align: left; padding: 11px 12px; }"
         "QPushButton#NavButton:hover { background: #eef6f7; }"
         "QPushButton#NavButton[active='true'] { background: #dceff1; color: #0f5963; border: 1px solid #b8d9dd; }"
+        "QProgressBar { background: #edf4f5; border: 1px solid #c8d9dc; border-radius: 6px; height: 14px; text-align: center; color: #31525a; }"
+        "QProgressBar::chunk { background: #166b76; border-radius: 5px; }"
         "QTableWidget { background: white; border: 1px solid #dce7ea; border-radius: 6px; gridline-color: #edf2f3; }"
         "QHeaderView::section { background: #edf4f5; color: #41545a; padding: 8px; border: 0; font-weight: 700; }"
     );
@@ -347,10 +351,15 @@ QWidget *MainWindow::createBalancePage()
     summaryLayout->addWidget(m_networkLabel, 3, 0);
     m_syncLabel = makeLabel(tr("Sync: waiting for backend"), "Muted");
     summaryLayout->addWidget(m_syncLabel, 4, 0);
+    m_syncProgressBar = new QProgressBar;
+    m_syncProgressBar->setRange(0, 100);
+    m_syncProgressBar->setValue(0);
+    m_syncProgressBar->setTextVisible(false);
+    summaryLayout->addWidget(m_syncProgressBar, 5, 0);
     m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
-    summaryLayout->addWidget(m_peerLabel, 5, 0);
+    summaryLayout->addWidget(m_peerLabel, 6, 0);
     m_supplyLabel = makeLabel(tr("Supply: -"), "Muted");
-    summaryLayout->addWidget(m_supplyLabel, 6, 0);
+    summaryLayout->addWidget(m_supplyLabel, 7, 0);
 
     QHBoxLayout *actions = new QHBoxLayout;
     QPushButton *sendNow = createPrimaryButton(tr("Send"));
@@ -360,7 +369,7 @@ QWidget *MainWindow::createBalancePage()
     actions->addWidget(receiveNow);
     actions->addWidget(historyNow);
     actions->addStretch();
-    summaryLayout->addLayout(actions, 7, 0);
+    summaryLayout->addLayout(actions, 8, 0);
 
     connect(sendNow, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
@@ -658,6 +667,10 @@ bool MainWindow::ensureBackendRunning()
         if (m_networkLabel) {
             m_networkLabel->setText(tr("Backend: core binary not found"));
         }
+        if (m_syncProgressBar) {
+            m_syncProgressBar->setRange(0, 100);
+            m_syncProgressBar->setValue(0);
+        }
         appendTerminalText(tr("\nUnable to find bin/Safire. Build the core app first.\n"));
         return false;
     }
@@ -723,6 +736,9 @@ void MainWindow::applyWalletStatus(const QString &json)
         if (m_syncLabel) {
             m_syncLabel->setText(tr("Sync: invalid status response"));
         }
+        if (m_syncProgressBar) {
+            m_syncProgressBar->setRange(0, 0);
+        }
         return;
     }
 
@@ -741,6 +757,15 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString peerCount = object.value("local_peers").toString();
     QString supply = object.value("currency_supply").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
+    bool progressOk = false;
+    double syncProgress = object.value("sync_progress").toString().toDouble(&progressOk);
+    int progressValue = progressOk ? static_cast<int>(syncProgress + 0.5) : 0;
+    if (progressValue < 0) {
+        progressValue = 0;
+    }
+    if (progressValue > 100) {
+        progressValue = 100;
+    }
 
     if (m_balanceLabel) {
         m_balanceLabel->setText(tr("%1 SFR").arg(balance));
@@ -749,7 +774,19 @@ void MainWindow::applyWalletStatus(const QString &json)
         m_networkLabel->setText(tr("Joined: %1  Heartbeat: %2").arg(joined).arg(heartbeat));
     }
     if (m_syncLabel) {
-        m_syncLabel->setText(tr("Sync: %1  Latest block: %2").arg(sync).arg(latestBlock));
+        if (progressOk) {
+            m_syncLabel->setText(tr("Sync: %1%  Latest block: %2").arg(progressValue).arg(latestBlock));
+        } else {
+            m_syncLabel->setText(tr("Sync: %1  Latest block: %2").arg(sync).arg(latestBlock));
+        }
+    }
+    if (m_syncProgressBar) {
+        if (progressOk) {
+            m_syncProgressBar->setRange(0, 100);
+            m_syncProgressBar->setValue(progressValue);
+        } else {
+            m_syncProgressBar->setRange(0, 0);
+        }
     }
     if (m_peerLabel) {
         m_peerLabel->setText(tr("Peers: %1").arg(peerCount));
@@ -1019,6 +1056,9 @@ void MainWindow::refreshWalletStatus()
         if (m_syncLabel) {
             m_syncLabel->setText(tr("Sync: backend unavailable"));
         }
+        if (m_syncProgressBar) {
+            m_syncProgressBar->setRange(0, 0);
+        }
         return;
     }
 
@@ -1041,6 +1081,9 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
     if (reply->error() != QNetworkReply::NoError) {
         if (m_syncLabel) {
             m_syncLabel->setText(tr("Sync: waiting for backend API"));
+        }
+        if (m_syncProgressBar) {
+            m_syncProgressBar->setRange(0, 0);
         }
         reply->deleteLater();
         return;

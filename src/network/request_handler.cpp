@@ -474,6 +474,51 @@ std::string wallet_history_json(CBlockDB& block_db, const std::string& public_ke
   return ss.str();
 }
 
+double sync_progress_percent(long first_block_id,
+                             long latest_block_id,
+                             const std::vector<CLocalPeerClient::peer_status>& local_peers)
+{
+  if (latest_block_id < 0)
+  {
+    return 0.0;
+  }
+
+  long best_peer_latest_block_id = latest_block_id;
+  for (int i = 0; i < local_peers.size(); ++i)
+  {
+    CLocalPeerClient::peer_status peer = local_peers.at(i);
+    if (peer.reachable &&
+        peer.genesisMatch &&
+        peer.latestBlockId > best_peer_latest_block_id)
+    {
+      best_peer_latest_block_id = peer.latestBlockId;
+    }
+  }
+
+  if (first_block_id < 0 || best_peer_latest_block_id <= latest_block_id)
+  {
+    return 100.0;
+  }
+
+  long total_span = best_peer_latest_block_id - first_block_id;
+  long local_span = latest_block_id - first_block_id;
+  if (total_span <= 0)
+  {
+    return 100.0;
+  }
+
+  double progress = (static_cast<double>(local_span) / static_cast<double>(total_span)) * 100.0;
+  if (progress < 0.0)
+  {
+    return 0.0;
+  }
+  if (progress > 100.0)
+  {
+    return 100.0;
+  }
+  return progress;
+}
+
 }
 
 request_handler::request_handler(const std::string& doc_root)
@@ -577,6 +622,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"currency_supply\":\"" << functions.currency_circulation << "\",";
     ss << "\"user_count\":\"" << functions.user_count << "\",";
     ss << "\"network_up_to_date\":\"" << (functions.IsChainUpToDate() ? "yes" : "no") << "\",";
+    ss << "\"sync_progress\":\"" << sync_progress_percent(firstBlockId, latestBlockId, localPeers) << "\",";
     ss << "\"first_block_id\":\"" << firstBlockId << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
