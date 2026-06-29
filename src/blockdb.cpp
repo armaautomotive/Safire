@@ -323,6 +323,18 @@ long CBlockDB::rebuildBestChainIndex(){
         return -1;
     }
     long currentConnectedLatestBlockId = getConnectedLatestBlockId();
+    long currentConnectedBlockCount = 0;
+    CFunctions::block_structure currentIndexedBlock = getBlock(firstBlockId);
+    int currentGuard = 0;
+    while(currentIndexedBlock.number > 0 && currentGuard < 100000){
+        currentConnectedBlockCount++;
+        CFunctions::block_structure nextIndexedBlock = getNextBlock(currentIndexedBlock);
+        if(nextIndexedBlock.number <= 0 || nextIndexedBlock.number == currentIndexedBlock.number){
+            break;
+        }
+        currentIndexedBlock = nextIndexedBlock;
+        currentGuard++;
+    }
 
     leveldb::DB* db = getDatabase();
     if(!db){
@@ -339,7 +351,7 @@ long CBlockDB::rebuildBestChainIndex(){
     for(int i = 0; i < blocks.size(); i++){
         CFunctions::block_structure block = blocks.at(i);
         blockByNumber[block.number] = block;
-        if(block.previous_block_id > 0){
+        if(block.previous_block_id > 0 && block.previous_block_id < block.number){
             childrenByParent[block.previous_block_id].push_back(block);
         }
     }
@@ -350,10 +362,12 @@ long CBlockDB::rebuildBestChainIndex(){
         });
 
     std::map<long, long> bestTipByBlock;
+    std::map<long, long> bestLengthByBlock;
     std::map<long, long> bestChildByBlock;
     for(int i = 0; i < blocks.size(); i++){
         CFunctions::block_structure block = blocks.at(i);
         long bestTip = block.number;
+        long bestLength = 1;
         long bestChild = -1;
         std::vector<CFunctions::block_structure> children = childrenByParent[block.number];
         for(int c = 0; c < children.size(); c++){
@@ -362,23 +376,33 @@ long CBlockDB::rebuildBestChainIndex(){
             if(bestTipByBlock.find(child.number) != bestTipByBlock.end()){
                 childTip = bestTipByBlock[child.number];
             }
-            if(childTip > bestTip ||
-               (childTip == bestTip && (bestChild < 0 || child.number < bestChild))){
+            long childLength = 1;
+            if(bestLengthByBlock.find(child.number) != bestLengthByBlock.end()){
+                childLength = bestLengthByBlock[child.number];
+            }
+            long candidateLength = childLength + 1;
+            if(candidateLength > bestLength ||
+               (candidateLength == bestLength && childTip > bestTip) ||
+               (candidateLength == bestLength && childTip == bestTip && (bestChild < 0 || child.number < bestChild))){
                 bestTip = childTip;
+                bestLength = candidateLength;
                 bestChild = child.number;
             }
         }
         bestTipByBlock[block.number] = bestTip;
+        bestLengthByBlock[block.number] = bestLength;
         if(bestChild > 0){
             bestChildByBlock[block.number] = bestChild;
         }
     }
 
     long latestBestBlockId = firstBlockId;
+    long bestChainBlockCount = 0;
     long currentBlockId = firstBlockId;
     int guard = 0;
     while(currentBlockId > 0 && guard < 100000){
         latestBestBlockId = currentBlockId;
+        bestChainBlockCount++;
         if(bestChildByBlock.find(currentBlockId) == bestChildByBlock.end()){
             break;
         }
@@ -386,7 +410,8 @@ long CBlockDB::rebuildBestChainIndex(){
         guard++;
     }
 
-    if(currentConnectedLatestBlockId > latestBestBlockId){
+    if(currentConnectedBlockCount > bestChainBlockCount ||
+       (currentConnectedBlockCount == bestChainBlockCount && currentConnectedLatestBlockId >= latestBestBlockId)){
         setLatestBlockId(currentConnectedLatestBlockId);
         return currentConnectedLatestBlockId;
     }

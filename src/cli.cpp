@@ -942,6 +942,18 @@ void printChainDiagnostics(){
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
     long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
+    long connectedBlockCount = 0;
+    CFunctions::block_structure connectedBlock = blockDB.getBlock(firstBlockId);
+    int connectedGuard = 0;
+    while(connectedBlock.number > 0 && connectedGuard < 100000){
+        connectedBlockCount++;
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(connectedBlock);
+        if(nextBlock.number <= 0 || nextBlock.number == connectedBlock.number){
+            break;
+        }
+        connectedBlock = nextBlock;
+        connectedGuard++;
+    }
     std::vector<CFunctions::block_structure> storedBlocks = blockDB.getStoredBlocks();
     std::sort(storedBlocks.begin(), storedBlocks.end(),
         [](const CFunctions::block_structure& a, const CFunctions::block_structure& b){
@@ -952,6 +964,7 @@ void printChainDiagnostics(){
     std::cout << "  first block: " << firstBlockId << std::endl;
     std::cout << "  latest indexed block: " << latestBlockId << std::endl;
     std::cout << "  latest connected block: " << connectedLatestBlockId << std::endl;
+    std::cout << "  connected blocks: " << connectedBlockCount << std::endl;
     std::cout << "  stored blocks: " << storedBlocks.size() << std::endl;
 
     if(connectedLatestBlockId < 0){
