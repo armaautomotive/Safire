@@ -100,6 +100,11 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         return false;
     }
 
+    if(block.previous_block_id >= block.number && block.previous_block_id != -1){
+        log.log("Reject block: previous block id is not before block number.\n");
+        return false;
+    }
+
     if(block.records.size() > CFunctions::MAX_BLOCK_RECORDS){
         log.log("Reject block: too many records.\n");
         return false;
