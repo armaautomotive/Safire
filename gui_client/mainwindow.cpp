@@ -924,17 +924,18 @@ QWidget *MainWindow::createHistoryPage()
     QHBoxLayout *header = new QHBoxLayout;
     header->addWidget(createSectionTitle(tr("History")));
     header->addStretch();
-    m_historyRangeCombo = new QComboBox;
-    m_historyRangeCombo->addItem(tr("7 days"), 7);
-    m_historyRangeCombo->addItem(tr("30 days"), 30);
-    m_historyRangeCombo->addItem(tr("90 days"), 90);
-    m_historyRangeCombo->addItem(tr("All loaded"), 0);
-    m_historyRangeCombo->setCurrentIndex(1);
-    header->addWidget(m_historyRangeCombo);
     layout->addLayout(header);
 
-    m_historyChart = new HistoryChartWidget;
-    layout->addWidget(m_historyChart);
+    // Temporarily disabled: chart rendering is too expensive while history grows.
+    // m_historyRangeCombo = new QComboBox;
+    // m_historyRangeCombo->addItem(tr("7 days"), 7);
+    // m_historyRangeCombo->addItem(tr("30 days"), 30);
+    // m_historyRangeCombo->addItem(tr("90 days"), 90);
+    // m_historyRangeCombo->addItem(tr("All loaded"), 0);
+    // m_historyRangeCombo->setCurrentIndex(1);
+    // header->addWidget(m_historyRangeCombo);
+    // m_historyChart = new HistoryChartWidget;
+    // layout->addWidget(m_historyChart);
 
     m_historyTable = new QTableWidget(0, 5);
     QStringList headers;
@@ -947,7 +948,7 @@ QWidget *MainWindow::createHistoryPage()
     m_historyTable->setWordWrap(true);
     layout->addWidget(m_historyTable, 1);
 
-    connect(m_historyRangeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(updateHistoryChart()));
+    // connect(m_historyRangeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(updateHistoryChart()));
     return page;
 }
 
@@ -1635,7 +1636,7 @@ void MainWindow::applyWalletHistory(const QString &json)
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         m_historyTable->setRowCount(0);
         m_walletHistoryRecords = QJsonArray();
-        updateHistoryChart();
+        // updateHistoryChart();
         appendHistory(tr("-"), tr("Error"), tr("Wallet history"), tr("-"), tr("Invalid response"));
         return;
     }
@@ -1644,14 +1645,14 @@ void MainWindow::applyWalletHistory(const QString &json)
     if (object.value("status").toString() != "ok") {
         m_historyTable->setRowCount(0);
         m_walletHistoryRecords = QJsonArray();
-        updateHistoryChart();
+        // updateHistoryChart();
         appendHistory(tr("-"), tr("Status"), tr("Wallet history"), tr("-"), object.value("status").toString());
         return;
     }
 
     QJsonArray records = object.value("records").toArray();
     m_walletHistoryRecords = records;
-    updateHistoryChart();
+    // updateHistoryChart();
     m_historyTable->setRowCount(0);
     if (records.isEmpty()) {
         appendHistory(tr("-"), tr("History"), tr("Wallet"), tr("-"), tr("No records"));
@@ -2079,6 +2080,8 @@ void MainWindow::filterBlockchainBlocks(const QString &text)
 
 void MainWindow::updateHistoryChart()
 {
+    return;
+
     if (!m_historyChart) {
         return;
     }
