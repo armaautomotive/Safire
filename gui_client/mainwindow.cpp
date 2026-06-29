@@ -15,6 +15,7 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QLinearGradient>
@@ -145,10 +146,13 @@ MainWindow::MainWindow(QWidget *parent)
       m_backendStartBlocked(false),
       m_backendLockDetected(false),
       m_transactionFee(0.0),
+      m_publicKey(QString()),
+      m_publicName(QString()),
       m_userEdit(0),
       m_passwordEdit(0),
       m_loginMessage(0),
       m_userLabel(0),
+      m_walletTitleLabel(0),
       m_balanceLabel(0),
       m_networkLabel(0),
       m_syncLabel(0),
@@ -303,7 +307,7 @@ QWidget *MainWindow::createShellPage()
     nav->addWidget(m_userLabel);
     nav->addSpacing(16);
 
-    m_balanceButton = createNavButton(tr("Accounts"));
+    m_balanceButton = createNavButton(tr("Main"));
     m_sendButton = createNavButton(tr("Send"));
     m_receiveButton = createNavButton(tr("Receive"));
     m_contactsButton = createNavButton(tr("Contacts"));
@@ -360,7 +364,8 @@ QWidget *MainWindow::createBalancePage()
     summaryLayout->setContentsMargins(26, 24, 26, 24);
     summaryLayout->setSpacing(10);
 
-    summaryLayout->addWidget(createSectionTitle(tr("Accounts")), 0, 0);
+    m_walletTitleLabel = createSectionTitle(tr("Wallet"));
+    summaryLayout->addWidget(m_walletTitleLabel, 0, 0);
     summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 1, 0);
     m_balanceLabel = makeLabel(tr("0.9877 SFR"), "Balance");
     summaryLayout->addWidget(m_balanceLabel, 2, 0);
@@ -369,9 +374,11 @@ QWidget *MainWindow::createBalancePage()
     QPushButton *sendNow = createPrimaryButton(tr("Send"));
     QPushButton *receiveNow = createSecondaryButton(tr("Receive"));
     QPushButton *historyNow = createSecondaryButton(tr("History"));
+    QPushButton *setNameNow = createSecondaryButton(tr("Set Name"));
     actions->addWidget(sendNow);
     actions->addWidget(receiveNow);
     actions->addWidget(historyNow);
+    actions->addWidget(setNameNow);
     actions->addStretch();
     summaryLayout->addLayout(actions, 3, 0);
 
@@ -414,6 +421,7 @@ QWidget *MainWindow::createBalancePage()
     connect(sendNow, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(historyNow, SIGNAL(clicked()), this, SLOT(showHistory()));
+    connect(setNameNow, SIGNAL(clicked()), this, SLOT(setWalletName()));
 
     QHBoxLayout *cards = new QHBoxLayout;
     cards->setSpacing(14);
@@ -898,6 +906,36 @@ void MainWindow::applySendPaymentResult(const QString &json, bool transportError
     QMessageBox::warning(this, tr("Payment Not Sent"), message);
 }
 
+void MainWindow::applySetNameResult(const QString &json, bool transportError)
+{
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    QString status;
+    QString message;
+    QString hash;
+    if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+        QJsonObject object = document.object();
+        status = object.value("status").toString();
+        message = object.value("message").toString();
+        hash = object.value("hash").toString();
+    }
+
+    if (message.isEmpty()) {
+        message = transportError ? tr("Unable to send name update.") : tr("Name update response was not understood.");
+    }
+
+    if (!transportError && status == "ok") {
+        if (!hash.isEmpty()) {
+            message += tr("\n\nRecord hash: %1").arg(shortAddress(hash));
+        }
+        QMessageBox::information(this, tr("Name Update Sent"), message);
+        refreshWalletStatus();
+        return;
+    }
+
+    QMessageBox::warning(this, tr("Name Not Updated"), message);
+}
+
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
@@ -1036,6 +1074,8 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
 
     QString balance = object.value("balance").toString();
+    QString publicKey = object.value("public_key").toString();
+    QString publicName = object.value("public_name").toString();
     QString joined = object.value("joined").toString();
     QString sync = object.value("network_up_to_date").toString();
     QString latestBlock = object.value("latest_block_id").toString();
@@ -1044,6 +1084,10 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString userCount = object.value("user_count").toString();
     QString blockCount = object.value("block_count").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
+    if (!publicKey.isEmpty()) {
+        m_publicKey = publicKey;
+    }
+    m_publicName = publicName;
     bool feeOk = false;
     double parsedFee = object.value("transaction_fee").toString().toDouble(&feeOk);
     if (feeOk) {
@@ -1061,6 +1105,10 @@ void MainWindow::applyWalletStatus(const QString &json)
 
     if (m_balanceLabel) {
         m_balanceLabel->setText(tr("%1 SFR").arg(balance));
+    }
+    if (m_walletTitleLabel) {
+        QString walletLabel = m_publicName.isEmpty() ? shortAddress(m_publicKey) : m_publicName;
+        m_walletTitleLabel->setText(walletLabel.isEmpty() ? tr("Wallet") : tr("Wallet: %1").arg(walletLabel));
     }
     if (m_networkLabel) {
         m_networkLabel->setText(tr("Joined: %1  Heartbeat: %2").arg(joined).arg(heartbeat));
@@ -1094,7 +1142,6 @@ void MainWindow::applyWalletStatus(const QString &json)
         m_blockCountLabel->setText(tr("Blocks: %1").arg(displayedBlockCount));
     }
 
-    QString publicKey = object.value("public_key").toString();
     if (m_receiveAddressLabel && !publicKey.isEmpty()) {
         m_receiveAddressLabel->setText(publicKey);
     }
@@ -1377,6 +1424,38 @@ void MainWindow::submitPayment()
     m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
+void MainWindow::setWalletName()
+{
+    QString currentName = m_publicName;
+    bool ok = false;
+    QString name = QInputDialog::getText(this,
+                                         tr("Set Public Name"),
+                                         tr("Public name"),
+                                         QLineEdit::Normal,
+                                         currentName,
+                                         &ok).trimmed();
+    if (!ok) {
+        return;
+    }
+    if (name.isEmpty()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Enter a public name."));
+        return;
+    }
+
+    if (!ensureBackendRunning()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Backend is unavailable."));
+        return;
+    }
+
+    QUrl url(QString("http://127.0.0.1:%1/api/wallet/setname").arg(m_backendPort));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery form;
+    form.addQueryItem("name", name);
+    m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
+}
+
 void MainWindow::startTerminal()
 {
     m_backendStartBlocked = false;
@@ -1544,6 +1623,11 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
             reply->deleteLater();
             return;
         }
+        if (path == "/api/wallet/setname") {
+            applySetNameResult(QString::fromUtf8(body), true);
+            reply->deleteLater();
+            return;
+        }
         if (m_syncLabel) {
             m_syncLabel->setText(tr("Sync: waiting for backend API"));
         }
@@ -1560,6 +1644,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         applyNetworkUsers(QString::fromUtf8(body));
     } else if (path == "/api/wallet/send") {
         applySendPaymentResult(QString::fromUtf8(body), false);
+    } else if (path == "/api/wallet/setname") {
+        applySetNameResult(QString::fromUtf8(body), false);
     } else {
         applyWalletStatus(QString::fromUtf8(body));
     }

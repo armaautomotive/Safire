@@ -263,6 +263,11 @@ bool queue_and_broadcast_record(CFunctions& functions, CFunctions::record_struct
 
 std::string normalized_public_name(const std::string& name)
 {
+  if (name.length() < 3 || name.length() > 32)
+  {
+    return "";
+  }
+
   std::string normalized;
   for (std::size_t i = 0; i < name.length(); ++i)
   {
@@ -408,6 +413,27 @@ std::map<std::string, std::string> accepted_member_names(CBlockDB& block_db)
     }
   }
   return names;
+}
+
+bool public_name_available_for_owner(CBlockDB& block_db, const std::string& name, const std::string& owner_public_key)
+{
+  std::string normalized = normalized_public_name(name);
+  if (normalized.length() == 0)
+  {
+    return false;
+  }
+
+  std::vector<CFunctions::record_structure> members = accepted_membership_records(block_db);
+  for (int i = 0; i < members.size(); ++i)
+  {
+    std::string member_name = normalized_public_name(members.at(i).name);
+    if (member_name.compare(normalized) == 0 &&
+        members.at(i).sender_public_key.compare(owner_public_key) != 0)
+    {
+      return false;
+    }
+  }
+  return true;
 }
 
 struct wallet_history_record
@@ -851,10 +877,12 @@ void request_handler::handle_request(const request& req, reply& rep)
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CNetworkTime netTime;
     std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
+    std::map<std::string, std::string> memberNames = accepted_member_names(blockDB);
 
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
     ss << "\"public_key\":\"" << publicKey << "\",";
+    ss << "\"public_name\":\"" << json_escape(name_for_key(memberNames, publicKey)) << "\",";
     ss << "\"balance\":\"" << functions.balance << "\",";
     ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
     ss << "\"joined\":\"" << (functions.joined ? "yes" : "no") << "\",";
@@ -888,6 +916,76 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::string publicKey;
     wallet.read(privateKey, publicKey);
     text_reply(rep, reply::ok, wallet_history_json(blockDB, publicKey), "application/json");
+    return;
+  }
+
+  if (request_path.find("/api/wallet/setname?") == 0
+      || (req.method == "POST" && request_path == "/api/wallet/setname"))
+  {
+    CWallet wallet;
+    if (wallet.fileExists("wallet.dat") == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet file not found.\"}", "application/json");
+      return;
+    }
+
+    std::string name = submitted_value(req, request_path, "name");
+    if (normalized_public_name(name).length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Use 3-32 characters: letters, numbers, dash, or underscore.\"}", "application/json");
+      return;
+    }
+
+    std::string privateKey;
+    std::string publicKey;
+    wallet.read(privateKey, publicKey);
+    functions.scanChain(publicKey, false);
+    if (functions.joined == false)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Join the network before updating your public name.\"}", "application/json");
+      return;
+    }
+    if (public_name_available_for_owner(blockDB, name, publicKey) == false)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"That public name is already taken.\"}", "application/json");
+      return;
+    }
+
+    CFunctions::record_structure nameRecord;
+    nameRecord.network = "main";
+    CNetworkTime netTime;
+    std::stringstream time_stream;
+    time_stream << netTime.getEpoch();
+    nameRecord.time = time_stream.str();
+    nameRecord.transaction_type = CFunctions::UPDATE_NAME;
+    nameRecord.amount = 0.0;
+    nameRecord.fee = 0.0;
+    nameRecord.sender_public_key = publicKey;
+    nameRecord.recipient_public_key = "";
+    nameRecord.name = name;
+    nameRecord.hash = functions.getRecordHash(nameRecord);
+
+    CECDSACrypto ecdsa;
+    std::string signature = "";
+    ecdsa.SignMessage(privateKey, nameRecord.hash, signature);
+    nameRecord.signature = signature;
+
+    std::string queue_error;
+    if (queue_and_broadcast_record(functions, nameRecord, queue_error) == false)
+    {
+      std::stringstream error;
+      error << "{\"status\":\"error\",\"message\":\"Unable to update public name: "
+            << json_escape(queue_error) << ".\"}";
+      text_reply(rep, reply::bad_request, error.str(), "application/json");
+      return;
+    }
+
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"message\":\"Name update queued and broadcast. The new name will show after a block includes this record.\",";
+    ss << "\"name\":\"" << json_escape(name) << "\",";
+    ss << "\"hash\":\"" << json_escape(nameRecord.hash) << "\"}";
+    text_reply(rep, reply::accepted, ss.str(), "application/json");
     return;
   }
 

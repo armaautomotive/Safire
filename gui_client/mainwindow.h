@@ -39,6 +39,7 @@ private slots:
     void showOptions();
     void copyReceiveAddress();
     void submitPayment();
+    void setWalletName();
     void filterNetworkUsers(const QString &text);
     void addSelectedNetworkUserToContacts();
     void removeSelectedContact();
@@ -75,6 +76,7 @@ private:
     void applyWalletHistory(const QString &json);
     void applyNetworkUsers(const QString &json);
     void applySendPaymentResult(const QString &json, bool transportError);
+    void applySetNameResult(const QString &json, bool transportError);
     void loadContacts();
     void saveContacts();
     void refreshContactDropdown();
@@ -93,10 +95,13 @@ private:
     bool m_backendStartBlocked;
     bool m_backendLockDetected;
     double m_transactionFee;
+    QString m_publicKey;
+    QString m_publicName;
     QLineEdit *m_userEdit;
     QLineEdit *m_passwordEdit;
     QLabel *m_loginMessage;
     QLabel *m_userLabel;
+    QLabel *m_walletTitleLabel;
     QLabel *m_balanceLabel;
     QLabel *m_networkLabel;
     QLabel *m_syncLabel;
