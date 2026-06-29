@@ -103,6 +103,8 @@ private:
     QProgressBar *m_syncProgressBar;
     QLabel *m_peerLabel;
     QLabel *m_supplyLabel;
+    QLabel *m_userCountLabel;
+    QLabel *m_blockCountLabel;
     QTableWidget *m_historyTable;
     QLineEdit *m_contactSearchEdit;
     QTableWidget *m_networkUsersTable;

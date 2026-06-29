@@ -155,6 +155,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_syncProgressBar(0),
       m_peerLabel(0),
       m_supplyLabel(0),
+      m_userCountLabel(0),
+      m_blockCountLabel(0),
       m_historyTable(0),
       m_contactSearchEdit(0),
       m_networkUsersTable(0),
@@ -391,9 +393,23 @@ QWidget *MainWindow::createBalancePage()
     m_syncProgressBar->setTextVisible(false);
     networkLayout->addWidget(m_syncProgressBar, 3, 0, 1, 2);
     m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
-    networkLayout->addWidget(m_peerLabel, 4, 0);
+    networkLayout->addWidget(m_peerLabel, 4, 0, 1, 2);
+
+    QFrame *networkInfoPanel = makePanel("Panel");
+    QGridLayout *networkInfoLayout = new QGridLayout(networkInfoPanel);
+    networkInfoLayout->setContentsMargins(26, 22, 26, 22);
+    networkInfoLayout->setSpacing(10);
+    networkInfoLayout->setColumnStretch(0, 1);
+    networkInfoLayout->setColumnStretch(1, 1);
+    networkInfoLayout->setColumnStretch(2, 1);
+
+    networkInfoLayout->addWidget(createSectionTitle(tr("Network Info")), 0, 0, 1, 3);
+    m_userCountLabel = makeLabel(tr("Users: -"), "Muted");
+    networkInfoLayout->addWidget(m_userCountLabel, 1, 0);
     m_supplyLabel = makeLabel(tr("Supply: -"), "Muted");
-    networkLayout->addWidget(m_supplyLabel, 4, 1);
+    networkInfoLayout->addWidget(m_supplyLabel, 1, 1);
+    m_blockCountLabel = makeLabel(tr("Blocks: -"), "Muted");
+    networkInfoLayout->addWidget(m_blockCountLabel, 1, 2);
 
     connect(sendNow, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
@@ -407,6 +423,7 @@ QWidget *MainWindow::createBalancePage()
     layout->addWidget(summary);
     layout->addWidget(networkPanel);
     layout->addLayout(cards);
+    layout->addWidget(networkInfoPanel);
     layout->addStretch();
     return page;
 }
@@ -1024,6 +1041,8 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString latestBlock = object.value("latest_block_id").toString();
     QString peerCount = object.value("local_peers").toString();
     QString supply = object.value("currency_supply").toString();
+    QString userCount = object.value("user_count").toString();
+    QString blockCount = object.value("block_count").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
     bool feeOk = false;
     double parsedFee = object.value("transaction_fee").toString().toDouble(&feeOk);
@@ -1066,6 +1085,13 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
     if (m_supplyLabel) {
         m_supplyLabel->setText(tr("Supply: %1 SFR").arg(supply));
+    }
+    if (m_userCountLabel) {
+        m_userCountLabel->setText(tr("Users: %1").arg(userCount));
+    }
+    if (m_blockCountLabel) {
+        QString displayedBlockCount = blockCount.isEmpty() ? latestBlock : blockCount;
+        m_blockCountLabel->setText(tr("Blocks: %1").arg(displayedBlockCount));
     }
 
     QString publicKey = object.value("public_key").toString();

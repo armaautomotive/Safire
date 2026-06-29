@@ -203,6 +203,44 @@ double api_default_transaction_fee()
   return API_DEFAULT_TRANSACTION_FEE;
 }
 
+long connected_block_count(CBlockDB& block_db)
+{
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  if (first_block_id < 0 || latest_block_id < 0)
+  {
+    return 0;
+  }
+
+  CFunctions::block_structure block = block_db.getBlock(first_block_id);
+  std::set<std::string> seen_hashes;
+  long count = 0;
+
+  while (block.number > 0 && count < 1000000)
+  {
+    if (seen_hashes.count(block.hash) > 0)
+    {
+      break;
+    }
+    seen_hashes.insert(block.hash);
+    ++count;
+
+    if (block.number == latest_block_id)
+    {
+      break;
+    }
+
+    CFunctions::block_structure next_block = block_db.getNextBlock(block);
+    if (next_block.number <= 0)
+    {
+      break;
+    }
+    block = next_block;
+  }
+
+  return count;
+}
+
 bool queue_and_broadcast_record(CFunctions& functions, CFunctions::record_structure record, std::string& error)
 {
   if (functions.isRecordSizeValid(record) == false)
@@ -808,6 +846,7 @@ void request_handler::handle_request(const request& req, reply& rep)
 
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
+    long blockCount = connected_block_count(blockDB);
     CNetworkConfig config = CNetworkConfig::load();
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CNetworkTime netTime;
@@ -828,6 +867,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"sync_progress\":\"" << sync_progress_percent(firstBlockId, latestBlockId, localPeers) << "\",";
     ss << "\"first_block_id\":\"" << firstBlockId << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
+    ss << "\"block_count\":\"" << blockCount << "\",";
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"network_time_offset\":\"" << netTime.getOffset() << "\",";
     ss << "\"local_peers\":\"" << localPeers.size() << "\"}";
