@@ -10,6 +10,7 @@
 
 #include "request_handler.h"
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <deque>
 #include <fstream>
@@ -1141,6 +1142,10 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::map<std::string, double> ledgerBalances = accepted_ledger_balances(blockDB);
     double ledgerBalanceTotal = ledger_balance_total(ledgerBalances);
     double supplyDifference = ledgerBalanceTotal - functions.currency_circulation;
+    if (std::fabs(supplyDifference) < 0.000001)
+    {
+      supplyDifference = 0.0;
+    }
     std::vector<CFunctions::record_structure> activeMembers = active_membership_records(blockDB);
     long currentTimeBlock = netTime.getEpoch() / 15;
     long nextTimeBlock = currentTimeBlock + 1;

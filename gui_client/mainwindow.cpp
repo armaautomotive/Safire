@@ -428,6 +428,26 @@ QString formatSfrAmount(double value)
     return amount + QString(" SFR");
 }
 
+QString formatSfrValue(const QString &value)
+{
+    bool ok = false;
+    double parsed = value.toDouble(&ok);
+    if (!ok) {
+        return value.isEmpty() ? QString("-") : value;
+    }
+    if (qAbs(parsed) < 0.000001) {
+        parsed = 0.0;
+    }
+    QString amount = QString::number(parsed, 'f', 4);
+    while (amount.contains(".") && amount.endsWith("0")) {
+        amount.chop(1);
+    }
+    if (amount.endsWith(".")) {
+        amount.chop(1);
+    }
+    return amount;
+}
+
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -1716,10 +1736,10 @@ void MainWindow::applyWalletStatus(const QString &json)
         m_supplyLabel->setText(tr("Issued: %1 SFR").arg(supply));
     }
     if (m_ledgerBalanceTotalLabel) {
-        m_ledgerBalanceTotalLabel->setText(tr("Balances: %1 SFR").arg(ledgerBalanceTotal.isEmpty() ? tr("-") : ledgerBalanceTotal));
+        m_ledgerBalanceTotalLabel->setText(tr("Balances: %1 SFR").arg(formatSfrValue(ledgerBalanceTotal)));
     }
     if (m_supplyDifferenceLabel) {
-        m_supplyDifferenceLabel->setText(tr("Difference: %1 SFR").arg(supplyDifference.isEmpty() ? tr("-") : supplyDifference));
+        m_supplyDifferenceLabel->setText(tr("Difference: %1 SFR").arg(formatSfrValue(supplyDifference)));
     }
     if (m_userCountLabel) {
         m_userCountLabel->setText(tr("Users: %1").arg(userCount));

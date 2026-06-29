@@ -1645,6 +1645,9 @@ void CCLI::processUserInput(){
             std::map<std::string, double> ledgerBalances = acceptedLedgerBalances();
             double ledgerTotal = ledgerBalanceTotal(ledgerBalances);
             double supplyDifference = ledgerTotal - functions.currency_circulation;
+            if(std::fabs(supplyDifference) < 0.000001){
+                supplyDifference = 0.0;
+            }
             std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
             std::cout << " Issued supply: " << functions.currency_circulation << " sfr" << std::endl;
             std::cout << " Ledger balance total: " << ledgerTotal << " sfr" << std::endl;
