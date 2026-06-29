@@ -9,9 +9,14 @@
 //
 
 #include "request_handler.h"
+#include <cctype>
+#include <deque>
 #include <fstream>
+#include <map>
+#include <set>
 #include <sstream>
 #include <string>
+#include <vector>
 #include <boost/lexical_cast.hpp>
 #include "mime_types.h"
 #include "reply.h"
@@ -155,6 +160,320 @@ void text_reply(reply& rep, reply::status_type status, const std::string& conten
   rep.headers[1].value = content_type;
 }
 
+std::string normalized_public_name(const std::string& name)
+{
+  std::string normalized;
+  for (std::size_t i = 0; i < name.length(); ++i)
+  {
+    unsigned char ch = static_cast<unsigned char>(name.at(i));
+    if (std::isalnum(ch))
+    {
+      normalized.push_back(static_cast<char>(std::tolower(ch)));
+    }
+    else if (ch == '-' || ch == '_')
+    {
+      normalized.push_back(static_cast<char>(ch));
+    }
+    else
+    {
+      return "";
+    }
+  }
+  return normalized;
+}
+
+int member_index_by_key(const std::vector<CFunctions::record_structure>& members, const std::string& public_key)
+{
+  for (int i = 0; i < members.size(); ++i)
+  {
+    if (members.at(i).sender_public_key.compare(public_key) == 0)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+bool claim_public_name(std::vector<CFunctions::record_structure>& members,
+                       std::map<std::string, std::string>& name_owners,
+                       const std::string& public_key,
+                       const std::string& name)
+{
+  std::string normalized = normalized_public_name(name);
+  if (normalized.length() == 0)
+  {
+    return false;
+  }
+
+  int member_index = member_index_by_key(members, public_key);
+  if (member_index < 0)
+  {
+    return false;
+  }
+
+  std::map<std::string, std::string>::iterator owner = name_owners.find(normalized);
+  if (owner != name_owners.end() && owner->second.compare(public_key) != 0)
+  {
+    return false;
+  }
+
+  std::string previous_name = normalized_public_name(members.at(member_index).name);
+  if (previous_name.length() > 0)
+  {
+    std::map<std::string, std::string>::iterator previous_owner = name_owners.find(previous_name);
+    if (previous_owner != name_owners.end() && previous_owner->second.compare(public_key) == 0)
+    {
+      name_owners.erase(previous_owner);
+    }
+  }
+
+  members[member_index].name = name;
+  name_owners[normalized] = public_key;
+  return true;
+}
+
+std::vector<CFunctions::record_structure> accepted_membership_records(CBlockDB& block_db)
+{
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  std::vector<CFunctions::record_structure> members;
+  if (first_block_id < 0 || latest_block_id < 0)
+  {
+    return members;
+  }
+
+  CFunctions::block_structure block = block_db.getBlock(first_block_id);
+  std::map<std::string, std::string> name_owners;
+  int guard = 0;
+  while (block.number > 0 && guard < 100000)
+  {
+    for (int i = 0; i < block.records.size(); ++i)
+    {
+      CFunctions::record_structure record = block.records.at(i);
+      if (record.transaction_type == CFunctions::JOIN_NETWORK)
+      {
+        bool exists = false;
+        for (int m = 0; m < members.size(); ++m)
+        {
+          if (members.at(m).sender_public_key.compare(record.sender_public_key) == 0)
+          {
+            exists = true;
+          }
+        }
+        if (exists == false)
+        {
+          std::string requested_name = record.name;
+          record.name = "";
+          members.push_back(record);
+          if (requested_name.length() > 0)
+          {
+            claim_public_name(members, name_owners, record.sender_public_key, requested_name);
+          }
+        }
+      }
+      if (record.transaction_type == CFunctions::UPDATE_NAME &&
+          record.sender_public_key.length() > 0 &&
+          record.name.length() > 0)
+      {
+        claim_public_name(members, name_owners, record.sender_public_key, record.name);
+      }
+    }
+
+    if (block.number == latest_block_id)
+    {
+      break;
+    }
+    CFunctions::block_structure next_block = block_db.getNextBlock(block);
+    if (next_block.number <= 0 || next_block.number == block.number)
+    {
+      break;
+    }
+    block = next_block;
+    ++guard;
+  }
+  return members;
+}
+
+std::map<std::string, std::string> accepted_member_names(CBlockDB& block_db)
+{
+  std::map<std::string, std::string> names;
+  std::vector<CFunctions::record_structure> members = accepted_membership_records(block_db);
+  for (int i = 0; i < members.size(); ++i)
+  {
+    CFunctions::record_structure member = members.at(i);
+    if (member.sender_public_key.length() > 0 && member.name.length() > 0)
+    {
+      names[member.sender_public_key] = member.name;
+    }
+  }
+  return names;
+}
+
+struct wallet_history_record
+{
+  std::string direction;
+  long block_number;
+  int record_index;
+  CFunctions::record_structure record;
+  std::string from_key;
+  std::string to_key;
+  double net_amount;
+};
+
+void add_wallet_history_record(std::deque<wallet_history_record>& history,
+                               int limit,
+                               const std::string& direction,
+                               long block_number,
+                               int record_index,
+                               const CFunctions::record_structure& record,
+                               const std::string& from_key,
+                               const std::string& to_key,
+                               double net_amount)
+{
+  wallet_history_record item;
+  item.direction = direction;
+  item.block_number = block_number;
+  item.record_index = record_index;
+  item.record = record;
+  item.from_key = from_key;
+  item.to_key = to_key;
+  item.net_amount = net_amount;
+  history.push_back(item);
+  if (history.size() > limit)
+  {
+    history.pop_front();
+  }
+}
+
+std::string name_for_key(const std::map<std::string, std::string>& names, const std::string& public_key)
+{
+  std::map<std::string, std::string>::const_iterator it = names.find(public_key);
+  if (it != names.end())
+  {
+    return it->second;
+  }
+  return "";
+}
+
+std::string wallet_history_json(CBlockDB& block_db, const std::string& public_key)
+{
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  if (first_block_id < 0 || latest_block_id < 0)
+  {
+    return "{\"status\":\"ok\",\"records\":[]}";
+  }
+
+  const int limit = 25;
+  std::deque<wallet_history_record> history;
+  std::set<std::string> accepted_record_hashes;
+  CFunctions::block_structure block = block_db.getBlock(first_block_id);
+  int guard = 0;
+  while (block.number > 0 && guard < 100000)
+  {
+    for (int i = 0; i < block.records.size(); ++i)
+    {
+      CFunctions::record_structure record = block.records.at(i);
+      if (record.hash.length() > 0 && accepted_record_hashes.find(record.hash) != accepted_record_hashes.end())
+      {
+        continue;
+      }
+      if (record.hash.length() > 0)
+      {
+        accepted_record_hashes.insert(record.hash);
+      }
+
+      if (record.transaction_type == CFunctions::ISSUE_CURRENCY &&
+          record.recipient_public_key.compare(public_key) == 0)
+      {
+        add_wallet_history_record(history, limit, "REWARD", block.number, i, record,
+                                  record.sender_public_key, record.recipient_public_key, record.amount);
+      }
+
+      if (record.transaction_type == CFunctions::TRANSFER_CURRENCY)
+      {
+        bool sent_by_wallet = record.sender_public_key.compare(public_key) == 0;
+        bool received_by_wallet = record.recipient_public_key.compare(public_key) == 0;
+
+        if (sent_by_wallet && received_by_wallet)
+        {
+          add_wallet_history_record(history, limit, "SELF", block.number, i, record,
+                                    public_key, public_key, 0);
+        }
+        else if (sent_by_wallet)
+        {
+          add_wallet_history_record(history, limit, "SENT", block.number, i, record,
+                                    record.sender_public_key, record.recipient_public_key,
+                                    -(record.amount + record.fee));
+        }
+        else if (received_by_wallet)
+        {
+          add_wallet_history_record(history, limit, "RECEIVED", block.number, i, record,
+                                    record.sender_public_key, record.recipient_public_key,
+                                    record.amount);
+        }
+      }
+
+      if ((record.transaction_type == CFunctions::TRANSFER_CURRENCY ||
+           record.transaction_type == CFunctions::VOTE) &&
+          block.creator_key.compare(public_key) == 0 &&
+          record.fee > 0)
+      {
+        add_wallet_history_record(history, limit, "FEE", block.number, i, record,
+                                  record.sender_public_key, block.creator_key, record.fee);
+      }
+
+      if (record.transaction_type == CFunctions::CARRY_FORWARD &&
+          record.sender_public_key.compare(public_key) == 0)
+      {
+        add_wallet_history_record(history, limit, "CARRY_FORWARD", block.number, i, record,
+                                  record.sender_public_key, record.recipient_public_key,
+                                  record.amount + CFunctions::CARRY_FORWARD_REWARD);
+      }
+    }
+
+    if (block.number == latest_block_id)
+    {
+      break;
+    }
+    CFunctions::block_structure next_block = block_db.getNextBlock(block);
+    if (next_block.number <= 0 || next_block.number == block.number)
+    {
+      break;
+    }
+    block = next_block;
+    ++guard;
+  }
+
+  std::map<std::string, std::string> names = accepted_member_names(block_db);
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",\"records\":[";
+  for (int i = 0; i < history.size(); ++i)
+  {
+    wallet_history_record item = history.at(i);
+    if (i > 0)
+    {
+      ss << ",";
+    }
+    ss << "{";
+    ss << "\"direction\":\"" << item.direction << "\",";
+    ss << "\"block\":\"" << item.block_number << "\",";
+    ss << "\"index\":\"" << item.record_index << "\",";
+    ss << "\"time\":\"" << json_escape(item.record.time) << "\",";
+    ss << "\"net\":\"" << item.net_amount << "\",";
+    ss << "\"amount\":\"" << item.record.amount << "\",";
+    ss << "\"fee\":\"" << item.record.fee << "\",";
+    ss << "\"from_key\":\"" << json_escape(item.from_key) << "\",";
+    ss << "\"from_name\":\"" << json_escape(name_for_key(names, item.from_key)) << "\",";
+    ss << "\"to_key\":\"" << json_escape(item.to_key) << "\",";
+    ss << "\"to_name\":\"" << json_escape(name_for_key(names, item.to_key)) << "\",";
+    ss << "\"hash\":\"" << json_escape(item.record.hash) << "\"";
+    ss << "}";
+  }
+  ss << "]}";
+  return ss.str();
+}
+
 }
 
 request_handler::request_handler(const std::string& doc_root)
@@ -264,6 +583,22 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"network_time_offset\":\"" << netTime.getOffset() << "\",";
     ss << "\"local_peers\":\"" << localPeers.size() << "\"}";
     text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/wallet/history")
+  {
+    CWallet wallet;
+    if (wallet.fileExists("wallet.dat") == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"records\":[]}", "application/json");
+      return;
+    }
+
+    std::string privateKey;
+    std::string publicKey;
+    wallet.read(privateKey, publicKey);
+    text_reply(rep, reply::ok, wallet_history_json(blockDB, publicKey), "application/json");
     return;
   }
 

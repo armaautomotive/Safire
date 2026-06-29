@@ -63,6 +63,7 @@ private:
     void appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status);
     void appendTerminalText(const QString &text);
     void applyWalletStatus(const QString &json);
+    void applyWalletHistory(const QString &json);
     void setActiveNav(QPushButton *activeButton);
     QString receiveAddress() const;
     QString coreBinaryPath() const;

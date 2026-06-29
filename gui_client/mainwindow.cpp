@@ -7,6 +7,7 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QCloseEvent>
+#include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QFrame>
@@ -32,6 +33,7 @@
 #include <QStyle>
 #include <QTimer>
 #include <QUrl>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStringList>
@@ -90,6 +92,40 @@ QFrame *makePanel(const QString &objectName)
     frame->setObjectName(objectName);
     frame->setFrameShape(QFrame::NoFrame);
     return frame;
+}
+
+QString shortAddress(const QString &address)
+{
+    if (address.length() <= 18) {
+        return address;
+    }
+    return address.left(10) + QString("...") + address.right(6);
+}
+
+QString namedAccount(const QString &name, const QString &address)
+{
+    if (address.isEmpty()) {
+        return QString("-");
+    }
+    if (!name.isEmpty()) {
+        return QString("%1 (%2)").arg(name).arg(shortAddress(address));
+    }
+    return shortAddress(address);
+}
+
+QString formatSfrAmount(double value)
+{
+    QString amount = QString::number(value, 'f', 4);
+    while (amount.contains(".") && amount.endsWith("0")) {
+        amount.chop(1);
+    }
+    if (amount.endsWith(".")) {
+        amount.chop(1);
+    }
+    if (value > 0) {
+        amount.prepend("+");
+    }
+    return amount + QString(" SFR");
 }
 
 }
@@ -428,11 +464,8 @@ QWidget *MainWindow::createHistoryPage()
     m_historyTable->verticalHeader()->setVisible(false);
     m_historyTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_historyTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_historyTable->setWordWrap(true);
     layout->addWidget(m_historyTable, 1);
-
-    appendHistory(tr("2026-06-28"), tr("Receive"), tr("Main Account"), tr("+0.9877 SFR"), tr("Confirmed"));
-    appendHistory(tr("2026-06-27"), tr("Membership"), tr("Main Account"), tr("Active"), tr("Local"));
-    appendHistory(tr("2026-06-26"), tr("Sync"), tr("Node"), tr("0.13%"), tr("In progress"));
 
     return page;
 }
@@ -563,9 +596,12 @@ void MainWindow::appendHistory(const QString &date, const QString &type, const Q
         QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
         if (column == 3 && amount.startsWith("+")) {
             item->setForeground(QColor("#18735d"));
+        } else if (column == 3 && amount.startsWith("-")) {
+            item->setForeground(QColor("#b3261e"));
         }
         m_historyTable->setItem(row, column, item);
     }
+    m_historyTable->resizeRowsToContents();
 }
 
 void MainWindow::setActiveNav(QPushButton *activeButton)
@@ -728,6 +764,65 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
 }
 
+void MainWindow::applyWalletHistory(const QString &json)
+{
+    if (!m_historyTable) {
+        return;
+    }
+
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        m_historyTable->setRowCount(0);
+        appendHistory(tr("-"), tr("Error"), tr("Wallet history"), tr("-"), tr("Invalid response"));
+        return;
+    }
+
+    QJsonObject object = document.object();
+    if (object.value("status").toString() != "ok") {
+        m_historyTable->setRowCount(0);
+        appendHistory(tr("-"), tr("Status"), tr("Wallet history"), tr("-"), object.value("status").toString());
+        return;
+    }
+
+    QJsonArray records = object.value("records").toArray();
+    m_historyTable->setRowCount(0);
+    if (records.isEmpty()) {
+        appendHistory(tr("-"), tr("History"), tr("Wallet"), tr("-"), tr("No records"));
+        return;
+    }
+
+    for (int i = 0; i < records.size(); ++i) {
+        QJsonObject record = records.at(i).toObject();
+
+        QString timeValue = record.value("time").toString();
+        bool timeOk = false;
+        qint64 epoch = timeValue.toLongLong(&timeOk);
+        QString date = timeValue;
+        if (timeOk && epoch > 0) {
+            date = QDateTime::fromSecsSinceEpoch(epoch).toString("yyyy-MM-dd HH:mm");
+        }
+        if (date.isEmpty()) {
+            date = tr("-");
+        }
+
+        QString direction = record.value("direction").toString();
+        QString fromAccount = namedAccount(record.value("from_name").toString(), record.value("from_key").toString());
+        QString toAccount = namedAccount(record.value("to_name").toString(), record.value("to_key").toString());
+        QString account = tr("From: %1\nTo: %2").arg(fromAccount).arg(toAccount);
+
+        bool netOk = false;
+        double netAmount = record.value("net").toString().toDouble(&netOk);
+        QString amount = netOk ? formatSfrAmount(netAmount) : record.value("net").toString();
+
+        QString block = record.value("block").toString();
+        QString index = record.value("index").toString();
+        QString status = tr("Block %1 #%2").arg(block).arg(index);
+
+        appendHistory(date, direction, account, amount, status);
+    }
+}
+
 void MainWindow::signIn()
 {
     if (m_userEdit->text().trimmed().isEmpty() || m_passwordEdit->text().isEmpty()) {
@@ -775,6 +870,7 @@ void MainWindow::showHistory()
 {
     m_contentStack->setCurrentIndex(3);
     setActiveNav(m_historyButton);
+    refreshWalletStatus();
 }
 
 void MainWindow::showTerminal()
@@ -929,6 +1025,10 @@ void MainWindow::refreshWalletStatus()
     QUrl url(QString("http://127.0.0.1:%1/api/wallet/status").arg(m_backendPort));
     QNetworkRequest request(url);
     m_networkManager->get(request);
+
+    QUrl historyUrl(QString("http://127.0.0.1:%1/api/wallet/history").arg(m_backendPort));
+    QNetworkRequest historyRequest(historyUrl);
+    m_networkManager->get(historyRequest);
 }
 
 void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
@@ -946,6 +1046,11 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         return;
     }
 
-    applyWalletStatus(QString::fromUtf8(body));
+    QString path = reply->url().path();
+    if (path == "/api/wallet/history") {
+        applyWalletHistory(QString::fromUtf8(body));
+    } else {
+        applyWalletStatus(QString::fromUtf8(body));
+    }
     reply->deleteLater();
 }
