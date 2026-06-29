@@ -4,6 +4,7 @@
 
 #include "cli.h"
 
+#include <deque>
 #include <sstream>
 #include <unistd.h>   // open and close
 #include <sys/stat.h> // temp because we removed util
@@ -17,6 +18,148 @@
 #include "network/localpeerclient.h"
 #include "blockdb.h"
 #include "userdb.h"
+
+namespace {
+
+std::string recordTypeName(CFunctions::transaction_types type){
+    if(type == CFunctions::JOIN_NETWORK){
+        return "JOIN_NETWORK";
+    }
+    if(type == CFunctions::ISSUE_CURRENCY){
+        return "ISSUE_CURRENCY";
+    }
+    if(type == CFunctions::TRANSFER_CURRENCY){
+        return "TRANSFER_CURRENCY";
+    }
+    if(type == CFunctions::CARRY_FORWARD){
+        return "CARRY_FORWARD";
+    }
+    if(type == CFunctions::PERIOD_SUMMARY){
+        return "PERIOD_SUMMARY";
+    }
+    if(type == CFunctions::VOTE){
+        return "VOTE";
+    }
+    if(type == CFunctions::HEART_BEAT){
+        return "HEART_BEAT";
+    }
+    return "UNKNOWN";
+}
+
+std::string shortKey(const std::string& key){
+    if(key.length() == 0){
+        return "-";
+    }
+    if(key.length() <= 16){
+        return key;
+    }
+    return key.substr(0, 12) + "...";
+}
+
+std::string recordSummary(long blockNumber, int recordIndex, CFunctions::record_structure record, bool fullKeys){
+    std::stringstream ss;
+    ss << " block " << blockNumber << " #" << recordIndex << " " << recordTypeName(record.transaction_type);
+    ss << " time " << (record.time.length() > 0 ? record.time : "-");
+    ss << " net " << (record.network.length() > 0 ? record.network : "-");
+    ss << " amt " << record.amount;
+    ss << " fee " << record.fee;
+    if(record.transaction_type == CFunctions::JOIN_NETWORK){
+        ss << " member " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
+    } else {
+        ss << " from " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
+        ss << " to " << (fullKeys ? record.recipient_public_key : shortKey(record.recipient_public_key));
+    }
+    if(record.name.length() > 0){
+        ss << " name \"" << record.name << "\"";
+    }
+    if(record.value.length() > 0){
+        ss << " value \"" << record.value << "\"";
+    }
+    if(record.hash.length() > 0){
+        ss << " hash " << shortKey(record.hash);
+    }
+    return ss.str();
+}
+
+void printRecentBlockchainRecords(int limit){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId < 0 || latestBlockId < 0){
+        std::cout << " No blockchain records found." << std::endl;
+        return;
+    }
+
+    std::deque<std::string> recentRecords;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            recentRecords.push_back(recordSummary(block.number, i, block.records.at(i), false));
+            if(recentRecords.size() > limit){
+                recentRecords.pop_front();
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+
+    if(recentRecords.size() == 0){
+        std::cout << " No blockchain records found." << std::endl;
+        return;
+    }
+
+    std::cout << " Last " << recentRecords.size() << " blockchain records:" << std::endl;
+    for(std::deque<std::string>::iterator it = recentRecords.begin(); it != recentRecords.end(); ++it){
+        std::cout << "  " << *it << std::endl;
+    }
+}
+
+void printMembershipRecords(){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId < 0 || latestBlockId < 0){
+        std::cout << " No blockchain records found." << std::endl;
+        return;
+    }
+
+    int membershipCount = 0;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::JOIN_NETWORK){
+                if(membershipCount == 0){
+                    std::cout << " Membership records:" << std::endl;
+                }
+                std::cout << "  " << recordSummary(block.number, i, record, true) << std::endl;
+                membershipCount++;
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+
+    std::cout << " Membership count: " << membershipCount << std::endl;
+}
+
+}
 
 /**
 * printCommands 
@@ -32,6 +175,8 @@ void CCLI::printCommands(){
 	" sent                    - print sent transaction list details.\n" <<
 	" received                - print received transaction list details.\n" <<
 	" network                 - print network stats including currency and volumes.\n" <<
+    " messages                - print the last 10 blockchain records.\n" <<
+    " memberships             - print blockchain membership records.\n" <<
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
 	" users                   - prints user address and balance information.\n" <<
@@ -246,6 +391,14 @@ void CCLI::processUserInput(){
             //CP2P p2p;
             //std::cout << " Peer Address: " << p2p.myPeerAddress << std::endl;
                     //p2p.sendData("DATA DATA DATA 123 \0");
+
+        } else if ( command.compare("messages") == 0 ){
+
+            printRecentBlockchainRecords(10);
+
+        } else if ( command.compare("memberships") == 0 || command.compare("members") == 0 ){
+
+            printMembershipRecords();
 
  
         } else if ( command.find("quit") != std::string::npos ){
