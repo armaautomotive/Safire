@@ -7,6 +7,7 @@
 
 #include "functions/functions.h"
 #include <string>
+#include <vector>
 
 class CBlockDB;
 
@@ -14,6 +15,7 @@ class CChainValidator
 {
 public:
     static bool validateBlockForStorage(CBlockDB& block_db, const CFunctions::block_structure& block, std::string& reason);
+    static bool validateConnectedChain(const std::vector<CFunctions::block_structure>& chain, std::string& reason);
 };
 
 #endif
