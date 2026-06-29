@@ -4,12 +4,14 @@
 
 #include "cli.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <deque>
 #include <map>
 #include <sstream>
+#include <vector>
 #include <unistd.h>   // open and close
 #include <sys/stat.h> // temp because we removed util
 #include <fcntl.h> // temp removed util.h
@@ -920,6 +922,91 @@ void printRecentBlockchainRecords(int limit){
     std::cout << "  records: " << totalRecordCount << std::endl;
 }
 
+std::string blockSummary(CFunctions::block_structure block){
+    std::stringstream ss;
+    ss << "block " << block.number;
+    ss << " prev " << block.previous_block_id;
+    ss << " records " << block.records.size();
+    ss << " creator " << shortKey(block.creator_key);
+    if(block.hash.length() > 0){
+        ss << " hash " << shortKey(block.hash);
+    }
+    if(block.previous_block_hash.length() > 0){
+        ss << " prevhash " << shortKey(block.previous_block_hash);
+    }
+    return ss.str();
+}
+
+void printChainDiagnostics(){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
+    std::vector<CFunctions::block_structure> storedBlocks = blockDB.getStoredBlocks();
+    std::sort(storedBlocks.begin(), storedBlocks.end(),
+        [](const CFunctions::block_structure& a, const CFunctions::block_structure& b){
+            return a.number < b.number;
+        });
+
+    std::cout << " Chain diagnostics:" << std::endl;
+    std::cout << "  first block: " << firstBlockId << std::endl;
+    std::cout << "  latest indexed block: " << latestBlockId << std::endl;
+    std::cout << "  latest connected block: " << connectedLatestBlockId << std::endl;
+    std::cout << "  stored blocks: " << storedBlocks.size() << std::endl;
+
+    if(connectedLatestBlockId < 0){
+        return;
+    }
+
+    CFunctions::block_structure connectedTip = blockDB.getBlock(connectedLatestBlockId);
+    std::cout << "  connected tip: " << blockSummary(connectedTip) << std::endl;
+
+    long nextIndex = blockDB.getNextBlockId(connectedLatestBlockId);
+    std::cout << "  indexed child after connected tip: ";
+    if(nextIndex > 0){
+        std::cout << nextIndex;
+    } else {
+        std::cout << "-";
+    }
+    std::cout << std::endl;
+    if(nextIndex > 0){
+        CFunctions::block_structure nextBlock = blockDB.getBlock(nextIndex);
+        if(nextBlock.number > 0){
+            std::cout << "  indexed child block: " << blockSummary(nextBlock) << std::endl;
+        } else {
+            std::cout << "  indexed child block: missing" << std::endl;
+        }
+    }
+
+    std::vector<CFunctions::block_structure> directChildren;
+    std::vector<CFunctions::block_structure> storedAfterTip;
+    for(int i = 0; i < storedBlocks.size(); i++){
+        CFunctions::block_structure block = storedBlocks.at(i);
+        if(block.previous_block_id == connectedLatestBlockId){
+            directChildren.push_back(block);
+        }
+        if(block.number > connectedLatestBlockId){
+            storedAfterTip.push_back(block);
+        }
+    }
+
+    std::cout << "  direct stored children of connected tip: " << directChildren.size() << std::endl;
+    for(int i = 0; i < directChildren.size() && i < 10; i++){
+        std::cout << "    " << blockSummary(directChildren.at(i)) << std::endl;
+    }
+
+    std::cout << "  stored blocks after connected tip: " << storedAfterTip.size() << std::endl;
+    for(int i = 0; i < storedAfterTip.size() && i < 10; i++){
+        CFunctions::block_structure block = storedAfterTip.at(i);
+        long parentNextIndex = blockDB.getNextBlockId(block.previous_block_id);
+        std::cout << "    " << blockSummary(block);
+        if(parentNextIndex > 0 && parentNextIndex != block.number){
+            std::cout << " parent-index " << parentNextIndex;
+        }
+        std::cout << std::endl;
+    }
+}
+
 void printMembershipRecords(){
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
@@ -1492,7 +1579,7 @@ void CCLI::processUserInput(){
 
 
         } else if ( command.compare("chain") == 0){
-           std::cout << " Blockchain state: " << " Not implemented. " << std::endl;
+           printChainDiagnostics();
 	
         } else if ( command.compare("printchain") == 0){
             

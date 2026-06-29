@@ -44,6 +44,7 @@ public:
     CFunctions::block_structure getNextBlock(CFunctions::block_structure block);
     
     void GetBlocks();
+    std::vector<CFunctions::block_structure> getStoredBlocks();
     //CFunctions::block_structure getFirstBlock();
     CFunctions::block_structure getBlock(long number);
     CFunctions::block_structure GetBlockWithSender(std::string sender_key, int index);

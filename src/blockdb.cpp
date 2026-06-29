@@ -364,6 +364,31 @@ void CBlockDB::GetBlocks(){
     //delete db;
 }
 
+std::vector<CFunctions::block_structure> CBlockDB::getStoredBlocks(){
+    std::vector<CFunctions::block_structure> blocks;
+    leveldb::DB* db = getDatabase();
+    if(!db){
+        return blocks;
+    }
+
+    CFunctions functions;
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next())
+    {
+        std::string key = it->key().ToString();
+        if(boost::algorithm::starts_with(key, "b_")){
+            std::vector<CFunctions::block_structure> parsedBlocks = functions.parseBlockJson(it->value().ToString());
+            for(int i = 0; i < parsedBlocks.size(); i++){
+                if(parsedBlocks.at(i).number > 0){
+                    blocks.push_back(parsedBlocks.at(i));
+                }
+            }
+        }
+    }
+    delete it;
+    return blocks;
+}
+
 /**
  * getBlock
  *
