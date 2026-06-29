@@ -209,7 +209,7 @@ bool carryForwardSnapshotMatches(CBlockDB& blockDB, const CFunctions::record_str
 
 } // namespace
 
-CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& walletPublicKey)
+CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& walletPublicKey, long stopBlock)
 {
     CLedgerState::state result;
     result.issued_supply = 0.0;
@@ -222,6 +222,9 @@ CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& wa
     result.last_heartbeat_block = -1;
     result.first_block_id = blockDB.getFirstBlockId();
     result.latest_block_id = blockDB.getLatestBlockId();
+    if (stopBlock > 0 && (result.latest_block_id < 0 || stopBlock < result.latest_block_id)) {
+        result.latest_block_id = stopBlock;
+    }
     result.connected_block_count = 0;
 
     if (result.first_block_id < 0 || result.latest_block_id < 0) {
@@ -240,6 +243,9 @@ CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& wa
     CFunctions::block_structure block = blockDB.getBlock(result.first_block_id);
     int guard = 0;
     while (block.number > 0 && guard < 100000) {
+        if (stopBlock > 0 && block.number > stopBlock) {
+            break;
+        }
         result.latest_block = block;
         result.connected_block_count++;
 

@@ -42,7 +42,7 @@ public:
         CFunctions::block_structure latest_block;
     };
 
-    static state build(CBlockDB& block_db, const std::string& wallet_public_key = "");
+    static state build(CBlockDB& block_db, const std::string& wallet_public_key = "", long stop_block = -1);
     static double balanceAtBlock(CBlockDB& block_db, const std::string& public_key, long checkpoint_block);
 };
 

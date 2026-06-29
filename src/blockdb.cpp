@@ -15,6 +15,7 @@
 #include "platform.h"
 #include "log.h";
 #include "networkconfig.h"
+#include "functions/chainvalidator.h"
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -242,6 +243,12 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     if(existingHashJson.length() > 0){
         log.log("FYI block hash allready exists... \n");
         return true;
+    }
+
+    std::string validationReason;
+    if(CChainValidator::validateBlockForStorage(*this, block, validationReason) == false){
+        log.log("Reject block: " + validationReason + ".\n");
+        return false;
     }
 
     db->Put(writeOptions, hashKey, valueStream.str());
