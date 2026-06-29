@@ -790,6 +790,9 @@ void CFunctions::scanChain(std::string my_public_key, bool debug){
                     if(record.transaction_type == CFunctions::HEART_BEAT){
                         std::cout << "HEART BT";
                     }
+                    if(record.transaction_type == CFunctions::UPDATE_NAME){
+                        std::cout << "UPD_NAME";
+                    }
                     std::cout << "  sender: " << sender << " -> " << recipient << " amt: " << record.amount;
                     std::cout << " time: " << record.time << " net: " << record.network ;
                     std::cout << " typ " << boost::lexical_cast<std::string>(record.transaction_type) << "  ";
@@ -1079,6 +1082,9 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                             if(record.transaction_type == CFunctions::HEART_BEAT){
                                 std::cout << "HEART BT";
                             }
+                            if(record.transaction_type == CFunctions::UPDATE_NAME){
+                                std::cout << "UPD_NAME";
+                            }
                             std::cout << "  sender: " << sender << " -> " << recipient << " amt: " << record.amount;
                             std::cout << " time: " << record.time << " net: " << record.network ;
                             std::cout << " typ " << boost::lexical_cast<std::string>(record.transaction_type) << "  ";
@@ -1218,7 +1224,7 @@ CFunctions::record_structure CFunctions::parseRecordJson(std::string record_sect
     record.network = parseSectionString(record_section, "\"network\":\"", "\"");
     record.time = parseSectionString(record_section, "\"time\":\"", "\"");
     int transaction_type = parseSectionInt(record_section, "\"typ\":\"", "\"" );
-    // transaction_type_strings JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE
+    // transaction_type_strings JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE, HEART_BEAT, UPDATE_NAME
     // TODO: there has to be a better way to do this
     if(transaction_type == 0){
         record.transaction_type = CFunctions::JOIN_NETWORK;
@@ -1240,6 +1246,9 @@ CFunctions::record_structure CFunctions::parseRecordJson(std::string record_sect
     }
     if(transaction_type == 6){
         record.transaction_type = CFunctions::HEART_BEAT;
+    }
+    if(transaction_type == 7){
+        record.transaction_type = CFunctions::UPDATE_NAME;
     }
 
     // address

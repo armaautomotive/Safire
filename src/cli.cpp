@@ -113,6 +113,9 @@ std::string recordTypeName(CFunctions::transaction_types type){
     if(type == CFunctions::HEART_BEAT){
         return "HEART_BEAT";
     }
+    if(type == CFunctions::UPDATE_NAME){
+        return "UPDATE_NAME";
+    }
     return "UNKNOWN";
 }
 
@@ -333,6 +336,15 @@ std::vector<CFunctions::record_structure> acceptedMembershipRecords(){
                 }
                 if(exists == false){
                     members.push_back(record);
+                }
+            }
+            if(record.transaction_type == CFunctions::UPDATE_NAME &&
+               record.sender_public_key.length() > 0 &&
+               record.name.length() > 0){
+                for(int m = 0; m < members.size(); m++){
+                    if(members.at(m).sender_public_key.compare(record.sender_public_key) == 0){
+                        members[m].name = record.name;
+                    }
                 }
             }
         }
@@ -601,6 +613,15 @@ std::vector<CFunctions::record_structure> activeMembershipRecords(){
                     members.push_back(record);
                 }
             }
+            if(record.transaction_type == CFunctions::UPDATE_NAME &&
+               record.sender_public_key.length() > 0 &&
+               record.name.length() > 0){
+                for(int m = 0; m < members.size(); m++){
+                    if(members.at(m).sender_public_key.compare(record.sender_public_key) == 0){
+                        members[m].name = record.name;
+                    }
+                }
+            }
             if(record.transaction_type == CFunctions::HEART_BEAT &&
                record.sender_public_key.length() > 0){
                 sawHeartbeat = true;
@@ -702,7 +723,7 @@ std::string recordSummary(long blockNumber, int recordIndex, CFunctions::record_
     ss << " net " << (record.network.length() > 0 ? record.network : "-");
     ss << " amt " << record.amount;
     ss << " fee " << record.fee;
-    if(record.transaction_type == CFunctions::JOIN_NETWORK){
+    if(record.transaction_type == CFunctions::JOIN_NETWORK || record.transaction_type == CFunctions::UPDATE_NAME){
         ss << " member " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
     } else {
         ss << " from " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
@@ -727,7 +748,7 @@ std::string mempoolRecordSummary(int recordIndex, CFunctions::record_structure r
     ss << " net " << (record.network.length() > 0 ? record.network : "-");
     ss << " amt " << record.amount;
     ss << " fee " << record.fee;
-    if(record.transaction_type == CFunctions::JOIN_NETWORK){
+    if(record.transaction_type == CFunctions::JOIN_NETWORK || record.transaction_type == CFunctions::UPDATE_NAME){
         ss << " member " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
     } else {
         ss << " from " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
@@ -978,6 +999,7 @@ void printVoteRecords(){
 void CCLI::printCommands(){
 	std::cout << "Commands:\n" <<
     " join                    - request membership in the main network.\n" <<
+    " setname                 - update your public member name.\n" <<
     " heartbeat               - renew block creator eligibility.\n" <<
     " switch [network name]   - switch current network. Default is 'main'.\n" <<
     //" swtch wallet            - change wallet" <<
@@ -1102,6 +1124,39 @@ void CCLI::processUserInput(){
 			}
 
 			// Print if pending or allready accepted.
+        } else if ( command.compare("setname") == 0 ){
+            functions.scanChain(publicKey, false);
+            if(functions.joined == false){
+                std::cout << " Join the network before updating your public name." << std::endl;
+            } else {
+                std::cout << "Enter new public user name: \n" << std::endl;
+                std::string userName;
+                std::cin >> userName;
+                if(userName.length() == 0){
+                    std::cout << "Name update not sent. Name is required." << std::endl;
+                } else {
+                    CFunctions::record_structure nameRecord;
+                    nameRecord.network = "main";
+                    CNetworkTime netTime;
+                    std::stringstream ss;
+                    ss << netTime.getEpoch();
+                    nameRecord.time = ss.str();
+                    nameRecord.transaction_type = CFunctions::UPDATE_NAME;
+                    nameRecord.amount = 0.0;
+                    nameRecord.fee = 0.0;
+                    nameRecord.sender_public_key = publicKey;
+                    nameRecord.recipient_public_key = "";
+                    nameRecord.name = userName;
+                    nameRecord.hash = functions.getRecordHash(nameRecord);
+                    std::string signature = "";
+                    ecdsa.SignMessage(privateKey, nameRecord.hash, signature);
+                    nameRecord.signature = signature;
+
+                    if(queueAndBroadcastRecord(functions, relayClient, nameRecord)){
+                        std::cout << "Name update queued and broadcast. The new name will show after a block includes this record." << std::endl;
+                    }
+                }
+            }
         } else if ( command.compare("heartbeat") == 0 ){
             functions.scanChain(publicKey, false);
             if(functions.joined == false){

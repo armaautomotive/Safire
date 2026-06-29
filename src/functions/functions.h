@@ -57,7 +57,7 @@ public:
     }
    
     // ? Should these structures go elsewhere?
-    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE, HEART_BEAT };
+    enum transaction_types { JOIN_NETWORK, ISSUE_CURRENCY, TRANSFER_CURRENCY, CARRY_FORWARD, PERIOD_SUMMARY, VOTE, HEART_BEAT, UPDATE_NAME };
 
     // work in progress
     long last_parsed_block;
