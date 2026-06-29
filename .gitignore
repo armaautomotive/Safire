@@ -11,6 +11,7 @@
 
 # qmake generated files
 .qmake.stash
+/gui_client/Makefile
 *.pro.user
 moc_*.cpp
 moc_*.o

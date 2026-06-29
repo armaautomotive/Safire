@@ -5,10 +5,11 @@
 TEMPLATE = app
 TARGET = Safire
 INCLUDEPATH += .
+CONFIG += c++11
 
 QT    += core gui
 QT    += widgets
-QT    += gui
+#QT    += gui
 #win32:RC_ICONS += safire.ico
 ICON = safire.ico
 
