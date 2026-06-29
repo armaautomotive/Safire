@@ -840,6 +840,16 @@ double accepted_member_supply(CBlockDB& block_db)
   return supply;
 }
 
+double ledger_balance_total(const std::map<std::string, double>& balances)
+{
+  double total = 0.0;
+  for (std::map<std::string, double>::const_iterator it = balances.begin(); it != balances.end(); ++it)
+  {
+    total += it->second;
+  }
+  return total;
+}
+
 std::string network_users_json(CBlockDB& block_db)
 {
   std::vector<CFunctions::record_structure> members = accepted_membership_records(block_db);
@@ -1127,6 +1137,9 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
     std::map<std::string, std::string> memberNames = accepted_member_names(blockDB);
     std::vector<CFunctions::record_structure> acceptedMembers = accepted_membership_records(blockDB);
+    std::map<std::string, double> ledgerBalances = accepted_ledger_balances(blockDB);
+    double ledgerBalanceTotal = ledger_balance_total(ledgerBalances);
+    double supplyDifference = ledgerBalanceTotal - functions.currency_circulation;
     std::vector<CFunctions::record_structure> activeMembers = active_membership_records(blockDB);
     long currentTimeBlock = netTime.getEpoch() / 15;
     long nextTimeBlock = currentTimeBlock + 1;
@@ -1164,6 +1177,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"heartbeat_renewal_due\":\"" << (functions.heartbeat_renewal_due ? "yes" : "no") << "\",";
     ss << "\"last_heartbeat_block\":\"" << functions.last_heartbeat_block << "\",";
     ss << "\"currency_supply\":\"" << functions.currency_circulation << "\",";
+    ss << "\"ledger_balance_total\":\"" << ledgerBalanceTotal << "\",";
+    ss << "\"supply_difference\":\"" << supplyDifference << "\",";
     ss << "\"user_count\":\"" << acceptedMembers.size() << "\",";
     ss << "\"network_up_to_date\":\"" << (functions.IsChainUpToDate() ? "yes" : "no") << "\",";
     ss << "\"sync_progress\":\"" << sync_progress_percent(firstBlockId, latestBlockId, localPeers) << "\",";

@@ -459,6 +459,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_currentCreatorLabel(0),
       m_nextCreatorLabel(0),
       m_supplyLabel(0),
+      m_ledgerBalanceTotalLabel(0),
+      m_supplyDifferenceLabel(0),
       m_userCountLabel(0),
       m_blockCountLabel(0),
       m_historyTable(0),
@@ -740,10 +742,14 @@ QWidget *MainWindow::createBalancePage()
     networkInfoLayout->addWidget(createSectionTitle(tr("Network Info")), 0, 0, 1, 3);
     m_userCountLabel = makeLabel(tr("Users: -"), "Muted");
     networkInfoLayout->addWidget(m_userCountLabel, 1, 0);
-    m_supplyLabel = makeLabel(tr("Supply: -"), "Muted");
+    m_supplyLabel = makeLabel(tr("Issued: -"), "Muted");
     networkInfoLayout->addWidget(m_supplyLabel, 1, 1);
     m_blockCountLabel = makeLabel(tr("Blocks: -"), "Muted");
     networkInfoLayout->addWidget(m_blockCountLabel, 1, 2);
+    m_ledgerBalanceTotalLabel = makeLabel(tr("Balances: -"), "Muted");
+    networkInfoLayout->addWidget(m_ledgerBalanceTotalLabel, 2, 0, 1, 2);
+    m_supplyDifferenceLabel = makeLabel(tr("Difference: -"), "Muted");
+    networkInfoLayout->addWidget(m_supplyDifferenceLabel, 2, 2);
 
     connect(sendNow, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
@@ -1611,6 +1617,8 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString latestBlock = object.value("latest_block_id").toString();
     QString peerCount = object.value("local_peers").toString();
     QString supply = object.value("currency_supply").toString();
+    QString ledgerBalanceTotal = object.value("ledger_balance_total").toString();
+    QString supplyDifference = object.value("supply_difference").toString();
     QString userCount = object.value("user_count").toString();
     QString blockCount = object.value("block_count").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
@@ -1696,7 +1704,13 @@ void MainWindow::applyWalletStatus(const QString &json)
         m_peerLabel->setText(tr("Peers: %1").arg(peerCount));
     }
     if (m_supplyLabel) {
-        m_supplyLabel->setText(tr("Supply: %1 SFR").arg(supply));
+        m_supplyLabel->setText(tr("Issued: %1 SFR").arg(supply));
+    }
+    if (m_ledgerBalanceTotalLabel) {
+        m_ledgerBalanceTotalLabel->setText(tr("Balances: %1 SFR").arg(ledgerBalanceTotal.isEmpty() ? tr("-") : ledgerBalanceTotal));
+    }
+    if (m_supplyDifferenceLabel) {
+        m_supplyDifferenceLabel->setText(tr("Difference: %1 SFR").arg(supplyDifference.isEmpty() ? tr("-") : supplyDifference));
     }
     if (m_userCountLabel) {
         m_userCountLabel->setText(tr("Users: %1").arg(userCount));

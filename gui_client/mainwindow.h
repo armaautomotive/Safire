@@ -132,6 +132,8 @@ private:
     QLabel *m_currentCreatorLabel;
     QLabel *m_nextCreatorLabel;
     QLabel *m_supplyLabel;
+    QLabel *m_ledgerBalanceTotalLabel;
+    QLabel *m_supplyDifferenceLabel;
     QLabel *m_userCountLabel;
     QLabel *m_blockCountLabel;
     QTableWidget *m_historyTable;

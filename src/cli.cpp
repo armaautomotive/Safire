@@ -662,6 +662,14 @@ double acceptedMemberSupply(){
     return supply;
 }
 
+double ledgerBalanceTotal(const std::map<std::string, double>& balances){
+    double total = 0.0;
+    for(std::map<std::string, double>::const_iterator it = balances.begin(); it != balances.end(); ++it){
+        total += it->second;
+    }
+    return total;
+}
+
 double accountBalanceAtBlock(const std::string& accountPublicKey, long checkpointBlock){
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
@@ -1634,8 +1642,13 @@ void CCLI::processUserInput(){
             }
             std::cout << std::endl;
             std::vector<CFunctions::record_structure> acceptedMembers = acceptedMembershipRecords();
+            std::map<std::string, double> ledgerBalances = acceptedLedgerBalances();
+            double ledgerTotal = ledgerBalanceTotal(ledgerBalances);
+            double supplyDifference = ledgerTotal - functions.currency_circulation;
             std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
-            std::cout << " Currency supply: " << functions.currency_circulation << " sfr" << std::endl;
+            std::cout << " Issued supply: " << functions.currency_circulation << " sfr" << std::endl;
+            std::cout << " Ledger balance total: " << ledgerTotal << " sfr" << std::endl;
+            std::cout << " Supply difference: " << supplyDifference << " sfr" << std::endl;
             std::cout << " User count: " << acceptedMembers.size() << std::endl;
 
             // Block chain size?
