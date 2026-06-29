@@ -1714,6 +1714,12 @@ void MainWindow::applyWalletStatus(const QString &json)
             latestBlockDate = QDateTime::fromSecsSinceEpoch(latestEpoch).toString("yyyy-MM-dd HH:mm");
         } else if (!latestBlockTime.isEmpty()) {
             latestBlockDate = latestBlockTime;
+        } else {
+            bool latestBlockOk = false;
+            qint64 latestBlockNumber = latestBlock.toLongLong(&latestBlockOk);
+            if (latestBlockOk && latestBlockNumber > 0) {
+                latestBlockDate = QDateTime::fromSecsSinceEpoch(latestBlockNumber * 15).toString("yyyy-MM-dd HH:mm");
+            }
         }
         if (progressOk) {
             m_syncLabel->setText(tr("Sync: %1%  Latest block: %2  Date: %3").arg(progressValue).arg(latestBlock).arg(latestBlockDate));
