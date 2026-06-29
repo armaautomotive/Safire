@@ -392,6 +392,30 @@ void printSelectedBlockCreator(const std::vector<CFunctions::record_structure>& 
     }
 }
 
+void printNextLocalCreatorSlot(const std::vector<CFunctions::record_structure>& members, long startBlock, const std::string& localPublicKey){
+    if(members.size() == 0 || localPublicKey.length() == 0){
+        std::cout << " Next time this node is selected: unknown" << std::endl;
+        return;
+    }
+
+    const long maxLookAheadBlocks = 100000;
+    for(long offset = 0; offset <= maxLookAheadBlocks; offset++){
+        long candidateBlock = startBlock + offset;
+        long userIndex = candidateBlock % members.size();
+        if(members.at(userIndex).sender_public_key.compare(localPublicKey) == 0){
+            long secondsUntil = candidateBlock > startBlock ? offset * 15 : 0;
+            double minutesUntil = secondsUntil / 60.0;
+            std::cout << " Next time this node is selected:" << std::endl;
+            std::cout << "  block: " << candidateBlock << std::endl;
+            std::cout << "  time: " << formatSlotTime(candidateBlock) << std::endl;
+            std::cout << "  approximately: " << minutesUntil << " minutes" << std::endl;
+            return;
+        }
+    }
+
+    std::cout << " Next time this node is selected: not found in lookahead window" << std::endl;
+}
+
 void printNextBlockSelection(const std::string& localPublicKey){
     CSelector selector;
     CNetworkTime netTime;
@@ -412,6 +436,7 @@ void printNextBlockSelection(const std::string& localPublicKey){
     printSelectedBlockCreator(members, currentBlock, "Current", localPublicKey);
     std::cout << " Seconds until next block: " << secondsUntilNextBlock << std::endl;
     printSelectedBlockCreator(members, nextBlock, "Next", localPublicKey);
+    printNextLocalCreatorSlot(members, currentBlock, localPublicKey);
 }
 
 std::string recordSummary(long blockNumber, int recordIndex, CFunctions::record_structure record, bool fullKeys){
