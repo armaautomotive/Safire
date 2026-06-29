@@ -349,14 +349,14 @@ std::string walletHistoryLine(
     if(record.fee > 0){
         ss << " fee " << record.fee;
     }
-    ss << " from " << namedAddress(fromKey, names);
-    ss << " to " << namedAddress(toKey, names);
     if(record.name.length() > 0){
         ss << " note \"" << record.name << "\"";
     }
     if(record.hash.length() > 0){
         ss << " hash " << shortKey(record.hash);
     }
+    ss << "\n     from: " << namedAddress(fromKey, names);
+    ss << "\n       to: " << namedAddress(toKey, names);
     return ss.str();
 }
 
