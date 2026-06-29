@@ -895,6 +895,65 @@ void printCarryForwardRecords(){
     std::cout << " Prune horizon: " << CFunctions::CARRY_FORWARD_PRUNE_BLOCKS << " blocks" << std::endl;
 }
 
+void printVoteRecords(){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId < 0 || latestBlockId < 0){
+        std::cout << " No blockchain records found." << std::endl;
+        return;
+    }
+
+    int voteCount = 0;
+    std::map<std::string, std::map<std::string, int> > tallies;
+    std::map<std::string, std::string> names = acceptedMemberNames();
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            CFunctions::record_structure record = block.records.at(i);
+            if(record.transaction_type == CFunctions::VOTE){
+                if(voteCount == 0){
+                    std::cout << " Vote records:" << std::endl;
+                }
+                std::string voteName = record.name.length() > 0 ? record.name : "-";
+                std::string voteValue = record.value.length() > 0 ? record.value : "-";
+                std::cout << "  block " << block.number << " #" << i;
+                std::cout << " time " << (record.time.length() > 0 ? record.time : "-");
+                std::cout << " name \"" << voteName << "\"";
+                std::cout << " value \"" << voteValue << "\"";
+                std::cout << " voter " << namedAddress(record.sender_public_key, names);
+                if(record.hash.length() > 0){
+                    std::cout << " hash " << shortKey(record.hash);
+                }
+                std::cout << std::endl;
+                tallies[voteName][voteValue]++;
+                voteCount++;
+            }
+        }
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+
+    std::cout << " Vote count: " << voteCount << std::endl;
+    if(voteCount > 0){
+        std::cout << " Vote tallies:" << std::endl;
+        for(std::map<std::string, std::map<std::string, int> >::iterator topic = tallies.begin(); topic != tallies.end(); ++topic){
+            std::cout << "  " << topic->first << std::endl;
+            for(std::map<std::string, int>::iterator value = topic->second.begin(); value != topic->second.end(); ++value){
+                std::cout << "    " << value->first << ": " << value->second << std::endl;
+            }
+        }
+    }
+}
+
 }
 
 /**
@@ -922,7 +981,8 @@ void CCLI::printCommands(){
 	" send                    - send a payment to another user address.\n" <<
 	" receive                 - prints your public key address to have others send you payments.\n" <<
 	" users                   - prints user address and balance information.\n" <<
-    " vote                    - vote on network behaviour and settings.\n" <<
+    " vote                    - submit a signed vote with a name and value.\n" <<
+    " votes                   - print accepted vote submissions and tallies.\n" <<
     " debug                   - log debug information.\n" <<
     " advanced                - more commands for admin and testing functions.\n" <<
 	" quit                    - shutdown the application.\n" << std::endl;
@@ -1386,43 +1446,49 @@ void CCLI::processUserInput(){
                 }
                 std::cout << std::endl;
             }
-        } else if ( command.compare("vote") == 0){ 
-             std::cout << " Block reward (min 0.1 - max 100): " << std::endl;
-	
-             std::string blockReward;
-             std::cin >> blockReward;
-             if(blockReward.compare("") == 0 ){
-                 blockReward = "1";
-             }
-           
-             // TEMP this record would be added to the queue and broadcast but for testing we just add it to the queue file.
+        } else if ( command.compare("votes") == 0){
 
-             CFunctions::record_structure voteRecord;
-             voteRecord.network = "main"; // networkName;
-             CNetworkTime netTime;
-             std::stringstream ss;
-             ss << netTime.getEpoch();
-             std::string ts = ss.str();
-             voteRecord.time = ts;
-             CFunctions::transaction_types voteType = CFunctions::VOTE;
-             voteRecord.transaction_type = voteType;
-             voteRecord.name = "blockreward";
-             voteRecord.value = blockReward;
-             voteRecord.amount = 0.0;
-             voteRecord.fee = 0;
-             voteRecord.sender_public_key = publicKey;
-             voteRecord.recipient_public_key = "";
-             
-             voteRecord.hash = functions.getRecordHash(voteRecord);
-             std::string signature = "";
-             ecdsa.SignMessage(privateKey, voteRecord.hash, signature);
-             voteRecord.signature = signature;
- 
-             functions.addToQueue(voteRecord);
-	     relayClient.sendRecord(voteRecord); 
-	     CLocalPeerClient::broadcastRecord(voteRecord); 
+            printVoteRecords();
 
-		std::cout << "Vote sent." << std::endl;
+        } else if ( command.compare("vote") == 0){
+            std::cout << " Vote name: " << std::endl;
+            std::string voteName;
+            std::cin >> voteName;
+            std::cout << " Vote value: " << std::endl;
+            std::string voteValue;
+            std::cin >> voteValue;
+
+            if(voteName.length() == 0 || voteValue.length() == 0){
+                std::cout << " Vote not sent. Name and value are required." << std::endl;
+            } else {
+                CFunctions::record_structure voteRecord;
+                voteRecord.network = "main";
+                CNetworkTime netTime;
+                std::stringstream ss;
+                ss << netTime.getEpoch();
+                std::string ts = ss.str();
+                voteRecord.time = ts;
+                voteRecord.transaction_type = CFunctions::VOTE;
+                voteRecord.name = voteName;
+                voteRecord.value = voteValue;
+                voteRecord.amount = 0.0;
+                voteRecord.fee = 0.0;
+                voteRecord.sender_public_key = publicKey;
+                voteRecord.recipient_public_key = "";
+
+                voteRecord.hash = functions.getRecordHash(voteRecord);
+                std::string signature = "";
+                ecdsa.SignMessage(privateKey, voteRecord.hash, signature);
+                voteRecord.signature = signature;
+
+                functions.addToQueue(voteRecord);
+                relayClient.sendRecord(voteRecord);
+                CLocalPeerClient::broadcastRecord(voteRecord);
+
+                std::cout << "Vote queued and broadcast. It will appear in votes after a block includes it." << std::endl;
+                std::cout << " Name: " << voteName << std::endl;
+                std::cout << " Value: " << voteValue << std::endl;
+            }
 
 	} else {
 		printCommands();	
