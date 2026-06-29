@@ -1035,16 +1035,17 @@ QWidget *MainWindow::createBlockchainPage()
     m_blockchainSearchEdit->setPlaceholderText(tr("Search block, creator, hash, record type, name, or address"));
     layout->addWidget(m_blockchainSearchEdit);
 
-    m_blockchainTable = new QTableWidget(0, 6);
+    m_blockchainTable = new QTableWidget(0, 7);
     QStringList headers;
-    headers << tr("Block") << tr("Time") << tr("Creator") << tr("Records") << tr("Hash") << tr("Previous");
+    headers << tr("Network") << tr("Block") << tr("Time") << tr("Creator") << tr("Records") << tr("Hash") << tr("Previous");
     m_blockchainTable->setHorizontalHeaderLabels(headers);
     m_blockchainTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_blockchainTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_blockchainTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     m_blockchainTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
-    m_blockchainTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
     m_blockchainTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    m_blockchainTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
     m_blockchainTable->verticalHeader()->setVisible(false);
     m_blockchainTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_blockchainTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -1927,6 +1928,9 @@ void MainWindow::applyBlockchain(const QString &json)
     for (int i = 0; i < blocks.size(); ++i) {
         QJsonObject block = blocks.at(i).toObject();
         QString number = block.value("number").toString();
+        QString networkStatus = block.value("network_status").toString();
+        QString peerHash = block.value("peer_hash").toString();
+        QString peerUrl = block.value("peer_url").toString();
         QString creatorKey = block.value("creator_key").toString();
         QString creatorName = block.value("creator_name").toString();
         QString hash = block.value("hash").toString();
@@ -1944,8 +1948,22 @@ void MainWindow::applyBlockchain(const QString &json)
             timeDisplay = tr("-");
         }
 
+        QString networkDisplay = tr("Unknown");
+        QColor rowColor("#ffffff");
+        if (networkStatus == "match") {
+            networkDisplay = tr("Match");
+            rowColor = QColor("#edf8f1");
+        } else if (networkStatus == "mismatch") {
+            networkDisplay = tr("Mismatch");
+            rowColor = QColor("#fdecea");
+        } else if (networkStatus == "ahead") {
+            networkDisplay = tr("Ahead");
+            rowColor = QColor("#eef4fb");
+        }
+
         QStringList recordLines;
-        QString searchBlob = number + QString(" ") + timeValue + QString(" ") + creatorKey + QString(" ") + creatorName + QString(" ") + hash + QString(" ") + previous + QString(" ") + previousHash;
+        QString searchBlob = number + QString(" ") + networkStatus + QString(" ") + peerHash + QString(" ") + peerUrl + QString(" ") +
+                             timeValue + QString(" ") + creatorKey + QString(" ") + creatorName + QString(" ") + hash + QString(" ") + previous + QString(" ") + previousHash;
         QJsonArray records = block.value("records").toArray();
         for (int r = 0; r < records.size(); ++r) {
             QJsonObject record = records.at(r).toObject();
@@ -1994,7 +2012,8 @@ void MainWindow::applyBlockchain(const QString &json)
         int row = m_blockchainTable->rowCount();
         m_blockchainTable->insertRow(row);
         QStringList values;
-        values << number
+        values << networkDisplay
+               << number
                << timeDisplay
                << blockchainAccountLabel(creatorName, creatorKey)
                << recordsDisplay
@@ -2003,7 +2022,18 @@ void MainWindow::applyBlockchain(const QString &json)
         for (int column = 0; column < values.size(); ++column) {
             QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
             item->setData(Qt::UserRole, searchBlob);
-            if (column == 3) {
+            item->setBackground(rowColor);
+            if (column == 0) {
+                QString tip = tr("Local hash: %1").arg(hash);
+                if (!peerHash.isEmpty()) {
+                    tip += tr("\nPeer hash: %1").arg(peerHash);
+                }
+                if (!peerUrl.isEmpty()) {
+                    tip += tr("\nPeer: %1").arg(peerUrl);
+                }
+                item->setToolTip(tip);
+            }
+            if (column == 4) {
                 item->setToolTip(recordsDisplay);
             }
             m_blockchainTable->setItem(row, column, item);

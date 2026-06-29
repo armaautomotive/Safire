@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <boost/lexical_cast.hpp>
+#include <curl/curl.h>
 #include "mime_types.h"
 #include "reply.h"
 #include "request.h"
@@ -39,6 +40,32 @@ namespace server3 {
 namespace {
 
 const double API_DEFAULT_TRANSACTION_FEE = 0.0;
+
+size_t request_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+  ((std::string*)userp)->append((char*)contents, size * nmemb);
+  return size * nmemb;
+}
+
+std::string request_http_get(const std::string& url)
+{
+  std::string read_buffer;
+  curl_global_init(CURL_GLOBAL_ALL);
+  CURL *curl = curl_easy_init();
+  if (!curl)
+  {
+    return read_buffer;
+  }
+
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 1L);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, request_write_callback);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &read_buffer);
+  curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+  return read_buffer;
+}
 const double API_MAX_TRANSACTION_FEE = 0.1;
 const char* API_SETTINGS_FILE = "settings.dat";
 
@@ -624,6 +651,62 @@ std::string mempool_json()
   return ss.str();
 }
 
+bool best_peer_status(const std::vector<CLocalPeerClient::peer_status>& local_peers,
+                      CLocalPeerClient::peer_status& best_peer)
+{
+  bool found = false;
+  for (int i = 0; i < local_peers.size(); ++i)
+  {
+    CLocalPeerClient::peer_status peer = local_peers.at(i);
+    if (peer.reachable == false || peer.genesisMatch == false)
+    {
+      continue;
+    }
+    if (found == false || peer.latestBlockId > best_peer.latestBlockId)
+    {
+      best_peer = peer;
+      found = true;
+    }
+  }
+  return found;
+}
+
+std::map<long, std::string> peer_hashes_for_blocks(const std::deque<CFunctions::block_structure>& blocks,
+                                                   const CLocalPeerClient::peer_status& peer)
+{
+  std::map<long, std::string> hashes;
+  if (peer.url.length() == 0 || peer.reachable == false || peer.genesisMatch == false)
+  {
+    return hashes;
+  }
+
+  CFunctions functions;
+  for (std::deque<CFunctions::block_structure>::const_iterator it = blocks.begin();
+       it != blocks.end();
+       ++it)
+  {
+    if (it->number <= 0 || it->number > peer.latestBlockId)
+    {
+      continue;
+    }
+
+    std::stringstream url;
+    url << peer.url << "/api/blocks/" << it->number;
+    std::string response = request_http_get(url.str());
+    if (response.empty())
+    {
+      continue;
+    }
+
+    std::vector<CFunctions::block_structure> peer_blocks = functions.parseBlockJson(response);
+    if (peer_blocks.size() > 0 && peer_blocks.at(0).number == it->number)
+    {
+      hashes[it->number] = peer_blocks.at(0).hash;
+    }
+  }
+  return hashes;
+}
+
 std::string recent_blockchain_json(CBlockDB& block_db)
 {
   long first_block_id = block_db.getFirstBlockId();
@@ -659,6 +742,15 @@ std::string recent_blockchain_json(CBlockDB& block_db)
     ++guard;
   }
 
+  std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
+  CLocalPeerClient::peer_status best_peer;
+  bool has_best_peer = best_peer_status(peers, best_peer);
+  std::map<long, std::string> peer_hashes;
+  if (has_best_peer)
+  {
+    peer_hashes = peer_hashes_for_blocks(recent_blocks, best_peer);
+  }
+
   std::map<std::string, std::string> names = accepted_member_names(block_db);
   std::stringstream ss;
   ss << "{\"status\":\"ok\",";
@@ -673,8 +765,29 @@ std::string recent_blockchain_json(CBlockDB& block_db)
       ss << ",";
     }
     CFunctions::block_structure current_block = *it;
+    std::string network_status = "unknown";
+    std::string peer_hash = "";
+    if (has_best_peer)
+    {
+      if (current_block.number > best_peer.latestBlockId)
+      {
+        network_status = "ahead";
+      }
+      else
+      {
+        std::map<long, std::string>::iterator peer_hash_it = peer_hashes.find(current_block.number);
+        if (peer_hash_it != peer_hashes.end())
+        {
+          peer_hash = peer_hash_it->second;
+          network_status = current_block.hash.compare(peer_hash) == 0 ? "match" : "mismatch";
+        }
+      }
+    }
     ss << "{";
     ss << "\"number\":\"" << current_block.number << "\",";
+    ss << "\"network_status\":\"" << network_status << "\",";
+    ss << "\"peer_hash\":\"" << json_escape(peer_hash) << "\",";
+    ss << "\"peer_url\":\"" << json_escape(has_best_peer ? best_peer.url : "") << "\",";
     ss << "\"time\":\"" << json_escape(current_block.time) << "\",";
     ss << "\"previous_block_id\":\"" << current_block.previous_block_id << "\",";
     ss << "\"creator_key\":\"" << json_escape(current_block.creator_key) << "\",";
@@ -1058,26 +1171,6 @@ long best_peer_latest_block_id(const std::vector<CLocalPeerClient::peer_status>&
     }
   }
   return best_peer_latest_block_id;
-}
-
-bool best_peer_status(const std::vector<CLocalPeerClient::peer_status>& local_peers,
-                      CLocalPeerClient::peer_status& best_peer)
-{
-  bool found = false;
-  for (int i = 0; i < local_peers.size(); ++i)
-  {
-    CLocalPeerClient::peer_status peer = local_peers.at(i);
-    if (peer.reachable == false || peer.genesisMatch == false)
-    {
-      continue;
-    }
-    if (found == false || peer.latestBlockId > best_peer.latestBlockId)
-    {
-      best_peer = peer;
-      found = true;
-    }
-  }
-  return found;
 }
 
 bool local_chain_matches_peer(CBlockDB& block_db,
