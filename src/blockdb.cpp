@@ -20,6 +20,26 @@ using namespace std;
 
 leveldb::DB * CBlockDB::db;
 
+namespace {
+
+bool preferBlockVariant(const CFunctions::block_structure& candidate, const CFunctions::block_structure& current){
+    if(current.number <= 0){
+        return true;
+    }
+    if(candidate.records.size() != current.records.size()){
+        return candidate.records.size() > current.records.size();
+    }
+    return candidate.hash.compare(current.hash) < 0;
+}
+
+std::string forkBlockKey(const CFunctions::block_structure& block){
+    std::stringstream ss;
+    ss << "bf_" << block.number << "_" << block.hash;
+    return ss.str();
+}
+
+}
+
 CBlockDB::CBlockDB(){
     //std::cout << "CBlockDB()\n";
     //CBlockDB::db = getDatabase();
@@ -115,6 +135,30 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
             return false;
         }
     }
+
+    ostringstream valueStream;
+    valueStream << functions.blockJSON(block);
+    if(valueStream.str().length() > CFunctions::MAX_BLOCK_JSON_BYTES){
+        log.log("Reject block: serialized block is too large.\n");
+        return false;
+    }
+
+    CFunctions::block_structure exists = getBlock(block.number);
+    if(exists.number > 0){
+        if(exists.hash.compare(block.hash) == 0){
+            log.log("FYI block allready exists... \n");
+            return true;
+        }
+
+        std::string forkKey = forkBlockKey(block);
+        std::string existingForkJson;
+        db->Get(leveldb::ReadOptions(), forkKey, &existingForkJson);
+        if(existingForkJson.length() == 0){
+            db->Put(writeOptions, forkKey, valueStream.str());
+            log.log("Store fork block variant: " + forkKey + "\n");
+        }
+        return true;
+    }
    
     // Save index to next block
     if(block.previous_block_id > -1){
@@ -138,21 +182,9 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         }
     }
 
-    CFunctions::block_structure exists = getBlock(block.number);
-    if(exists.number > 0){
-        log.log("FYI block allready exists... \n");
-        return true; // The next-block index above may still repair a missing link.
-    }
-
     // Insert block record into leveldb
     ostringstream keyStream;
     keyStream << "b_" << boost::lexical_cast<std::string>(block.number);
-    ostringstream valueStream;
-    valueStream << functions.blockJSON(block);
-    if(valueStream.str().length() > CFunctions::MAX_BLOCK_JSON_BYTES){
-        log.log("Reject block: serialized block is too large.\n");
-        return false;
-    }
     
     //std::cout << " key: " << keyStream.str() << " \n";
     //std::cout << " val: " << valueStream.str() << " \n";
@@ -350,7 +382,15 @@ long CBlockDB::rebuildBestChainIndex(){
     std::map<long, std::vector<CFunctions::block_structure> > childrenByParent;
     for(int i = 0; i < blocks.size(); i++){
         CFunctions::block_structure block = blocks.at(i);
-        blockByNumber[block.number] = block;
+        if(preferBlockVariant(block, blockByNumber[block.number])){
+            blockByNumber[block.number] = block;
+        }
+    }
+
+    blocks.clear();
+    for(std::map<long, CFunctions::block_structure>::iterator it = blockByNumber.begin(); it != blockByNumber.end(); ++it){
+        CFunctions::block_structure block = it->second;
+        blocks.push_back(block);
         if(block.previous_block_id > 0 && block.previous_block_id < block.number){
             childrenByParent[block.previous_block_id].push_back(block);
         }
@@ -434,6 +474,12 @@ long CBlockDB::rebuildBestChainIndex(){
     currentBlockId = firstBlockId;
     guard = 0;
     while(currentBlockId > 0 && guard < 100000){
+        if(blockByNumber.find(currentBlockId) != blockByNumber.end()){
+            ostringstream blockKeyStream;
+            blockKeyStream << "b_" << currentBlockId;
+            CFunctions functions;
+            db->Put(writeOptions, blockKeyStream.str(), functions.blockJSON(blockByNumber[currentBlockId]));
+        }
         if(bestChildByBlock.find(currentBlockId) == bestChildByBlock.end()){
             break;
         }
@@ -517,7 +563,7 @@ std::vector<CFunctions::block_structure> CBlockDB::getStoredBlocks(){
     for (it->SeekToFirst(); it->Valid(); it->Next())
     {
         std::string key = it->key().ToString();
-        if(boost::algorithm::starts_with(key, "b_")){
+        if(boost::algorithm::starts_with(key, "b_") || boost::algorithm::starts_with(key, "bf_")){
             std::vector<CFunctions::block_structure> parsedBlocks = functions.parseBlockJson(it->value().ToString());
             for(int i = 0; i < parsedBlocks.size(); i++){
                 if(parsedBlocks.at(i).number > 0){
