@@ -235,30 +235,24 @@ int CLocalPeerClient::pushToPeer(const std::string& peerUrl)
     }
 
     int pushed = 0;
-    CFunctions::block_structure cursorBlock;
-    if (peerLatestBlockId < 0) {
-        cursorBlock = blockDB.getBlock(firstBlockId);
-        if (cursorBlock.number <= 0 || !submitBlockToPeer(peer, cursorBlock)) {
-            return pushed;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    while (block.number > 0 && pushed < maxBlocksPerPush) {
+        if (block.number > peerLatestBlockId) {
+            if (!submitBlockToPeer(peer, block)) {
+                break;
+            }
+            pushed++;
         }
-        pushed++;
-    } else {
-        cursorBlock = blockDB.getBlock(peerLatestBlockId);
-        if (cursorBlock.number <= 0) {
-            return pushed;
-        }
-    }
 
-    while (cursorBlock.number > 0 && cursorBlock.number < localLatestBlockId && pushed < maxBlocksPerPush) {
-        CFunctions::block_structure nextBlock = blockDB.getNextBlock(cursorBlock);
-        if (nextBlock.number <= 0 || nextBlock.number == cursorBlock.number) {
+        if (block.number >= localLatestBlockId) {
             break;
         }
-        if (!submitBlockToPeer(peer, nextBlock)) {
+
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if (nextBlock.number <= 0 || nextBlock.number == block.number) {
             break;
         }
-        pushed++;
-        cursorBlock = nextBlock;
+        block = nextBlock;
     }
 
     return pushed;
