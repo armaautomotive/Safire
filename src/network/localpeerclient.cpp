@@ -96,6 +96,19 @@ bool storeBlocks(const std::string& blockJson)
     return stored;
 }
 
+bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structure& block)
+{
+    CFunctions functions;
+    std::string blockJson = functions.blockJSON(block);
+    std::string encodedBlock = urlEncode(blockJson);
+    if (encodedBlock.empty()) {
+        return false;
+    }
+
+    std::string response = httpGet(peer + "/api/blocks/submit?block=" + encodedBlock);
+    return response.find("accepted") != std::string::npos;
+}
+
 long latestBlockFromStatus(const std::string& statusJson)
 {
     if (statusJson.find("\"latest_block_id\":\"") == std::string::npos) {
@@ -134,6 +147,7 @@ void CLocalPeerClient::syncThread(int argc, char* argv[])
     while (running) {
         for (int i = 0; i < peers.size(); ++i) {
             syncFromPeer(peers.at(i));
+            pushToPeer(peers.at(i));
         }
         if (running) {
             usleep(1000000 * 2);
@@ -202,6 +216,52 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     }
 
     return changed;
+}
+
+int CLocalPeerClient::pushToPeer(const std::string& peerUrl)
+{
+    const int maxBlocksPerPush = 10000;
+    std::string peer = trimTrailingSlash(peerUrl);
+    if (peer.empty()) {
+        return 0;
+    }
+
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long localLatestBlockId = blockDB.getLatestBlockId();
+    long peerLatestBlockId = getPeerLatestBlockId(peer);
+    if (localLatestBlockId < 0 || firstBlockId < 0 || localLatestBlockId <= peerLatestBlockId) {
+        return 0;
+    }
+
+    int pushed = 0;
+    CFunctions::block_structure cursorBlock;
+    if (peerLatestBlockId < 0) {
+        cursorBlock = blockDB.getBlock(firstBlockId);
+        if (cursorBlock.number <= 0 || !submitBlockToPeer(peer, cursorBlock)) {
+            return pushed;
+        }
+        pushed++;
+    } else {
+        cursorBlock = blockDB.getBlock(peerLatestBlockId);
+        if (cursorBlock.number <= 0) {
+            return pushed;
+        }
+    }
+
+    while (cursorBlock.number > 0 && cursorBlock.number < localLatestBlockId && pushed < maxBlocksPerPush) {
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(cursorBlock);
+        if (nextBlock.number <= 0 || nextBlock.number == cursorBlock.number) {
+            break;
+        }
+        if (!submitBlockToPeer(peer, nextBlock)) {
+            break;
+        }
+        pushed++;
+        cursorBlock = nextBlock;
+    }
+
+    return pushed;
 }
 
 long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)

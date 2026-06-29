@@ -612,14 +612,21 @@ void CCLI::processUserInput(){
         } else if(command.compare("sync") == 0){
             std::cout << " Syncing local peers... " << std::endl;
             std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
+            if(localPeers.size() == 0){
+                std::cout << "  No local peers configured. Start with --peer http://host:port" << std::endl;
+            }
             for(int i = 0; i < localPeers.size(); i++){
                 std::cout << "  " << localPeers.at(i) << std::endl;
                 CBlockDB syncBlockDB;
                 long before = syncBlockDB.getLatestBlockId();
-                long peerLatest = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
+                long peerBefore = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
                 CLocalPeerClient::syncFromPeer(localPeers.at(i));
+                int pushed = CLocalPeerClient::pushToPeer(localPeers.at(i));
                 long after = syncBlockDB.getLatestBlockId();
-                std::cout << "    latest block: " << before << " -> " << after << " (peer " << peerLatest << ")" << std::endl;
+                long peerAfter = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
+                std::cout << "    local latest: " << before << " -> " << after << std::endl;
+                std::cout << "    peer latest: " << peerBefore << " -> " << peerAfter << std::endl;
+                std::cout << "    pushed blocks: " << pushed << std::endl;
             }
             
         } else if(command.compare("users") == 0){
