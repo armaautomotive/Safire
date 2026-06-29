@@ -346,11 +346,11 @@ bool CRelayClient::receiveBlocks(){
             CFunctions::block_structure block = blocks.at(i);
             
             //functions.addToBlockFile(block); // DEPRICATE
-            blockDB.AddBlock(block);
+            bool blockAdded = blockDB.AddBlock(block);
             
             // Is this received block the genesis block?
             // This isn't a solid method but works for prototyping.
-            if(blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0){
+            if(blockAdded && blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0){
                 blockDB.setFirstBlockId(block.number);
                 
                 // set latest to initalise. Not required but cleaner.

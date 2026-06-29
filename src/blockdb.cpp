@@ -14,6 +14,7 @@
 #include "leveldb/db.h"
 #include "platform.h"
 #include "log.h";
+#include "networkconfig.h"
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -198,6 +199,14 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     if(block.previous_block_id >= block.number && block.previous_block_id != -1){
         log.log("Reject block: previous block id is not before block number.\n");
         return false;
+    }
+
+    if(block.previous_block_id <= 0){
+        CNetworkConfig config = CNetworkConfig::load();
+        if(config.genesisMatches(block.number, block.hash) == false){
+            log.log("Reject block: genesis block does not match safire.conf.\n");
+            return false;
+        }
     }
 
     if(block.records.size() > CFunctions::MAX_BLOCK_RECORDS){

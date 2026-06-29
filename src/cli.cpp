@@ -28,6 +28,7 @@
 #include "network/p2p.h"
 #include "network/relayclient.h"
 #include "network/localpeerclient.h"
+#include "networkconfig.h"
 #include "networktime.h"
 #include "blockdb.h"
 #include "userdb.h"
@@ -1083,6 +1084,22 @@ void printChainDiagnostics(){
     }
 }
 
+void printChainIdentity(){
+    CNetworkConfig config = CNetworkConfig::load();
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
+
+    std::cout << " Chain identity:" << std::endl;
+    std::cout << "  network: " << config.network << std::endl;
+    std::cout << "  configured genesis block: " << config.genesisBlock << std::endl;
+    std::cout << "  configured genesis hash: " << (config.genesisHash.length() > 0 ? config.genesisHash : "-") << std::endl;
+    std::cout << "  strict genesis: " << (config.strictGenesis ? "yes" : "no") << std::endl;
+    std::cout << "  local genesis block: " << firstBlockId << std::endl;
+    std::cout << "  local genesis hash: " << (firstBlock.hash.length() > 0 ? firstBlock.hash : "-") << std::endl;
+    std::cout << "  matches configured genesis: " << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << std::endl;
+}
+
 void printMembershipRecords(){
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
@@ -1276,6 +1293,7 @@ void CCLI::printAdvancedCommands(){
     std::cout << " Advanced: \n" <<
     " reindex                - Clear and parse the entire blockchain dataset.\n" <<
     " tests                  - Run tests to verify this build is functioning correctly.\n" <<
+    " chainid                - Print configured and local genesis identity.\n" <<
     " chain                  - Scan the complete blockchain for verification. Reports findings.\n" <<
     " repairchain            - Rebuild next-block indexes using the best stored branch.\n" <<
     " printchain             - Print the blockchain summary and validation.\n" <<
@@ -1550,8 +1568,12 @@ void CCLI::processUserInput(){
                 std::cout << " Sync Progress: " << functions.SyncProgress() << "% " << std::endl;
             }
             CBlockDB networkBlockDB;
-            std::cout << " First block: " << networkBlockDB.getFirstBlockId() << std::endl;
+            CNetworkConfig networkConfig = CNetworkConfig::load();
+            long localGenesisBlockId = networkBlockDB.getFirstBlockId();
+            CFunctions::block_structure localGenesisBlock = networkBlockDB.getBlock(localGenesisBlockId);
+            std::cout << " First block: " << localGenesisBlockId << std::endl;
             std::cout << " Latest block: " << networkBlockDB.getLatestBlockId() << std::endl;
+            std::cout << " Genesis match: " << (networkConfig.genesisMatches(localGenesisBlockId, localGenesisBlock.hash) ? "yes" : "no") << std::endl;
             CNetworkTime networkTime;
             std::cout << " Network time offset: " << networkTime.getOffset() << "s" << std::endl;
             std::cout << " Clock status: " << (networkTime.isClockHealthy() ? "ok" : "check local clock") << std::endl;
@@ -1681,6 +1703,9 @@ void CCLI::processUserInput(){
                 ecdsa.runTests();
 
 
+
+        } else if ( command.compare("chainid") == 0){
+           printChainIdentity();
 
         } else if ( command.compare("chain") == 0){
            printChainDiagnostics();

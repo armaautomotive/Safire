@@ -21,6 +21,7 @@
 #include "blockdb.h"
 #include "userdb.h"
 #include "log.h"
+#include "networkconfig.h"
 #include <set>
 
 volatile bool isBuildingBlocks = true;
@@ -199,6 +200,13 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //functions.addToBlockFile(block);
         
         //blockDB.addFirstBlock(block); // depricate
+        CNetworkConfig config;
+        config.network = networkName;
+        config.genesisBlock = block.number;
+        config.genesisHash = block.hash;
+        config.strictGenesis = true;
+        config.save();
+
         blockDB.AddBlock(block);
         blockDB.setFirstBlockId(block.number);
         

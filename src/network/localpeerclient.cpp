@@ -2,6 +2,7 @@
 
 #include "blockdb.h"
 #include "functions/functions.h"
+#include "networkconfig.h"
 #include "networktime.h"
 #include "wallet.h"
 #include <algorithm>
@@ -184,6 +185,24 @@ long latestBlockFromStatus(const std::string& statusJson)
     return functions.parseSectionLong(statusJson, "\"latest_block_id\":\"", "\"");
 }
 
+long firstBlockFromStatus(const std::string& statusJson)
+{
+    if (statusJson.find("\"first_block_id\":\"") == std::string::npos) {
+        return -1;
+    }
+    CFunctions functions;
+    return functions.parseSectionLong(statusJson, "\"first_block_id\":\"", "\"");
+}
+
+std::string firstBlockHashFromStatus(const std::string& statusJson)
+{
+    if (statusJson.find("\"first_block_hash\":\"") == std::string::npos) {
+        return "";
+    }
+    CFunctions functions;
+    return functions.parseSectionString(statusJson, "\"first_block_hash\":\"", "\"");
+}
+
 std::string latestBlockHashFromStatus(const std::string& statusJson)
 {
     if (statusJson.find("\"latest_block_hash\":\"") == std::string::npos) {
@@ -208,6 +227,10 @@ bool pullPeerCanonicalChain(const std::string& peer, long peerLatestBlockId, int
 
     CFunctions::block_structure peerBlock = blocks.at(0);
     if (peerBlock.number <= 0 || peerBlock.hash.empty()) {
+        return false;
+    }
+    CNetworkConfig config = CNetworkConfig::load();
+    if(config.genesisMatches(peerBlock.number, peerBlock.hash) == false){
         return false;
     }
 
@@ -287,11 +310,23 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
     std::string peerStatus = httpGet(peer + "/api/status");
+    long peerFirstBlockId = firstBlockFromStatus(peerStatus);
+    std::string peerFirstBlockHash = firstBlockHashFromStatus(peerStatus);
     long peerLatestBlockId = latestBlockFromStatus(peerStatus);
     std::string peerLatestBlockHash = latestBlockHashFromStatus(peerStatus);
+    CNetworkConfig config = CNetworkConfig::load();
 
     if (peerLatestBlockId < 0) {
         return false;
+    }
+    if(config.genesisMatches(peerFirstBlockId, peerFirstBlockHash) == false){
+        return false;
+    }
+    if(firstBlockId > 0){
+        CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
+        if(config.genesisMatches(firstBlockId, firstBlock.hash) == false){
+            return false;
+        }
     }
 
     if (peerLatestBlockId > -1 && latestBlockId >= peerLatestBlockId) {
@@ -447,7 +482,12 @@ long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)
     if (peer.empty()) {
         return -1;
     }
-    return latestBlockFromStatus(httpGet(peer + "/api/status"));
+    std::string status = httpGet(peer + "/api/status");
+    CNetworkConfig config = CNetworkConfig::load();
+    if(config.genesisMatches(firstBlockFromStatus(status), firstBlockHashFromStatus(status)) == false){
+        return -1;
+    }
+    return latestBlockFromStatus(status);
 }
 
 long CLocalPeerClient::getBestPeerLatestBlockId()

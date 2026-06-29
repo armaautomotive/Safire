@@ -19,6 +19,7 @@
 #include "wallet.h"
 #include "blockdb.h"
 #include "functions/functions.h"
+#include "networkconfig.h"
 
 #include "networktime.h"
 
@@ -154,10 +155,15 @@ void request_handler::handle_request(const request& req, reply& rep)
     long latestBlockId = blockDB.getLatestBlockId();
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
+    CNetworkConfig config = CNetworkConfig::load();
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
+    ss << "\"network\":\"" << config.network << "\",";
     ss << "\"first_block_id\":\"" << firstBlockId << "\",";
     ss << "\"first_block_hash\":\"" << firstBlock.hash << "\",";
+    ss << "\"expected_genesis_block\":\"" << config.genesisBlock << "\",";
+    ss << "\"expected_genesis_hash\":\"" << config.genesisHash << "\",";
+    ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << latestBlock.hash << "\"}";
     text_reply(rep, reply::ok, ss.str(), "application/json");
