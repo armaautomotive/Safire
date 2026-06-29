@@ -288,7 +288,7 @@ int CLocalPeerClient::pushToPeer(const std::string& peerUrl)
 CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::string& peerUrl)
 {
     const int maxBlocksPerPush = 10000;
-    const long forkRepairLookbackBlocks = 1000;
+    const long forkRepairLookbackBlocks = 100;
     push_result result;
     result.candidateBlocks = 0;
     result.pushedBlocks = 0;

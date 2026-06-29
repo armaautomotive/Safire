@@ -205,23 +205,29 @@ void request_handler::handle_request(const request& req, reply& rep)
   {
     std::string blockJson = submitted_value(req, request_path, "block");
     std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(blockJson);
+    bool accepted = false;
     bool added = false;
     for (int i = 0; i < blocks.size(); ++i)
     {
       CFunctions::block_structure block = blocks.at(i);
       if (block.number > 0)
       {
+        bool alreadyStored = blockDB.getBlock(block.number).number > 0;
         bool blockAdded = blockDB.AddBlock(block);
-        if (blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
+        if (alreadyStored == false && blockAdded && blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
         {
           blockDB.setFirstBlockId(block.number);
         }
-        long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
-        if (connectedLatestBlockId > -1)
+        if (alreadyStored == false && blockAdded)
         {
-          blockDB.setLatestBlockId(connectedLatestBlockId);
+          long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
+          if (connectedLatestBlockId > -1)
+          {
+            blockDB.setLatestBlockId(connectedLatestBlockId);
+          }
         }
-        added = blockAdded || added;
+        accepted = alreadyStored || blockAdded || accepted;
+        added = (alreadyStored == false && blockAdded) || added;
       }
     }
 
@@ -230,7 +236,7 @@ void request_handler::handle_request(const request& req, reply& rep)
       blockDB.rebuildBestChainIndex();
     }
 
-    text_reply(rep, added ? reply::accepted : reply::bad_request, added ? "accepted" : "invalid block", "text/plain");
+    text_reply(rep, accepted ? reply::accepted : reply::bad_request, accepted ? "accepted" : "invalid block", "text/plain");
     return;
   }
 

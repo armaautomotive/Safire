@@ -111,22 +111,6 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         }
     }
    
-    // Insert block record into leveldb
-    ostringstream keyStream;
-    keyStream << "b_" << boost::lexical_cast<std::string>(block.number);
-    ostringstream valueStream;
-    valueStream << functions.blockJSON(block);
-    if(valueStream.str().length() > CFunctions::MAX_BLOCK_JSON_BYTES){
-        log.log("Reject block: serialized block is too large.\n");
-        return false;
-    }
-    
-    //std::cout << " key: " << keyStream.str() << " \n";
-    //std::cout << " val: " << valueStream.str() << " \n";
-    log.log("AddBlock to levelDB: \n");
-    log.log("     key: " + keyStream.str() + "\n");
-    log.log("     val: " + valueStream.str() + "\n");
-
     // Save index to next block
     if(block.previous_block_id > -1){
         ostringstream keyStream;
@@ -154,7 +138,23 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         log.log("FYI block allready exists... \n");
         return true; // The next-block index above may still repair a missing link.
     }
+
+    // Insert block record into leveldb
+    ostringstream keyStream;
+    keyStream << "b_" << boost::lexical_cast<std::string>(block.number);
+    ostringstream valueStream;
+    valueStream << functions.blockJSON(block);
+    if(valueStream.str().length() > CFunctions::MAX_BLOCK_JSON_BYTES){
+        log.log("Reject block: serialized block is too large.\n");
+        return false;
+    }
     
+    //std::cout << " key: " << keyStream.str() << " \n";
+    //std::cout << " val: " << valueStream.str() << " \n";
+    log.log("AddBlock to levelDB: \n");
+    log.log("     key: " + keyStream.str() + "\n");
+    log.log("     val: " + valueStream.str() + "\n");
+
     db->Put(writeOptions, keyStream.str(), valueStream.str());
     
 
