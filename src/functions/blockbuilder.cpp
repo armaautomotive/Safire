@@ -376,24 +376,12 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             sendRecord.signature = signature;
             
             
-            // TODO: review this
-            CFunctions::record_structure periodSummaryRecord;
-            periodSummaryRecord.time = ts;
-            periodSummaryRecord.transaction_type = CFunctions::PERIOD_SUMMARY;
-            periodSummaryRecord.sender_public_key = publicKey;
-            periodSummaryRecord.recipient_public_key = "___MINER_ADDRESS___"; // reward for summary inclusion goes to block creator. (Only if record does not exist.)
-            periodSummaryRecord.signature = "TO DO";
-            periodSummaryRecord.hash = functions.getRecordHash(periodSummaryRecord);
-            ecdsa.SignMessage(privateKey, periodSummaryRecord.hash, signature);
-            periodSummaryRecord.signature = signature;
-            
             previous_block = functions.getLastBlock("main");
             
             CFunctions::block_structure block;
             block.creator_key = publicKey;
             block.records.push_back(blockRewardRecord);
             block.records.push_back(sendRecord);
-            block.records.push_back(periodSummaryRecord);
             
             block.number = selector.getCurrentTimeBlock(); //  blockNumber++;
             block.time = ts;
