@@ -567,6 +567,62 @@ std::string name_for_key(const std::map<std::string, std::string>& names, const 
   return "";
 }
 
+std::string record_type_name(CFunctions::transaction_types type)
+{
+  switch (type)
+  {
+    case CFunctions::JOIN_NETWORK:
+      return "JOIN_NETWORK";
+    case CFunctions::ISSUE_CURRENCY:
+      return "ISSUE_CURRENCY";
+    case CFunctions::TRANSFER_CURRENCY:
+      return "TRANSFER_CURRENCY";
+    case CFunctions::CARRY_FORWARD:
+      return "CARRY_FORWARD";
+    case CFunctions::PERIOD_SUMMARY:
+      return "PERIOD_SUMMARY";
+    case CFunctions::VOTE:
+      return "VOTE";
+    case CFunctions::HEART_BEAT:
+      return "HEART_BEAT";
+    case CFunctions::UPDATE_NAME:
+      return "UPDATE_NAME";
+  }
+  return "UNKNOWN";
+}
+
+std::string mempool_json()
+{
+  CFunctions functions;
+  std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",\"records\":[";
+  for (int i = 0; i < records.size(); ++i)
+  {
+    CFunctions::record_structure record = records.at(i);
+    if (i > 0)
+    {
+      ss << ",";
+    }
+    ss << "{";
+    ss << "\"index\":\"" << i << "\",";
+    ss << "\"type\":\"" << record_type_name(record.transaction_type) << "\",";
+    ss << "\"network\":\"" << json_escape(record.network) << "\",";
+    ss << "\"time\":\"" << json_escape(record.time) << "\",";
+    ss << "\"amount\":\"" << record.amount << "\",";
+    ss << "\"fee\":\"" << record.fee << "\",";
+    ss << "\"from_key\":\"" << json_escape(record.sender_public_key) << "\",";
+    ss << "\"to_key\":\"" << json_escape(record.recipient_public_key) << "\",";
+    ss << "\"member_key\":\"" << json_escape(record.sender_public_key) << "\",";
+    ss << "\"name\":\"" << json_escape(record.name) << "\",";
+    ss << "\"value\":\"" << json_escape(record.value) << "\",";
+    ss << "\"hash\":\"" << json_escape(record.hash) << "\"";
+    ss << "}";
+  }
+  ss << "]}";
+  return ss.str();
+}
+
 void add_balance_delta(std::map<std::string, double>& balances, const std::string& public_key, double amount)
 {
   if (public_key.length() == 0)
@@ -1182,6 +1238,12 @@ void request_handler::handle_request(const request& req, reply& rep)
   if (request_path == "/api/network/users")
   {
     text_reply(rep, reply::ok, network_users_json(blockDB), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/mempool")
+  {
+    text_reply(rep, reply::ok, mempool_json(), "application/json");
     return;
   }
 

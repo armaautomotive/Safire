@@ -166,6 +166,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_userCountLabel(0),
       m_blockCountLabel(0),
       m_historyTable(0),
+      m_mempoolTable(0),
       m_contactSearchEdit(0),
       m_networkUsersTable(0),
       m_contactsTable(0),
@@ -184,6 +185,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_receiveButton(0),
       m_contactsButton(0),
       m_historyButton(0),
+      m_mempoolButton(0),
       m_terminalButton(0),
       m_optionsButton(0)
 {
@@ -316,6 +318,7 @@ QWidget *MainWindow::createShellPage()
     m_receiveButton = createNavButton(tr("Receive"));
     m_contactsButton = createNavButton(tr("Contacts"));
     m_historyButton = createNavButton(tr("History"));
+    m_mempoolButton = createNavButton(tr("Mempool"));
     m_terminalButton = createNavButton(tr("Terminal"));
     m_optionsButton = createNavButton(tr("Options"));
 
@@ -324,6 +327,7 @@ QWidget *MainWindow::createShellPage()
     nav->addWidget(m_receiveButton);
     nav->addWidget(m_contactsButton);
     nav->addWidget(m_historyButton);
+    nav->addWidget(m_mempoolButton);
     nav->addWidget(m_terminalButton);
     nav->addWidget(m_optionsButton);
     nav->addStretch();
@@ -337,6 +341,7 @@ QWidget *MainWindow::createShellPage()
     m_contentStack->addWidget(createReceivePage());
     m_contentStack->addWidget(createContactsPage());
     m_contentStack->addWidget(createHistoryPage());
+    m_contentStack->addWidget(createMempoolPage());
     m_contentStack->addWidget(createTerminalPage());
     m_contentStack->addWidget(createOptionsPage());
 
@@ -345,6 +350,7 @@ QWidget *MainWindow::createShellPage()
     connect(m_receiveButton, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(m_contactsButton, SIGNAL(clicked()), this, SLOT(showContacts()));
     connect(m_historyButton, SIGNAL(clicked()), this, SLOT(showHistory()));
+    connect(m_mempoolButton, SIGNAL(clicked()), this, SLOT(showMempool()));
     connect(m_terminalButton, SIGNAL(clicked()), this, SLOT(showTerminal()));
     connect(m_optionsButton, SIGNAL(clicked()), this, SLOT(showOptions()));
     connect(signOutButton, SIGNAL(clicked()), this, SLOT(signOut()));
@@ -614,6 +620,37 @@ QWidget *MainWindow::createHistoryPage()
     m_historyTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_historyTable->setWordWrap(true);
     layout->addWidget(m_historyTable, 1);
+
+    return page;
+}
+
+QWidget *MainWindow::createMempoolPage()
+{
+    QFrame *page = makePanel("Panel");
+    QVBoxLayout *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(26, 24, 26, 24);
+    layout->setSpacing(14);
+
+    layout->addWidget(createSectionTitle(tr("Mempool")));
+    layout->addWidget(makeLabel(tr("Pending records waiting to be included in a block."), "Muted"));
+
+    m_mempoolTable = new QTableWidget(0, 8);
+    QStringList headers;
+    headers << tr("#") << tr("Type") << tr("Time") << tr("From / Member") << tr("To") << tr("Amount") << tr("Fee") << tr("Hash");
+    m_mempoolTable->setHorizontalHeaderLabels(headers);
+    m_mempoolTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_mempoolTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_mempoolTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_mempoolTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_mempoolTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+    m_mempoolTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    m_mempoolTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+    m_mempoolTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::ResizeToContents);
+    m_mempoolTable->verticalHeader()->setVisible(false);
+    m_mempoolTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_mempoolTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_mempoolTable->setWordWrap(true);
+    layout->addWidget(m_mempoolTable, 1);
 
     return page;
 }
@@ -954,7 +991,7 @@ void MainWindow::applySetNameResult(const QString &json, bool transportError)
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
-    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_terminalButton << m_optionsButton;
+    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_terminalButton << m_optionsButton;
     for (int i = 0; i < buttons.size(); ++i) {
         QPushButton *button = buttons.at(i);
         if (!button) {
@@ -1252,6 +1289,85 @@ void MainWindow::applyWalletHistory(const QString &json)
     }
 }
 
+void MainWindow::applyMempool(const QString &json)
+{
+    if (!m_mempoolTable) {
+        return;
+    }
+
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        m_mempoolTable->setRowCount(0);
+        return;
+    }
+
+    QJsonObject object = document.object();
+    if (object.value("status").toString() != "ok") {
+        m_mempoolTable->setRowCount(0);
+        return;
+    }
+
+    QJsonArray records = object.value("records").toArray();
+    m_mempoolTable->setRowCount(0);
+    for (int i = 0; i < records.size(); ++i) {
+        QJsonObject record = records.at(i).toObject();
+        QString type = record.value("type").toString();
+        QString from = record.value("from_key").toString();
+        QString to = record.value("to_key").toString();
+        QString member = record.value("member_key").toString();
+        QString name = record.value("name").toString();
+        QString value = record.value("value").toString();
+        QString amount = record.value("amount").toString();
+        QString fee = record.value("fee").toString();
+        QString hash = record.value("hash").toString();
+
+        QString timeValue = record.value("time").toString();
+        bool timeOk = false;
+        qint64 epoch = timeValue.toLongLong(&timeOk);
+        QString timeDisplay = timeValue;
+        if (timeOk && epoch > 0) {
+            timeDisplay = QDateTime::fromSecsSinceEpoch(epoch).toString("yyyy-MM-dd HH:mm");
+        }
+        if (timeDisplay.isEmpty()) {
+            timeDisplay = tr("-");
+        }
+
+        QString fromDisplay = !member.isEmpty() ? shortAddress(member) : shortAddress(from);
+        QString toDisplay = shortAddress(to);
+        if (type == "JOIN_NETWORK" || type == "UPDATE_NAME") {
+            toDisplay = name.isEmpty() ? tr("-") : tr("name \"%1\"").arg(name);
+        } else if (type == "VOTE") {
+            toDisplay = value.isEmpty() ? name : tr("%1: %2").arg(name).arg(value);
+        }
+        if (fromDisplay.isEmpty()) {
+            fromDisplay = tr("-");
+        }
+        if (toDisplay.isEmpty()) {
+            toDisplay = tr("-");
+        }
+
+        QString amountDisplay = amount.isEmpty() ? tr("-") : tr("%1 SFR").arg(amount);
+        QString feeDisplay = fee.isEmpty() ? tr("-") : tr("%1 SFR").arg(fee);
+
+        int row = m_mempoolTable->rowCount();
+        m_mempoolTable->insertRow(row);
+        QStringList values;
+        values << record.value("index").toString(QString::number(i))
+               << type
+               << timeDisplay
+               << fromDisplay
+               << toDisplay
+               << amountDisplay
+               << feeDisplay
+               << shortAddress(hash);
+        for (int column = 0; column < values.size(); ++column) {
+            m_mempoolTable->setItem(row, column, new QTableWidgetItem(values.at(column)));
+        }
+    }
+    m_mempoolTable->resizeRowsToContents();
+}
+
 void MainWindow::signIn()
 {
     if (m_userEdit->text().trimmed().isEmpty() || m_passwordEdit->text().isEmpty()) {
@@ -1310,15 +1426,22 @@ void MainWindow::showHistory()
     refreshWalletStatus();
 }
 
-void MainWindow::showTerminal()
+void MainWindow::showMempool()
 {
     m_contentStack->setCurrentIndex(5);
+    setActiveNav(m_mempoolButton);
+    refreshWalletStatus();
+}
+
+void MainWindow::showTerminal()
+{
+    m_contentStack->setCurrentIndex(6);
     setActiveNav(m_terminalButton);
 }
 
 void MainWindow::showOptions()
 {
-    m_contentStack->setCurrentIndex(6);
+    m_contentStack->setCurrentIndex(7);
     setActiveNav(m_optionsButton);
 }
 
@@ -1653,6 +1776,10 @@ void MainWindow::refreshWalletStatus()
     QUrl usersUrl(QString("http://127.0.0.1:%1/api/network/users").arg(m_backendPort));
     QNetworkRequest usersRequest(usersUrl);
     m_networkManager->get(usersRequest);
+
+    QUrl mempoolUrl(QString("http://127.0.0.1:%1/api/mempool").arg(m_backendPort));
+    QNetworkRequest mempoolRequest(mempoolUrl);
+    m_networkManager->get(mempoolRequest);
 }
 
 void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
@@ -1686,6 +1813,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
 
     if (path == "/api/wallet/history") {
         applyWalletHistory(QString::fromUtf8(body));
+    } else if (path == "/api/mempool") {
+        applyMempool(QString::fromUtf8(body));
     } else if (path == "/api/network/users") {
         applyNetworkUsers(QString::fromUtf8(body));
     } else if (path == "/api/wallet/send") {
