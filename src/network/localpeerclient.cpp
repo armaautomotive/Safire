@@ -789,12 +789,8 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     if (peerLatestBlockId > -1 && latestBlockId >= peerLatestBlockId) {
         CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
         if (peerLatestBlockHash.length() > 0 && latestBlock.hash.compare(peerLatestBlockHash) != 0) {
-            long repairStartBlock = latestBlockId - 100;
-            if (repairStartBlock < firstBlockId) {
-                repairStartBlock = firstBlockId;
-            }
-            if (pullPeerBlocksByNumberRange(peer, repairStartBlock, peerLatestBlockId, maxBlocksPerSync, changed) == false) {
-                pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
+            if (pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed) == false) {
+                pullPeerBlocksByNumberRange(peer, firstBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
             }
             return changed;
         }
@@ -827,12 +823,8 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
             response = httpGet(peer + "/api/blocks/after/" + boost::lexical_cast<std::string>(latestBlockId));
         }
         if (response.empty()) {
-            long repairStartBlock = latestBlockId - 100;
-            if (repairStartBlock < firstBlockId) {
-                repairStartBlock = firstBlockId;
-            }
-            if (pullPeerBlocksByNumberRange(peer, repairStartBlock, peerLatestBlockId, maxBlocksPerSync, changed) == false) {
-                pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
+            if (pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed) == false) {
+                pullPeerBlocksByNumberRange(peer, firstBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
             }
             latestBlockId = blockDB.getLatestBlockId();
             if (latestBlockId > beforeLatestBlockId) {
@@ -892,10 +884,22 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
     long localLatestBlockId = blockDB.getLatestBlockId();
-    long peerLatestBlockId = getPeerLatestBlockId(peer);
+    peer_status status = statusFromPeer(peer);
+    if (peerStatuses.find(peer) == peerStatuses.end()) {
+        peerStatuses[peer] = emptyPeerStatus(peer);
+    }
+    mergePeerStatus(peerStatuses[peer], status);
+    savePeerCache();
+
+    long peerLatestBlockId = status.genesisMatch && status.reachable ? status.latestBlockId : -1;
     long pushStartBlock = peerLatestBlockId - forkRepairLookbackBlocks;
     if (peerLatestBlockId < 0) {
         pushStartBlock = -1;
+    } else if (status.latestBlockHash.length() > 0) {
+        CFunctions::block_structure localPeerTip = blockDB.getBlock(peerLatestBlockId);
+        if (localPeerTip.number <= 0 || localPeerTip.hash.compare(status.latestBlockHash) != 0) {
+            pushStartBlock = firstBlockId - 1;
+        }
     }
     if (localLatestBlockId < 0 || firstBlockId < 0 || localLatestBlockId <= pushStartBlock) {
         return result;
