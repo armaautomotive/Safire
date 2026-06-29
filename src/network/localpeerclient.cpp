@@ -328,6 +328,43 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
     return result;
 }
 
+CLocalPeerClient::push_result CLocalPeerClient::pushFullChainToPeerDetailed(const std::string& peerUrl)
+{
+    const int maxBlocksPerPush = 10000;
+    push_result result;
+    result.candidateBlocks = 0;
+    result.pushedBlocks = 0;
+    result.failedBlockId = -1;
+    result.response = "";
+
+    std::string peer = trimTrailingSlash(peerUrl);
+    if (peer.empty()) {
+        result.response = "empty peer URL";
+        return result;
+    }
+
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long localLatestBlockId = blockDB.getLatestBlockId();
+    if (localLatestBlockId < 0 || firstBlockId < 0) {
+        return result;
+    }
+
+    std::vector<CFunctions::block_structure> blocks = connectedBlocksAfter(-1);
+    result.candidateBlocks = blocks.size();
+    for (int i = 0; i < blocks.size() && result.pushedBlocks < maxBlocksPerPush; ++i) {
+        std::string response;
+        if (!submitBlockToPeer(peer, blocks.at(i), response)) {
+            result.failedBlockId = blocks.at(i).number;
+            result.response = response;
+            break;
+        }
+        result.pushedBlocks++;
+    }
+
+    return result;
+}
+
 long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)
 {
     std::string peer = trimTrailingSlash(peerUrl);

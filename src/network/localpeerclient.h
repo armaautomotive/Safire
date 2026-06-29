@@ -23,6 +23,7 @@ public:
     static bool syncFromPeer(const std::string& peerUrl);
     static int pushToPeer(const std::string& peerUrl);
     static push_result pushToPeerDetailed(const std::string& peerUrl);
+    static push_result pushFullChainToPeerDetailed(const std::string& peerUrl);
     static long getPeerLatestBlockId(const std::string& peerUrl);
     static long getBestPeerLatestBlockId();
     static bool isSyncedWithPeers();

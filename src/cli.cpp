@@ -1205,6 +1205,7 @@ void CCLI::printAdvancedCommands(){
     " resetall               - Delete node data.\n" <<
     " requestblock           - Send network request for block data. \n" <<
     " sync                   - Pull blocks from configured local peers. \n" <<
+    " syncfull               - Push the full connected chain to local peers. \n" <<
     std::endl;
 }
 
@@ -1679,6 +1680,34 @@ void CCLI::processUserInput(){
                 }
             }
             
+        } else if(command.compare("syncfull") == 0){
+            std::cout << " Full syncing local peers... " << std::endl;
+            std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
+            if(localPeers.size() == 0){
+                std::cout << "  No local peers configured. Start with --peer http://host:port" << std::endl;
+            }
+            CLocalPeerClient::syncNetworkTime();
+            CNetworkTime syncNetworkTime;
+            std::cout << "  Network time offset: " << syncNetworkTime.getOffset() << "s" << std::endl;
+            for(int i = 0; i < localPeers.size(); i++){
+                std::cout << "  " << localPeers.at(i) << std::endl;
+                CBlockDB syncBlockDB;
+                long before = syncBlockDB.getLatestBlockId();
+                long peerBefore = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
+                CLocalPeerClient::syncFromPeer(localPeers.at(i));
+                CLocalPeerClient::push_result pushResult = CLocalPeerClient::pushFullChainToPeerDetailed(localPeers.at(i));
+                long after = syncBlockDB.getLatestBlockId();
+                long peerAfter = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
+                std::cout << "    local latest: " << before << " -> " << after << std::endl;
+                std::cout << "    peer latest: " << peerBefore << " -> " << peerAfter << std::endl;
+                std::cout << "    candidate blocks: " << pushResult.candidateBlocks << std::endl;
+                std::cout << "    pushed blocks: " << pushResult.pushedBlocks << std::endl;
+                if(pushResult.failedBlockId > -1){
+                    std::cout << "    failed block: " << pushResult.failedBlockId << std::endl;
+                    std::cout << "    response: " << (pushResult.response.length() > 0 ? pushResult.response : "(empty response)") << std::endl;
+                }
+            }
+
         } else if(command.compare("users") == 0){
             std::cout << "Users: " << std::endl;
             std::vector<CFunctions::record_structure> members = acceptedMembershipRecords();
