@@ -937,6 +937,45 @@ std::map<std::string, double> accepted_ledger_balances(CBlockDB& block_db)
   return CLedgerState::build(block_db).balances;
 }
 
+double pending_wallet_balance_delta(const std::string& public_key, int& pending_record_count)
+{
+  pending_record_count = 0;
+  double delta = 0.0;
+
+  CFunctions functions;
+  std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
+  for (int i = 0; i < records.size(); ++i)
+  {
+    CFunctions::record_structure record = records.at(i);
+    bool touches_wallet = record.sender_public_key.compare(public_key) == 0 ||
+                          record.recipient_public_key.compare(public_key) == 0;
+    if (!touches_wallet)
+    {
+      continue;
+    }
+
+    pending_record_count++;
+    if (record.transaction_type == CFunctions::TRANSFER_CURRENCY)
+    {
+      bool sent_by_wallet = record.sender_public_key.compare(public_key) == 0;
+      bool received_by_wallet = record.recipient_public_key.compare(public_key) == 0;
+      if (sent_by_wallet && received_by_wallet)
+      {
+        delta -= record.fee;
+      }
+      else if (sent_by_wallet)
+      {
+        delta -= record.amount + record.fee;
+      }
+      else if (received_by_wallet)
+      {
+        delta += record.amount;
+      }
+    }
+  }
+  return delta;
+}
+
 long next_transfer_nonce(CBlockDB& block_db, const std::string& public_key)
 {
   CLedgerState::state ledger_state = CLedgerState::build(block_db);
@@ -1412,6 +1451,9 @@ void request_handler::handle_request(const request& req, reply& rep)
     CLedgerState::state chainState = CLedgerState::build(blockDB);
     std::map<std::string, double> ledgerBalances = chainState.balances;
     double ledgerBalanceTotal = chainState.ledger_balance_total;
+    int pendingWalletRecordCount = 0;
+    double pendingWalletDelta = pending_wallet_balance_delta(publicKey, pendingWalletRecordCount);
+    double estimatedWalletBalance = functions.balance + pendingWalletDelta;
     double supplyDifference = ledgerBalanceTotal - functions.currency_circulation;
     if (std::fabs(supplyDifference) < 0.000001)
     {
@@ -1448,6 +1490,9 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"next_block_creator_is_wallet\":\"" << (nextCreator.compare(publicKey) == 0 ? "yes" : "no") << "\",";
     ss << "\"seconds_until_next_block\":\"" << secondsUntilNextBlock << "\",";
     ss << "\"balance\":\"" << functions.balance << "\",";
+    ss << "\"pending_balance_delta\":\"" << pendingWalletDelta << "\",";
+    ss << "\"estimated_balance\":\"" << estimatedWalletBalance << "\",";
+    ss << "\"pending_wallet_records\":\"" << pendingWalletRecordCount << "\",";
     ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
     ss << "\"joined\":\"" << (functions.joined ? "yes" : "no") << "\",";
     ss << "\"active_heartbeat\":\"" << (functions.active_heartbeat ? "yes" : "no") << "\",";

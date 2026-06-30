@@ -539,6 +539,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_userLabel(0),
       m_walletTitleLabel(0),
       m_balanceLabel(0),
+      m_estimatedBalanceLabel(0),
+      m_pendingBalanceLabel(0),
       m_networkLabel(0),
       m_syncLabel(0),
       m_syncProgressBar(0),
@@ -614,34 +616,36 @@ MainWindow::MainWindow(QWidget *parent)
     setMinimumSize(920, 620);
 
     setStyleSheet(
-        "QWidget { color: #152328; font-family: 'Helvetica Neue', Arial; font-size: 14px; }"
+        "QWidget { color: #152328; font-family: 'Helvetica Neue', Arial; font-size: 13px; }"
         "#LoginCard, #SideBar, #Panel, #AccountCard { background: rgba(255, 255, 255, 235); border: 1px solid #dce7ea; border-radius: 8px; }"
-        "#AppTitle { color: #0f2c34; font-size: 34px; font-weight: 700; }"
-        "#HeroText { color: #41545a; font-size: 15px; line-height: 150%; }"
-        "#SectionTitle { color: #12272d; font-size: 24px; font-weight: 700; }"
-        "#SmallTitle { color: #253b42; font-size: 16px; font-weight: 700; }"
+        "#AppTitle { color: #0f2c34; font-size: 30px; font-weight: 700; }"
+        "#HeroText { color: #41545a; font-size: 14px; line-height: 145%; }"
+        "#SectionTitle { color: #12272d; font-size: 21px; font-weight: 700; }"
+        "#SmallTitle { color: #253b42; font-size: 15px; font-weight: 700; }"
         "#Muted { color: #6b7e84; }"
-        "#Balance { color: #08282f; font-size: 36px; font-weight: 700; }"
-        "#AccountBalance { color: #0d343b; font-size: 22px; font-weight: 700; }"
+        "#Balance { color: #08282f; font-size: 32px; font-weight: 700; }"
+        "#PendingBalance { color: #62767c; font-size: 13px; font-weight: 600; }"
+        "#PendingBalance[active='true'] { color: #9a5c00; }"
+        "#AccountBalance { color: #0d343b; font-size: 20px; font-weight: 700; }"
         "#StatusGood { color: #18735d; font-weight: 700; }"
         "#Error { color: #b3261e; font-weight: 600; }"
-        "#TerminalOutput { background: #0d171b; color: #d9f7ef; border: 1px solid #17343b; border-radius: 6px; font-family: Menlo, Consolas, monospace; font-size: 13px; padding: 10px; }"
-        "QLineEdit, QTextEdit, QComboBox { background: #ffffff; border: 1px solid #cddadd; border-radius: 6px; padding: 10px; selection-background-color: #1b7f8a; }"
+        "#TerminalOutput { background: #0d171b; color: #d9f7ef; border: 1px solid #17343b; border-radius: 6px; font-family: Menlo, Consolas, monospace; font-size: 12px; padding: 8px; }"
+        "QLineEdit, QTextEdit, QComboBox { background: #ffffff; border: 1px solid #cddadd; border-radius: 6px; padding: 8px; selection-background-color: #1b7f8a; }"
         "QLineEdit:focus, QTextEdit:focus, QComboBox:focus { border-color: #1b7f8a; }"
-        "QPushButton { border-radius: 6px; padding: 10px 14px; font-weight: 700; }"
+        "QPushButton { border-radius: 6px; padding: 8px 12px; font-weight: 700; }"
         "QPushButton#PrimaryButton { background: #166b76; color: white; border: 1px solid #166b76; }"
         "QPushButton#PrimaryButton:hover { background: #0f5963; }"
         "QPushButton#SecondaryButton { background: #edf4f5; color: #17454d; border: 1px solid #c8d9dc; }"
         "QPushButton#SecondaryButton:hover { background: #e1eeee; }"
         "QPushButton#DangerButton { background: #b3261e; color: white; border: 1px solid #b3261e; }"
         "QPushButton#DangerButton:hover { background: #8f1f19; }"
-        "QPushButton#NavButton { background: transparent; color: #31525a; border: 1px solid transparent; text-align: left; padding: 11px 12px; }"
+        "QPushButton#NavButton { background: transparent; color: #31525a; border: 1px solid transparent; text-align: left; padding: 9px 10px; }"
         "QPushButton#NavButton:hover { background: #eef6f7; }"
         "QPushButton#NavButton[active='true'] { background: #dceff1; color: #0f5963; border: 1px solid #b8d9dd; }"
-        "QProgressBar { background: #edf4f5; border: 1px solid #c8d9dc; border-radius: 6px; height: 14px; text-align: center; color: #31525a; }"
+        "QProgressBar { background: #edf4f5; border: 1px solid #c8d9dc; border-radius: 6px; height: 12px; text-align: center; color: #31525a; }"
         "QProgressBar::chunk { background: #166b76; border-radius: 5px; }"
         "QTableWidget { background: white; border: 1px solid #dce7ea; border-radius: 6px; gridline-color: #edf2f3; }"
-        "QHeaderView::section { background: #edf4f5; color: #41545a; padding: 8px; border: 0; font-weight: 700; }"
+        "QHeaderView::section { background: #edf4f5; color: #41545a; padding: 6px; border: 0; font-weight: 700; }"
         "QFrame#LoadingOverlay { background: rgba(251, 253, 254, 220); border: 1px solid #dce7ea; border-radius: 6px; }"
     );
 
@@ -725,19 +729,19 @@ QWidget *MainWindow::createShellPage()
 {
     AccentCanvas *page = new AccentCanvas;
     QHBoxLayout *layout = new QHBoxLayout(page);
-    layout->setContentsMargins(20, 20, 20, 20);
-    layout->setSpacing(18);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(14);
 
     QFrame *sideBar = makePanel("SideBar");
     sideBar->setFixedWidth(238);
     QVBoxLayout *nav = new QVBoxLayout(sideBar);
-    nav->setContentsMargins(18, 18, 18, 18);
-    nav->setSpacing(10);
+    nav->setContentsMargins(16, 16, 16, 16);
+    nav->setSpacing(8);
 
     nav->addWidget(makeLabel(tr("Safire"), "AppTitle"));
     m_userLabel = makeLabel(tr("Wallet locked"), "Muted");
     nav->addWidget(m_userLabel);
-    nav->addSpacing(16);
+    nav->addSpacing(10);
 
     m_balanceButton = createNavButton(tr("Main"));
     m_sendButton = createNavButton(tr("Send"));
@@ -801,18 +805,22 @@ QWidget *MainWindow::createBalancePage()
     QWidget *page = new QWidget;
     QVBoxLayout *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(16);
+    layout->setSpacing(12);
 
     QFrame *summary = makePanel("Panel");
     QGridLayout *summaryLayout = new QGridLayout(summary);
-    summaryLayout->setContentsMargins(26, 24, 26, 24);
-    summaryLayout->setSpacing(10);
+    summaryLayout->setContentsMargins(22, 18, 22, 18);
+    summaryLayout->setSpacing(7);
 
     m_walletTitleLabel = createSectionTitle(tr("Wallet"));
     summaryLayout->addWidget(m_walletTitleLabel, 0, 0);
     summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 1, 0);
     m_balanceLabel = makeLabel(tr("-"), "Balance");
     summaryLayout->addWidget(m_balanceLabel, 2, 0);
+    m_estimatedBalanceLabel = makeLabel(tr("Estimated: -"), "PendingBalance");
+    summaryLayout->addWidget(m_estimatedBalanceLabel, 3, 0);
+    m_pendingBalanceLabel = makeLabel(tr("Pending: none"), "PendingBalance");
+    summaryLayout->addWidget(m_pendingBalanceLabel, 4, 0);
 
     QHBoxLayout *actions = new QHBoxLayout;
     m_joinNetworkButton = createPrimaryButton(tr("Join Network"));
@@ -826,12 +834,12 @@ QWidget *MainWindow::createBalancePage()
     actions->addWidget(historyNow);
     actions->addWidget(setNameNow);
     actions->addStretch();
-    summaryLayout->addLayout(actions, 3, 0);
+    summaryLayout->addLayout(actions, 5, 0);
 
     QFrame *networkPanel = makePanel("Panel");
     QGridLayout *networkLayout = new QGridLayout(networkPanel);
-    networkLayout->setContentsMargins(26, 22, 26, 22);
-    networkLayout->setSpacing(10);
+    networkLayout->setContentsMargins(22, 18, 22, 18);
+    networkLayout->setSpacing(8);
     networkLayout->setColumnStretch(0, 1);
     networkLayout->setColumnStretch(1, 1);
 
@@ -852,8 +860,8 @@ QWidget *MainWindow::createBalancePage()
 
     QFrame *networkInfoPanel = makePanel("Panel");
     QGridLayout *networkInfoLayout = new QGridLayout(networkInfoPanel);
-    networkInfoLayout->setContentsMargins(26, 22, 26, 22);
-    networkInfoLayout->setSpacing(10);
+    networkInfoLayout->setContentsMargins(22, 18, 22, 18);
+    networkInfoLayout->setSpacing(8);
     networkInfoLayout->setColumnStretch(0, 1);
     networkInfoLayout->setColumnStretch(1, 1);
     networkInfoLayout->setColumnStretch(2, 1);
@@ -878,8 +886,8 @@ QWidget *MainWindow::createBalancePage()
 
     QFrame *membershipPanel = makePanel("AccountCard");
     QGridLayout *membershipLayout = new QGridLayout(membershipPanel);
-    membershipLayout->setContentsMargins(18, 18, 18, 18);
-    membershipLayout->setSpacing(8);
+    membershipLayout->setContentsMargins(16, 14, 16, 14);
+    membershipLayout->setSpacing(6);
     membershipLayout->setColumnStretch(0, 1);
     membershipLayout->setColumnStretch(1, 1);
     membershipLayout->addWidget(makeLabel(tr("Membership"), "SmallTitle"), 0, 0, 1, 2);
@@ -2057,6 +2065,12 @@ bool MainWindow::ensureBackendRunning()
         if (m_balanceLabel) {
             m_balanceLabel->setText(tr("-"));
         }
+        if (m_estimatedBalanceLabel) {
+            m_estimatedBalanceLabel->setText(tr("Estimated: -"));
+        }
+        if (m_pendingBalanceLabel) {
+            m_pendingBalanceLabel->setText(tr("Pending: none"));
+        }
         if (m_networkLabel) {
             m_networkLabel->setText(tr("Backend: core binary not found"));
         }
@@ -2184,6 +2198,9 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
 
     QString balance = object.value("balance").toString();
+    QString pendingDelta = object.value("pending_balance_delta").toString();
+    QString estimatedBalance = object.value("estimated_balance").toString();
+    QString pendingWalletRecords = object.value("pending_wallet_records").toString();
     QString publicKey = object.value("public_key").toString();
     QString publicName = object.value("public_name").toString();
     QString joined = object.value("joined").toString();
@@ -2236,7 +2253,34 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
 
     if (m_balanceLabel) {
-        m_balanceLabel->setText(tr("%1 SFR").arg(balance));
+        m_balanceLabel->setText(tr("%1 SFR").arg(formatSfrValue(balance)));
+    }
+    bool pendingOk = false;
+    double pendingValue = pendingDelta.toDouble(&pendingOk);
+    int pendingCount = pendingWalletRecords.toInt();
+    bool hasPendingBalanceDelta = pendingOk && qAbs(pendingValue) >= 0.000001;
+    if (m_estimatedBalanceLabel) {
+        m_estimatedBalanceLabel->setText(tr("Estimated: %1 SFR").arg(formatSfrValue(estimatedBalance)));
+        m_estimatedBalanceLabel->setProperty("active", hasPendingBalanceDelta ? "true" : "false");
+        m_estimatedBalanceLabel->style()->unpolish(m_estimatedBalanceLabel);
+        m_estimatedBalanceLabel->style()->polish(m_estimatedBalanceLabel);
+    }
+    if (m_pendingBalanceLabel) {
+        if (hasPendingBalanceDelta) {
+            m_pendingBalanceLabel->setText(tr("Pending settlement: %1 (%2 record%3)")
+                .arg(formatSfrAmount(pendingValue))
+                .arg(pendingCount)
+                .arg(pendingCount == 1 ? QString() : tr("s")));
+        } else if (pendingCount > 0) {
+            m_pendingBalanceLabel->setText(tr("Pending settlement: %1 non-balance record%2")
+                .arg(pendingCount)
+                .arg(pendingCount == 1 ? QString() : tr("s")));
+        } else {
+            m_pendingBalanceLabel->setText(tr("Pending: none"));
+        }
+        m_pendingBalanceLabel->setProperty("active", (pendingCount > 0) ? "true" : "false");
+        m_pendingBalanceLabel->style()->unpolish(m_pendingBalanceLabel);
+        m_pendingBalanceLabel->style()->polish(m_pendingBalanceLabel);
     }
     if (m_joinNetworkButton) {
         m_joinNetworkButton->setVisible(joined != "yes");
@@ -3380,6 +3424,15 @@ void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
     if (m_networkLabel) {
         m_networkLabel->setText(m_backendLockDetected ? tr("Backend: database locked") : tr("Backend: stopped"));
     }
+    if (m_balanceLabel) {
+        m_balanceLabel->setText(tr("-"));
+    }
+    if (m_estimatedBalanceLabel) {
+        m_estimatedBalanceLabel->setText(tr("Estimated: -"));
+    }
+    if (m_pendingBalanceLabel) {
+        m_pendingBalanceLabel->setText(tr("Pending: none"));
+    }
     if (m_backendLockDetected && m_syncLabel) {
         m_syncLabel->setText(tr("Sync: close the other Safire app or node"));
     }
@@ -3408,6 +3461,15 @@ void MainWindow::refreshWalletStatus()
     if (!ensureBackendRunning()) {
         if (m_syncLabel) {
             m_syncLabel->setText(tr("Sync: backend unavailable"));
+        }
+        if (m_balanceLabel) {
+            m_balanceLabel->setText(tr("-"));
+        }
+        if (m_estimatedBalanceLabel) {
+            m_estimatedBalanceLabel->setText(tr("Estimated: -"));
+        }
+        if (m_pendingBalanceLabel) {
+            m_pendingBalanceLabel->setText(tr("Pending: none"));
         }
         if (m_syncProgressBar) {
             m_syncProgressBar->setRange(0, 0);

@@ -158,6 +158,8 @@ private:
     QLabel *m_userLabel;
     QLabel *m_walletTitleLabel;
     QLabel *m_balanceLabel;
+    QLabel *m_estimatedBalanceLabel;
+    QLabel *m_pendingBalanceLabel;
     QLabel *m_networkLabel;
     QLabel *m_syncLabel;
     QProgressBar *m_syncProgressBar;
