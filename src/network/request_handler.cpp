@@ -626,10 +626,25 @@ std::string recent_blockchain_json(CBlockDB& block_db)
   std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
   CLocalPeerClient::peer_status best_peer;
   bool has_best_peer = best_peer_status(peers, best_peer);
-  std::map<long, std::string> peer_hashes;
-  if (has_best_peer)
+  CFunctions::block_structure local_tip = block_db.getBlock(latest_block_id);
+  bool peer_tip_matches_local_tip = false;
+  bool peer_tip_matches_local_ancestor = false;
+  if (has_best_peer && best_peer.latestBlockHash.length() > 0)
   {
-    peer_hashes = peer_hashes_for_blocks(recent_blocks, best_peer);
+    if (best_peer.latestBlockId == local_tip.number &&
+        best_peer.latestBlockHash.compare(local_tip.hash) == 0)
+    {
+      peer_tip_matches_local_tip = true;
+    }
+    else if (best_peer.latestBlockId < local_tip.number)
+    {
+      CFunctions::block_structure local_peer_tip = block_db.getBlock(best_peer.latestBlockId);
+      if (local_peer_tip.number == best_peer.latestBlockId &&
+          best_peer.latestBlockHash.compare(local_peer_tip.hash) == 0)
+      {
+        peer_tip_matches_local_ancestor = true;
+      }
+    }
   }
 
   std::map<std::string, std::string> names = accepted_member_names(block_db);
@@ -654,14 +669,20 @@ std::string recent_blockchain_json(CBlockDB& block_db)
       {
         network_status = "ahead";
       }
+      else if (peer_tip_matches_local_tip ||
+               (peer_tip_matches_local_ancestor && current_block.number <= best_peer.latestBlockId))
+      {
+        peer_hash = current_block.hash;
+        network_status = "match";
+      }
+      else if (current_block.number == best_peer.latestBlockId && best_peer.latestBlockHash.length() > 0)
+      {
+        peer_hash = best_peer.latestBlockHash;
+        network_status = current_block.hash.compare(peer_hash) == 0 ? "match" : "mismatch";
+      }
       else
       {
-        std::map<long, std::string>::iterator peer_hash_it = peer_hashes.find(current_block.number);
-        if (peer_hash_it != peer_hashes.end())
-        {
-          peer_hash = peer_hash_it->second;
-          network_status = current_block.hash.compare(peer_hash) == 0 ? "match" : "mismatch";
-        }
+        network_status = "unknown";
       }
     }
     ss << "{";
