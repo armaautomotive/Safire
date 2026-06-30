@@ -58,6 +58,7 @@ public:
     static void broadcastBlock(const CFunctions::block_structure& block);
 
 private:
+    static bool shouldSkipPeerForScore(const peer_status& status);
     static void savePeerCache();
     static void purgeUnavailablePeers();
     static std::vector<std::string> peers;

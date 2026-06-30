@@ -717,6 +717,16 @@ void CLocalPeerClient::stop()
     running = false;
 }
 
+bool CLocalPeerClient::shouldSkipPeerForScore(const peer_status& status)
+{
+    if (status.score >= -40) {
+        return false;
+    }
+
+    std::string peer = normalizePeerUrl(status.url);
+    return configuredPeers.find(peer) == configuredPeers.end();
+}
+
 void CLocalPeerClient::syncThread(int argc, char* argv[])
 {
     while (running) {
@@ -729,7 +739,7 @@ void CLocalPeerClient::syncThread(int argc, char* argv[])
                 return a.score > b.score;
             });
         for (int i = 0; i < statuses.size(); ++i) {
-            if (statuses.at(i).score < -40) {
+            if (shouldSkipPeerForScore(statuses.at(i))) {
                 continue;
             }
             syncFromPeer(statuses.at(i).url);
@@ -1030,7 +1040,7 @@ long CLocalPeerClient::getBestPeerLatestBlockId()
     }
     std::vector<peer_status> statuses = getPeerStatuses();
     for (int i = 0; i < statuses.size(); ++i) {
-        if (statuses.at(i).reachable == false || statuses.at(i).genesisMatch == false || statuses.at(i).score < -40) {
+        if (statuses.at(i).reachable == false || statuses.at(i).genesisMatch == false || shouldSkipPeerForScore(statuses.at(i))) {
             continue;
         }
         if (statuses.at(i).latestBlockId > bestLatestBlockId) {
@@ -1065,7 +1075,7 @@ bool CLocalPeerClient::syncNetworkTime()
         if (!running) {
             break;
         }
-        if (statuses.at(i).score < -40) {
+        if (shouldSkipPeerForScore(statuses.at(i))) {
             continue;
         }
         long before = netTime.getLocalEpoch();
@@ -1114,7 +1124,7 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
         if (!running) {
             break;
         }
-        if (peerStatuses.find(peers.at(i)) != peerStatuses.end() && peerStatuses[peers.at(i)].score < -40) {
+        if (peerStatuses.find(peers.at(i)) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[peers.at(i)])) {
             continue;
         }
         std::string response = httpPost(peers.at(i) + "/api/records/submit", recordJson);
@@ -1150,7 +1160,7 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
         if (!running) {
             break;
         }
-        if (peerStatuses.find(peers.at(i)) != peerStatuses.end() && peerStatuses[peers.at(i)].score < -40) {
+        if (peerStatuses.find(peers.at(i)) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[peers.at(i)])) {
             continue;
         }
         std::string response = httpPost(peers.at(i) + "/api/blocks/submit", blockJson);

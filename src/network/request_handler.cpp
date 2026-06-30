@@ -984,6 +984,11 @@ bool local_chain_matches_peer(CBlockDB& block_db,
     return true;
   }
 
+  if (block_db.getLatestBlockId() < peer.latestBlockId)
+  {
+    return true;
+  }
+
   CFunctions::block_structure local_peer_tip = block_db.getBlock(peer.latestBlockId);
   return local_peer_tip.hash.length() > 0 &&
          local_peer_tip.hash.compare(peer.latestBlockHash) == 0;
