@@ -29,6 +29,7 @@
 #include <QPen>
 #include <QPlainTextEdit>
 #include <QPointF>
+#include <QPointer>
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
@@ -3043,7 +3044,24 @@ void MainWindow::requestJson(const QString &path)
     }
     QUrl url(QString("http://127.0.0.1:%1%2").arg(m_backendPort).arg(path));
     QNetworkRequest request(url);
-    m_networkManager->get(request);
+    QNetworkReply *reply = m_networkManager->get(request);
+    QPointer<QNetworkReply> guardedReply(reply);
+    QTimer::singleShot(8000, this, [this, guardedReply, path]() {
+        if (!guardedReply) {
+            return;
+        }
+        if (!m_pendingRequests.contains(path)) {
+            return;
+        }
+        m_pendingRequests.removeAll(path);
+        setLoadingState(path, false);
+        if (path == "/api/wallet/status" && m_syncLabel) {
+            m_syncLabel->setText(tr("Sync: request timed out"));
+        }
+        if (guardedReply->isRunning()) {
+            guardedReply->abort();
+        }
+    });
 }
 
 void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
