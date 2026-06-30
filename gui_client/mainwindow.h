@@ -118,6 +118,9 @@ private:
     QString historyRecordKey(const QJsonObject &record) const;
     QString selectedHistoryRecordKey() const;
     void restoreHistorySelection(const QString &recordKey);
+    QString blockchainBlockKey(const QJsonObject &block) const;
+    QString selectedBlockchainBlockKey() const;
+    void restoreBlockchainSelection(const QString &blockKey);
     QString selectedNetworkUserAddress() const;
     void restoreNetworkUserSelection(const QString &address);
     void setActiveNav(QPushButton *activeButton);

@@ -1621,6 +1621,63 @@ void MainWindow::restoreHistorySelection(const QString &recordKey)
     }
 }
 
+QString MainWindow::blockchainBlockKey(const QJsonObject &block) const
+{
+    QStringList parts;
+    parts << block.value("number").toString()
+          << block.value("hash").toString();
+    return parts.join("|");
+}
+
+QString MainWindow::selectedBlockchainBlockKey() const
+{
+    if (!m_blockchainTable) {
+        return QString();
+    }
+
+    int row = m_blockchainTable->currentRow();
+    if (row >= 0 && row < m_blockchainTable->rowCount()) {
+        QTableWidgetItem *item = m_blockchainTable->item(row, 0);
+        if (item) {
+            QString key = item->data(Qt::UserRole + 1).toString();
+            if (!key.isEmpty()) {
+                return key;
+            }
+        }
+    }
+
+    QList<QTableWidgetItem *> selectedItems = m_blockchainTable->selectedItems();
+    if (!selectedItems.isEmpty()) {
+        QTableWidgetItem *item = selectedItems.first();
+        QString key = item->data(Qt::UserRole + 1).toString();
+        if (!key.isEmpty()) {
+            return key;
+        }
+    }
+
+    return QString();
+}
+
+void MainWindow::restoreBlockchainSelection(const QString &blockKey)
+{
+    if (!m_blockchainTable || blockKey.isEmpty()) {
+        return;
+    }
+
+    for (int row = 0; row < m_blockchainTable->rowCount(); ++row) {
+        QTableWidgetItem *item = m_blockchainTable->item(row, 0);
+        if (!item) {
+            continue;
+        }
+        if (item->data(Qt::UserRole + 1).toString() == blockKey && !m_blockchainTable->isRowHidden(row)) {
+            m_blockchainTable->selectRow(row);
+            m_blockchainTable->setCurrentCell(row, 0);
+            m_blockchainTable->scrollToItem(item, QAbstractItemView::EnsureVisible);
+            return;
+        }
+    }
+}
+
 QString MainWindow::selectedNetworkUserAddress() const
 {
     if (!m_networkUsersTable) {
@@ -2448,6 +2505,7 @@ void MainWindow::renderBlockchainPage()
         m_blockchainPage = pageCount - 1;
     }
 
+    QString selectedKey = selectedBlockchainBlockKey();
     m_blockchainTable->setUpdatesEnabled(false);
     m_blockchainTable->setRowCount(0);
     if (totalBlocks == 0) {
@@ -2469,6 +2527,7 @@ void MainWindow::renderBlockchainPage()
 
         for (int i = start; i < end; ++i) {
             QJsonObject block = m_blockchainBlocks.at(i).toObject();
+            QString blockKey = blockchainBlockKey(block);
             QString number = block.value("number").toString();
             QString networkStatus = block.value("network_status").toString();
             QString peerHash = block.value("peer_hash").toString();
@@ -2564,6 +2623,7 @@ void MainWindow::renderBlockchainPage()
             for (int column = 0; column < values.size(); ++column) {
                 QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
                 item->setData(Qt::UserRole, searchBlob);
+                item->setData(Qt::UserRole + 1, blockKey);
                 item->setBackground(rowColor);
                 if (column == 0) {
                     QString tip = tr("Local hash: %1").arg(hash);
@@ -2598,6 +2658,7 @@ void MainWindow::renderBlockchainPage()
         m_blockchainNextButton->setEnabled(m_blockchainPage + 1 < pageCount);
     }
     filterBlockchainBlocks(m_blockchainSearchEdit ? m_blockchainSearchEdit->text() : QString());
+    restoreBlockchainSelection(selectedKey);
 }
 
 void MainWindow::applyBlockchain(const QString &json)
@@ -2625,7 +2686,17 @@ void MainWindow::applyBlockchain(const QString &json)
         return;
     }
 
+    QString selectedKey = selectedBlockchainBlockKey();
     m_blockchainBlocks = object.value("blocks").toArray();
+    if (!selectedKey.isEmpty()) {
+        const int pageSize = 10;
+        for (int i = 0; i < m_blockchainBlocks.size(); ++i) {
+            if (blockchainBlockKey(m_blockchainBlocks.at(i).toObject()) == selectedKey) {
+                m_blockchainPage = i / pageSize;
+                break;
+            }
+        }
+    }
     if (m_blockchainPage * 10 >= m_blockchainBlocks.size()) {
         m_blockchainPage = 0;
     }
@@ -2898,6 +2969,7 @@ void MainWindow::filterBlockchainBlocks(const QString &text)
         return;
     }
 
+    QString selectedKey = selectedBlockchainBlockKey();
     QString needle = text.trimmed().toLower();
     for (int row = 0; row < m_blockchainTable->rowCount(); ++row) {
         QString haystack;
@@ -2910,6 +2982,7 @@ void MainWindow::filterBlockchainBlocks(const QString &text)
         }
         m_blockchainTable->setRowHidden(row, !needle.isEmpty() && !haystack.contains(needle));
     }
+    restoreBlockchainSelection(selectedKey);
 }
 
 void MainWindow::updateHistoryChart()
