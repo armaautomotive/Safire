@@ -12,11 +12,30 @@
 
 #include "functions/selector.h"
 #include "global.h"
+#include "ecdsacrypto.h"
 #include <cstdlib>
 #include "networktime.h"
 #include "userdb.h"
 
 std::vector< std::string > CSelector::users;
+
+namespace {
+
+int hexValue(char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+        return 10 + (c - 'a');
+    }
+    if (c >= 'A' && c <= 'F') {
+        return 10 + (c - 'A');
+    }
+    return 0;
+}
+
+} // namespace
 
 
 /**
@@ -57,12 +76,37 @@ long CSelector::getCurrentTimeBlock(){
  * @return std::string user public key.
  */
 std::string CSelector::getSelectedUser(long time){
-    if(users.size() == 0){
-        return "";
+    return getSelectedUserForBlock(time, "", users);
+}
+
+long CSelector::getSelectedIndexForBlock(long blockNumber, const std::string& parentBlockHash, long userCount)
+{
+    if (userCount <= 0) {
+        return -1;
     }
 
-    long userIndex = time % users.size();
-    return users.at(userIndex);
+    std::stringstream seed;
+    seed << parentBlockHash << ":" << blockNumber;
+
+    CECDSACrypto ecdsa;
+    char hash[65];
+    std::string seedString = seed.str();
+    ecdsa.sha256((char*)seedString.c_str(), hash);
+
+    unsigned long long value = 0;
+    for (int i = 0; i < 16 && hash[i] != '\0'; ++i) {
+        value = (value << 4) + hexValue(hash[i]);
+    }
+    return static_cast<long>(value % static_cast<unsigned long long>(userCount));
+}
+
+std::string CSelector::getSelectedUserForBlock(long blockNumber, const std::string& parentBlockHash, const std::vector<std::string>& activeUsers)
+{
+    long index = getSelectedIndexForBlock(blockNumber, parentBlockHash, activeUsers.size());
+    if (index < 0 || index >= activeUsers.size()) {
+        return "";
+    }
+    return activeUsers.at(index);
 }
 
 /**
@@ -90,9 +134,7 @@ bool CSelector::isSelected(std::string publicKey){
     // TODO: get time from central or synced set of servers for syncronization.
 
     long timeBlock = (long)(netTime.getEpoch() / 15);
-    long userIndex = timeBlock % users.size();
-
-    std::string selectedUser = users.at(userIndex);
+    std::string selectedUser = getSelectedUserForBlock(timeBlock, "", users);
     //std::cout << " time " <<  "  " << timeBlock << " mod " << userIndex <<  " users " << users.size() << " " << selectedUser <<  std::endl; 
 
     // Current time to 30 seconds, hashed into one of the user set. 

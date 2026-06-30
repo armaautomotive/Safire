@@ -29,6 +29,7 @@
 #include "blockdb.h"
 #include "functions/functions.h"
 #include "functions/ledgerstate.h"
+#include "functions/selector.h"
 #include "network/localpeerclient.h"
 #include "network/natmapper.h"
 #include "network/relayclient.h"
@@ -1122,22 +1123,23 @@ void request_handler::handle_request(const request& req, reply& rep)
     bool peerSync = synced_with_peer_latest(blockDB, latestBlockId, localPeers);
     std::map<std::string, std::string> memberNames = accepted_member_names(blockDB);
     std::vector<CFunctions::record_structure> acceptedMembers = accepted_membership_records(blockDB);
-    std::map<std::string, double> ledgerBalances = accepted_ledger_balances(blockDB);
-    double ledgerBalanceTotal = ledger_balance_total(ledgerBalances);
+    CLedgerState::state chainState = CLedgerState::build(blockDB);
+    std::map<std::string, double> ledgerBalances = chainState.balances;
+    double ledgerBalanceTotal = chainState.ledger_balance_total;
     double supplyDifference = ledgerBalanceTotal - functions.currency_circulation;
     if (std::fabs(supplyDifference) < 0.000001)
     {
       supplyDifference = 0.0;
     }
-    std::vector<CFunctions::record_structure> activeMembers = active_membership_records(blockDB);
+    std::vector<std::string> activeMemberKeys = chainState.active_member_keys;
     long currentTimeBlock = netTime.getEpoch() / 15;
     long nextTimeBlock = currentTimeBlock + 1;
     std::string currentCreator = "";
     std::string nextCreator = "";
-    if (activeMembers.size() > 0)
+    if (activeMemberKeys.size() > 0 && latestBlock.hash.length() > 0)
     {
-      currentCreator = activeMembers.at(currentTimeBlock % activeMembers.size()).sender_public_key;
-      nextCreator = activeMembers.at(nextTimeBlock % activeMembers.size()).sender_public_key;
+      currentCreator = CSelector::getSelectedUserForBlock(currentTimeBlock, latestBlock.hash, activeMemberKeys);
+      nextCreator = CSelector::getSelectedUserForBlock(nextTimeBlock, latestBlock.hash, activeMemberKeys);
     }
     long secondsUntilNextBlock = (nextTimeBlock * 15) - netTime.getEpoch();
     if (secondsUntilNextBlock < 0)
@@ -1149,7 +1151,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "{\"status\":\"ok\",";
     ss << "\"public_key\":\"" << publicKey << "\",";
     ss << "\"public_name\":\"" << json_escape(name_for_key(memberNames, publicKey)) << "\",";
-    ss << "\"active_member_count\":\"" << activeMembers.size() << "\",";
+    ss << "\"active_member_count\":\"" << activeMemberKeys.size() << "\",";
     ss << "\"current_block_id\":\"" << currentTimeBlock << "\",";
     ss << "\"current_block_creator\":\"" << json_escape(currentCreator) << "\",";
     ss << "\"current_block_creator_name\":\"" << json_escape(name_for_key(memberNames, currentCreator)) << "\",";

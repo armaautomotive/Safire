@@ -30,6 +30,8 @@ public:
     void syncronizeTime();
     bool isSelected(std::string publicKey);
     std::string getSelectedUser(long time);
+    static long getSelectedIndexForBlock(long blockNumber, const std::string& parentBlockHash, long userCount);
+    static std::string getSelectedUserForBlock(long blockNumber, const std::string& parentBlockHash, const std::vector<std::string>& activeUsers);
     long getCurrentTimeBlock();
     void addUser(std::string user);
 
@@ -37,4 +39,3 @@ public:
 };
 
 #endif // SAFIRE_SELECTOR_H
-

@@ -17,6 +17,7 @@
 #include "networktime.h"
 #include "functions/selector.h"
 #include "functions/chain.h"
+#include "functions/ledgerstate.h"
 #include "wallet.h"
 #include "blockdb.h"
 #include "userdb.h"
@@ -302,8 +303,14 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         timeBlock = selector.getCurrentTimeBlock();
         //std::cout << "here " << std::endl;
         
-        // Is it the current users turn to generate a block?
-        bool build_block = selector.isSelected(publicKey);
+        previous_block = blockDB.getBlock(blockDB.getLatestBlockId());
+
+        // Is it the current user's turn to generate a block from the known canonical parent?
+        bool build_block = false;
+        if(previous_block.number > 0 && previous_block.number < timeBlock){
+            std::string selectedCreator = CSelector::getSelectedUserForBlock(timeBlock, previous_block.hash, CSelector::users);
+            build_block = selectedCreator.compare(publicKey) == 0;
+        }
         // Can't build block unless a member of the block.
         if(functions.joined == false){
             build_block = false;
@@ -356,8 +363,6 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             std::string signature = "";
             ecdsa.SignMessage(privateKey, blockRewardRecord.hash, signature);
             blockRewardRecord.signature = signature;
-            
-            previous_block = functions.getLastBlock("main");
             
             CFunctions::block_structure block;
             block.creator_key = publicKey;

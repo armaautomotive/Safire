@@ -7,6 +7,7 @@
 #include "blockdb.h"
 #include "ecdsacrypto.h"
 #include "functions/ledgerstate.h"
+#include "functions/selector.h"
 #include "networkconfig.h"
 #include <cctype>
 #include <cmath>
@@ -190,6 +191,18 @@ std::vector<std::string> activeMemberKeysForBlock(const std::vector<BranchMember
     return active;
 }
 
+std::vector<std::string> activeMemberKeysForBlock(const std::vector<CLedgerState::member_state>& members, bool chainHasHeartbeatRecords, long blockNumber)
+{
+    std::vector<std::string> active;
+    long heartbeatCutoff = blockNumber - CFunctions::HEARTBEAT_VALID_BLOCKS;
+    for (int i = 0; i < members.size(); ++i) {
+        if (chainHasHeartbeatRecords == false || members.at(i).last_heartbeat_block >= heartbeatCutoff) {
+            active.push_back(members.at(i).public_key);
+        }
+    }
+    return active;
+}
+
 long parseCarryForwardValueLong(const std::string& value, const std::string& key)
 {
     std::string prefix = key + "=";
@@ -285,11 +298,12 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
         bool parentIsCanonical = canonicalParent.number == parent.number && canonicalParent.hash.compare(parent.hash) == 0;
         if (parentIsCanonical) {
             CLedgerState::state parentState = CLedgerState::build(blockDB, "", parent.number);
-            if (parentState.active_member_keys.empty()) {
+            std::vector<std::string> activeMemberKeys = activeMemberKeysForBlock(parentState.members, parentState.chain_has_heartbeat_records, block.number);
+            if (activeMemberKeys.empty()) {
                 reason = "no active members can create blocks";
                 return false;
             }
-            std::string selectedCreator = parentState.active_member_keys.at(block.number % parentState.active_member_keys.size());
+            std::string selectedCreator = CSelector::getSelectedUserForBlock(block.number, parent.hash, activeMemberKeys);
             if (selectedCreator.compare(block.creator_key) != 0) {
                 reason = "block creator is not selected for this slot";
                 return false;
@@ -484,7 +498,7 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
                 reason = "no active members can create blocks";
                 return false;
             }
-            std::string selectedCreator = activeMemberKeys.at(block.number % activeMemberKeys.size());
+            std::string selectedCreator = CSelector::getSelectedUserForBlock(block.number, parent.hash, activeMemberKeys);
             if (selectedCreator.compare(block.creator_key) != 0) {
                 reason = "block creator is not selected for this slot";
                 return false;
