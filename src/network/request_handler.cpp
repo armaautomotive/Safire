@@ -11,6 +11,7 @@
 #include "request_handler.h"
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <deque>
 #include <fstream>
@@ -1452,6 +1453,23 @@ void request_handler::handle_request(const request& req, reply& rep)
   if (request_path == "/api/blockchain/recent")
   {
     text_reply(rep, reply::ok, recent_blockchain_json(blockDB), "application/json");
+    return;
+  }
+
+  if (req.method == "POST" && request_path == "/api/blockchain/reset")
+  {
+    std::string confirmation = submitted_value(req, request_path, "confirm");
+    if (confirmation.compare("reset-local-chain") != 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Reset confirmation is required.\"}", "application/json");
+      return;
+    }
+
+    functions.DeleteAll();
+    blockDB.DeleteAll();
+    std::remove("peers.dat");
+
+    text_reply(rep, reply::ok, "{\"status\":\"ok\",\"message\":\"Local blockchain data was reset. Restart the node to resync from configured peers.\"}", "application/json");
     return;
   }
 

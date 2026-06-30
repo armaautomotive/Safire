@@ -68,6 +68,7 @@ private slots:
     void terminalFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void terminalError(QProcess::ProcessError error);
     void saveOptions();
+    void resetBlockchain();
     void refreshWalletStatus();
     void handleWalletStatusReply(QNetworkReply *reply);
 
@@ -89,6 +90,7 @@ private:
     QPushButton *createNavButton(const QString &text);
     QPushButton *createPrimaryButton(const QString &text);
     QPushButton *createSecondaryButton(const QString &text);
+    QPushButton *createDangerButton(const QString &text);
     QLabel *createSectionTitle(const QString &text);
     QWidget *createLoadingOverlay(LoadingSpinnerWidget **spinner, const QString &text);
     QWidget *wrapWithLoadingOverlay(QWidget *content, QWidget *overlay);
@@ -107,6 +109,7 @@ private:
     void applySendPaymentResult(const QString &json, bool transportError);
     void applyJoinNetworkResult(const QString &json, bool transportError);
     void applySetNameResult(const QString &json, bool transportError);
+    void applyBlockchainResetResult(const QString &json, bool transportError);
     void loadContacts();
     void saveContacts();
     void refreshContactDropdown();

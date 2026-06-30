@@ -628,6 +628,8 @@ MainWindow::MainWindow(QWidget *parent)
         "QPushButton#PrimaryButton:hover { background: #0f5963; }"
         "QPushButton#SecondaryButton { background: #edf4f5; color: #17454d; border: 1px solid #c8d9dc; }"
         "QPushButton#SecondaryButton:hover { background: #e1eeee; }"
+        "QPushButton#DangerButton { background: #b3261e; color: white; border: 1px solid #b3261e; }"
+        "QPushButton#DangerButton:hover { background: #8f1f19; }"
         "QPushButton#NavButton { background: transparent; color: #31525a; border: 1px solid transparent; text-align: left; padding: 11px 12px; }"
         "QPushButton#NavButton:hover { background: #eef6f7; }"
         "QPushButton#NavButton[active='true'] { background: #dceff1; color: #0f5963; border: 1px solid #b8d9dd; }"
@@ -1266,8 +1268,14 @@ QWidget *MainWindow::createOptionsPage()
     layout->addWidget(showAdvanced);
     layout->addWidget(confirmBeforeSend);
     layout->addWidget(m_publicPeerCheckBox);
+    layout->addSpacing(12);
+    layout->addWidget(createSectionTitle(tr("Reset Local Blockchain")));
+    layout->addWidget(makeLabel(tr("Keeps this wallet but clears local chain, queue, and peer cache data."), "Muted"));
+    QPushButton *resetChainButton = createDangerButton(tr("Reset Blockchain Data"));
+    layout->addWidget(resetChainButton, 0, Qt::AlignLeft);
     layout->addStretch();
     connect(m_publicPeerCheckBox, SIGNAL(stateChanged(int)), this, SLOT(saveOptions()));
+    connect(resetChainButton, SIGNAL(clicked()), this, SLOT(resetBlockchain()));
     return page;
 }
 
@@ -1305,6 +1313,14 @@ QPushButton *MainWindow::createSecondaryButton(const QString &text)
 {
     QPushButton *button = new QPushButton(text);
     button->setObjectName("SecondaryButton");
+    button->setCursor(Qt::PointingHandCursor);
+    return button;
+}
+
+QPushButton *MainWindow::createDangerButton(const QString &text)
+{
+    QPushButton *button = new QPushButton(text);
+    button->setObjectName("DangerButton");
     button->setCursor(Qt::PointingHandCursor);
     return button;
 }
@@ -1679,6 +1695,40 @@ void MainWindow::applySetNameResult(const QString &json, bool transportError)
     QMessageBox::warning(this, tr("Name Not Updated"), message);
 }
 
+void MainWindow::applyBlockchainResetResult(const QString &json, bool transportError)
+{
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    QString status;
+    QString message;
+    if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+        QJsonObject object = document.object();
+        status = object.value("status").toString();
+        message = object.value("message").toString();
+    }
+
+    if (message.isEmpty()) {
+        message = transportError ? tr("Unable to reset blockchain data.") : tr("Reset response was not understood.");
+    }
+
+    if (!transportError && status == "ok") {
+        m_loadedDataPaths.clear();
+        m_walletHistoryRecords = QJsonArray();
+        m_blockchainBlocks = QJsonArray();
+        m_historyPage = 0;
+        m_blockchainPage = 0;
+        QMessageBox::information(this, tr("Blockchain Reset"), message + tr("\n\nThe backend will restart and resync."));
+        stopTerminal();
+        m_backendStartBlocked = false;
+        m_backendLockDetected = false;
+        startTerminal();
+        refreshWalletStatus();
+        return;
+    }
+
+    QMessageBox::warning(this, tr("Reset Failed"), message);
+}
+
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
@@ -1832,6 +1882,32 @@ void MainWindow::saveOptions()
     if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
         appendTerminalText(tr("\nOptions saved. Restart the console backend to apply public peer mode changes.\n"));
     }
+}
+
+void MainWindow::resetBlockchain()
+{
+    QString message = tr("Reset local blockchain data for this wallet?\n\nThis keeps wallet.dat, but clears the local chain database, queued records, and peer cache. The node will need to resync from safire.conf/default peers.");
+    int answer = QMessageBox::warning(this,
+                                      tr("Reset Blockchain"),
+                                      message,
+                                      QMessageBox::Yes | QMessageBox::Cancel,
+                                      QMessageBox::Cancel);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+
+    if (!ensureBackendRunning()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Backend is unavailable."));
+        return;
+    }
+
+    QUrl url(QString("http://127.0.0.1:%1/api/blockchain/reset").arg(m_backendPort));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery form;
+    form.addQueryItem("confirm", "reset-local-chain");
+    m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
 void MainWindow::appendTerminalText(const QString &text)
@@ -3090,6 +3166,11 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
             reply->deleteLater();
             return;
         }
+        if (path == "/api/blockchain/reset") {
+            applyBlockchainResetResult(QString::fromUtf8(body), true);
+            reply->deleteLater();
+            return;
+        }
         if (m_syncLabel) {
             m_syncLabel->setText(tr("Sync: waiting for backend API"));
         }
@@ -3120,6 +3201,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         applyJoinNetworkResult(QString::fromUtf8(body), false);
     } else if (path == "/api/wallet/setname") {
         applySetNameResult(QString::fromUtf8(body), false);
+    } else if (path == "/api/blockchain/reset") {
+        applyBlockchainResetResult(QString::fromUtf8(body), false);
     } else {
         applyWalletStatus(QString::fromUtf8(body));
     }
