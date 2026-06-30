@@ -1378,7 +1378,7 @@ QWidget *MainWindow::wrapWithLoadingOverlay(QWidget *content, QWidget *overlay)
     return container;
 }
 
-void MainWindow::appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status)
+void MainWindow::appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status, const QString &recordKey)
 {
     if (!m_historyTable) {
         return;
@@ -1390,6 +1390,9 @@ void MainWindow::appendHistory(const QString &date, const QString &type, const Q
     values << date << type << account << amount << status;
     for (int column = 0; column < values.size(); ++column) {
         QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
+        if (!recordKey.isEmpty()) {
+            item->setData(Qt::UserRole, recordKey);
+        }
         if (column == 3 && amount.startsWith("+")) {
             item->setForeground(QColor("#18735d"));
         } else if (column == 3 && amount.startsWith("-")) {
@@ -1415,6 +1418,7 @@ void MainWindow::renderHistoryPage()
         m_historyPage = pageCount - 1;
     }
 
+    QString selectedKey = selectedHistoryRecordKey();
     m_historyTable->setUpdatesEnabled(false);
     m_historyTable->setRowCount(0);
     if (totalRecords == 0) {
@@ -1453,11 +1457,12 @@ void MainWindow::renderHistoryPage()
             QString index = record.value("index").toString();
             QString status = tr("Block %1 #%2").arg(block).arg(index);
 
-            appendHistory(date, direction, account, amount, status);
+            appendHistory(date, direction, account, amount, status, historyRecordKey(record));
         }
     }
 
     m_historyTable->resizeRowsToContents();
+    restoreHistorySelection(selectedKey);
     m_historyTable->setUpdatesEnabled(true);
 
     if (m_historyPageLabel) {
@@ -1554,6 +1559,66 @@ void MainWindow::refreshContactDropdown()
         }
     }
     m_sendContactCombo->blockSignals(false);
+}
+
+QString MainWindow::historyRecordKey(const QJsonObject &record) const
+{
+    QStringList parts;
+    parts << record.value("block").toString()
+          << record.value("index").toString()
+          << record.value("direction").toString()
+          << record.value("hash").toString()
+          << record.value("net").toString();
+    return parts.join("|");
+}
+
+QString MainWindow::selectedHistoryRecordKey() const
+{
+    if (!m_historyTable) {
+        return QString();
+    }
+
+    int row = m_historyTable->currentRow();
+    if (row >= 0 && row < m_historyTable->rowCount()) {
+        QTableWidgetItem *item = m_historyTable->item(row, 0);
+        if (item) {
+            QString key = item->data(Qt::UserRole).toString();
+            if (!key.isEmpty()) {
+                return key;
+            }
+        }
+    }
+
+    QList<QTableWidgetItem *> selectedItems = m_historyTable->selectedItems();
+    if (!selectedItems.isEmpty()) {
+        QTableWidgetItem *item = selectedItems.first();
+        QString key = item->data(Qt::UserRole).toString();
+        if (!key.isEmpty()) {
+            return key;
+        }
+    }
+
+    return QString();
+}
+
+void MainWindow::restoreHistorySelection(const QString &recordKey)
+{
+    if (!m_historyTable || recordKey.isEmpty()) {
+        return;
+    }
+
+    for (int row = 0; row < m_historyTable->rowCount(); ++row) {
+        QTableWidgetItem *item = m_historyTable->item(row, 0);
+        if (!item) {
+            continue;
+        }
+        if (item->data(Qt::UserRole).toString() == recordKey) {
+            m_historyTable->selectRow(row);
+            m_historyTable->setCurrentCell(row, 0);
+            m_historyTable->scrollToItem(item, QAbstractItemView::EnsureVisible);
+            return;
+        }
+    }
 }
 
 QString MainWindow::selectedNetworkUserAddress() const

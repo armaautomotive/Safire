@@ -95,7 +95,7 @@ private:
     QLabel *createSectionTitle(const QString &text);
     QWidget *createLoadingOverlay(LoadingSpinnerWidget **spinner, const QString &text);
     QWidget *wrapWithLoadingOverlay(QWidget *content, QWidget *overlay);
-    void appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status);
+    void appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status, const QString &recordKey = QString());
     void appendTerminalText(const QString &text);
     void renderHistoryPage();
     void renderBlockchainPage();
@@ -115,6 +115,9 @@ private:
     void saveContacts();
     void refreshContactDropdown();
     void appendContact(const QString &name, const QString &address);
+    QString historyRecordKey(const QJsonObject &record) const;
+    QString selectedHistoryRecordKey() const;
+    void restoreHistorySelection(const QString &recordKey);
     QString selectedNetworkUserAddress() const;
     void restoreNetworkUserSelection(const QString &address);
     void setActiveNav(QPushButton *activeButton);
