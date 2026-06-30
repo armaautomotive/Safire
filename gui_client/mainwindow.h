@@ -131,6 +131,7 @@ private:
     int m_backendPort;
     bool m_backendStartBlocked;
     bool m_backendLockDetected;
+    bool m_backendRestartPending;
     double m_transactionFee;
     QString m_publicKey;
     QString m_publicName;

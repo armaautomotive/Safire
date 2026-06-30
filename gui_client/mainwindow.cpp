@@ -525,6 +525,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_backendPort(4899),
       m_backendStartBlocked(false),
       m_backendLockDetected(false),
+      m_backendRestartPending(false),
       m_transactionFee(0.0),
       m_publicKey(QString()),
       m_publicName(QString()),
@@ -1718,11 +1719,21 @@ void MainWindow::applyBlockchainResetResult(const QString &json, bool transportE
         m_historyPage = 0;
         m_blockchainPage = 0;
         QMessageBox::information(this, tr("Blockchain Reset"), message + tr("\n\nThe backend will restart and resync."));
+        m_backendRestartPending = true;
+        if (m_networkLabel) {
+            m_networkLabel->setText(tr("Backend: restarting"));
+        }
+        if (m_syncLabel) {
+            m_syncLabel->setText(tr("Sync: restarting backend"));
+        }
         stopTerminal();
-        m_backendStartBlocked = false;
-        m_backendLockDetected = false;
-        startTerminal();
-        refreshWalletStatus();
+        if (!m_terminalProcess || m_terminalProcess->state() == QProcess::NotRunning) {
+            m_backendRestartPending = false;
+            m_backendStartBlocked = false;
+            m_backendLockDetected = false;
+            QTimer::singleShot(300, this, SLOT(startTerminal()));
+            QTimer::singleShot(1000, this, SLOT(refreshWalletStatus()));
+        }
         return;
     }
 
@@ -3034,6 +3045,29 @@ void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
         appendTerminalText(QString::fromLocal8Bit(bytes));
     }
     appendTerminalText(tr("\nConsole backend stopped with exit code %1.\n").arg(exitCode));
+    if (m_backendRestartPending) {
+        m_backendRestartPending = false;
+        m_backendStartBlocked = false;
+        m_backendLockDetected = false;
+        if (m_terminalStatusLabel) {
+            m_terminalStatusLabel->setText(tr("Restarting"));
+        }
+        if (m_networkLabel) {
+            m_networkLabel->setText(tr("Backend: restarting"));
+        }
+        if (m_syncLabel) {
+            m_syncLabel->setText(tr("Sync: restarting backend"));
+        }
+        if (m_terminalStartButton) {
+            m_terminalStartButton->setEnabled(false);
+        }
+        if (m_terminalStopButton) {
+            m_terminalStopButton->setEnabled(false);
+        }
+        QTimer::singleShot(300, this, SLOT(startTerminal()));
+        QTimer::singleShot(1000, this, SLOT(refreshWalletStatus()));
+        return;
+    }
     if (exitCode != 0) {
         m_backendStartBlocked = true;
     }
