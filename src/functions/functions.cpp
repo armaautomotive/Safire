@@ -164,6 +164,7 @@ std::string CFunctions::recordJSON(record_structure record){
                 "\"time\":\"" + record.time + "\"," +
                 "\"name\":\"" + record.name + "\"," +
                 "\"typ\":\"" + boost::lexical_cast<std::string>(record.transaction_type) + "\"," +
+                (record.nonce > 0 ? "\"nonce\":\"" + boost::lexical_cast<std::string>(record.nonce) + "\"," : "") +
                 "\"amt\":\"" + boost::lexical_cast<std::string>(record.amount) + "\"," +
                 "\"fee\":\"" + boost::lexical_cast<std::string>(record.fee) + "\"," +
                 "\"sndkey\":\"" + record.sender_public_key + "\"," +
@@ -1318,6 +1319,7 @@ CFunctions::record_structure CFunctions::parseRecordJson(std::string record_sect
 
     record.amount = parseSectionDouble(record_section, "\"amt\":\"", "\"");
     record.fee = parseSectionDouble(record_section, "\"fee\":\"", "\"");
+    record.nonce = parseSectionLong(record_section, "\"nonce\":\"", "\"");
 
     record.name = parseSectionString(record_section, "\"name\":\"", "\"");
     if(record.name.length() == 0){
@@ -1418,6 +1420,7 @@ std::string CFunctions::getRecordHash(record_structure record){
     std::string record_content = record.network + 
         record.time + 
         boost::lexical_cast<std::string>(record.transaction_type) + 
+        (record.nonce > 0 ? boost::lexical_cast<std::string>(record.nonce) : "") +
         boost::lexical_cast<std::string>(record.amount) +
         boost::lexical_cast<std::string>(record.fee) +
         record.sender_public_key +

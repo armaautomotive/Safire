@@ -295,6 +295,9 @@ CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& wa
             }
 
             applyRecordToBalances(block, record, result.balances, result.issued_supply);
+            if (record.transaction_type == CFunctions::TRANSFER_CURRENCY && record.nonce > result.nonces[record.sender_public_key]) {
+                result.nonces[record.sender_public_key] = record.nonce;
+            }
         }
 
         if (block.number == result.latest_block_id) {

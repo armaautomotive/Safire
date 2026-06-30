@@ -23,6 +23,7 @@
 #include "userdb.h"
 #include "log.h"
 #include "networkconfig.h"
+#include <map>
 #include <set>
 
 volatile bool isBuildingBlocks = true;
@@ -40,6 +41,34 @@ bool hasPendingHeartbeat(CFunctions& functions, const std::string& publicKey)
         }
     }
     return false;
+}
+
+bool includePendingTransfer(
+    const CFunctions::record_structure& record,
+    std::map<std::string, double>& pendingBalances,
+    std::map<std::string, long>& pendingNonces)
+{
+    if(record.transaction_type != CFunctions::TRANSFER_CURRENCY){
+        return true;
+    }
+    if(record.nonce <= 0){
+        return false;
+    }
+
+    long expectedNonce = pendingNonces[record.sender_public_key] + 1;
+    if(record.nonce != expectedNonce){
+        return false;
+    }
+
+    double debit = record.sender_public_key.compare(record.recipient_public_key) == 0 ? record.fee : record.amount + record.fee;
+    if(pendingBalances[record.sender_public_key] + 0.000001 < debit){
+        return false;
+    }
+
+    pendingBalances[record.recipient_public_key] += record.amount;
+    pendingBalances[record.sender_public_key] -= record.amount + record.fee;
+    pendingNonces[record.sender_public_key] = record.nonce;
+    return true;
 }
 
 void queueHeartbeatIfDue(
@@ -383,11 +412,19 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                 std::cout << "ERROR: Block generation without previous block assigned. \n";
             }
             block.previous_block_id = latestBlockId;
+
+            CLedgerState::state pendingState = CLedgerState::build(blockDB, "", latestBlockId);
+            std::map<std::string, double> pendingBalances = pendingState.balances;
+            std::map<std::string, long> pendingNonces = pendingState.nonces;
+            pendingBalances[publicKey] += blockRewardRecord.amount;
             
             // Add records from queue...
             std::vector< CFunctions::record_structure > records = functions.parseQueueRecords();
             for(int i = 0; i < records.size(); i++){
                 CFunctions::record_structure queuedRecord = records[i];
+                if(includePendingTransfer(queuedRecord, pendingBalances, pendingNonces) == false){
+                    continue;
+                }
                 if(queuedRecord.hash.length() == 0 || includedRecordHashes.find(queuedRecord.hash) == includedRecordHashes.end()){
                     block.records.push_back(queuedRecord);
                     if(queuedRecord.hash.length() > 0){

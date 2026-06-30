@@ -104,7 +104,15 @@ This topology gives us:
 
 ## Security Test Backlog
 
-Add explicit tests for double-spend protection. The test suite should cover attempts to spend the same balance twice through duplicate pending records, competing blocks, peer sync/fork repair, and replayed historical transactions.
+Initial transfer nonce tests now cover a valid spend, duplicate nonce records in one block, skipped nonces, sequential nonces, and replayed historical transfers. The remaining test suite should cover competing blocks, peer sync/fork repair, and stale pending records received from peers.
+
+## Transfer Nonces
+
+New transfer records include a sender `nonce`. For new-format blocks that include `records_merkle_root`, validators require each sender's transfer nonce to be exactly one greater than the latest accepted nonce for that sender. This gives the ledger an explicit replay and double-spend guard beyond comparing record hashes.
+
+The block builder also filters queued transfers before including them in a block. A pending transfer is ignored if it has no nonce, skips the expected nonce, reuses an accepted nonce, or would overspend the sender after earlier pending transfers in the same candidate block.
+
+Older blocks without `records_merkle_root` remain readable with the legacy rules. For the current public test network, a chain reset is recommended so all new transfer activity starts with nonce-enforced blocks.
 
 ## Merkle Roots
 

@@ -25,6 +25,7 @@ public:
 
     struct state {
         std::map<std::string, double> balances;
+        std::map<std::string, long> nonces;
         std::map<std::string, std::string> names;
         std::vector<member_state> members;
         std::vector<std::string> active_member_keys;

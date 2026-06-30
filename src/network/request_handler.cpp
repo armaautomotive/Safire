@@ -671,6 +671,10 @@ std::string mempool_json()
     ss << "\"type\":\"" << record_type_name(record.transaction_type) << "\",";
     ss << "\"network\":\"" << json_escape(record.network) << "\",";
     ss << "\"time\":\"" << json_escape(record.time) << "\",";
+    if (record.nonce > 0)
+    {
+      ss << "\"nonce\":\"" << record.nonce << "\",";
+    }
     ss << "\"amount\":\"" << record.amount << "\",";
     ss << "\"fee\":\"" << record.fee << "\",";
     ss << "\"from_key\":\"" << json_escape(record.sender_public_key) << "\",";
@@ -864,6 +868,10 @@ std::string recent_blockchain_json(CBlockDB& block_db)
       ss << "\"type\":\"" << record_type_name(record.transaction_type) << "\",";
       ss << "\"network\":\"" << json_escape(record.network) << "\",";
       ss << "\"time\":\"" << json_escape(record.time) << "\",";
+      if (record.nonce > 0)
+      {
+        ss << "\"nonce\":\"" << record.nonce << "\",";
+      }
       ss << "\"amount\":\"" << record.amount << "\",";
       ss << "\"fee\":\"" << record.fee << "\",";
       ss << "\"from_key\":\"" << json_escape(record.sender_public_key) << "\",";
@@ -927,6 +935,26 @@ std::string carry_forward_unique_key(const CFunctions::record_structure& record)
 std::map<std::string, double> accepted_ledger_balances(CBlockDB& block_db)
 {
   return CLedgerState::build(block_db).balances;
+}
+
+long next_transfer_nonce(CBlockDB& block_db, const std::string& public_key)
+{
+  CLedgerState::state ledger_state = CLedgerState::build(block_db);
+  long nonce = ledger_state.nonces[public_key];
+
+  CFunctions functions;
+  std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
+  for (int i = 0; i < records.size(); ++i)
+  {
+    CFunctions::record_structure record = records.at(i);
+    if (record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+        record.sender_public_key.compare(public_key) == 0 &&
+        record.nonce > nonce)
+    {
+      nonce = record.nonce;
+    }
+  }
+  return nonce + 1;
 }
 
 double accepted_member_supply(CBlockDB& block_db)
@@ -1079,6 +1107,10 @@ std::string wallet_history_json(CBlockDB& block_db, const std::string& public_ke
     ss << "\"index\":\"" << item.record_index << "\",";
     ss << "\"time\":\"" << json_escape(item.record.time) << "\",";
     ss << "\"net\":\"" << item.net_amount << "\",";
+    if (item.record.nonce > 0)
+    {
+      ss << "\"nonce\":\"" << item.record.nonce << "\",";
+    }
     ss << "\"amount\":\"" << item.record.amount << "\",";
     ss << "\"fee\":\"" << item.record.fee << "\",";
     ss << "\"from_key\":\"" << json_escape(item.from_key) << "\",";
@@ -1662,6 +1694,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     sendRecord.fee = transaction_fee;
     sendRecord.sender_public_key = publicKey;
     sendRecord.recipient_public_key = recipient;
+    sendRecord.nonce = next_transfer_nonce(blockDB, publicKey);
     sendRecord.hash = functions.getRecordHash(sendRecord);
 
     CECDSACrypto ecdsa;
@@ -1685,6 +1718,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"amount\":\"" << amount << "\",";
     ss << "\"fee\":\"" << transaction_fee << "\",";
     ss << "\"total\":\"" << total_debit << "\",";
+    ss << "\"nonce\":\"" << sendRecord.nonce << "\",";
     ss << "\"recipient\":\"" << json_escape(recipient) << "\",";
     ss << "\"hash\":\"" << json_escape(sendRecord.hash) << "\"}";
     text_reply(rep, reply::accepted, ss.str(), "application/json");

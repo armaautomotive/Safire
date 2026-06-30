@@ -322,6 +322,7 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
     bool enforceStateRules = isGenesis || (canonicalParent.number == parent.number && canonicalParent.hash.compare(parent.hash) == 0);
     CLedgerState::state parentState = (!isGenesis && enforceStateRules) ? CLedgerState::build(blockDB, "", parent.number) : CLedgerState::state();
     std::map<std::string, double> temporaryBalances = parentState.balances;
+    std::map<std::string, long> temporaryNonces = parentState.nonces;
     std::set<std::string> blockRecordHashes;
 
     for (int i = 0; i < block.records.size(); ++i) {
@@ -374,6 +375,13 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
                 reason = "transfer amount or fee is invalid";
                 return false;
             }
+            if (enforceStateRules && block.records_merkle_root.length() > 0) {
+                long expectedNonce = temporaryNonces[record.sender_public_key] + 1;
+                if (record.nonce != expectedNonce) {
+                    reason = "transfer nonce is invalid";
+                    return false;
+                }
+            }
             double available = temporaryBalances[record.sender_public_key];
             double debit = record.sender_public_key.compare(record.recipient_public_key) == 0 ? record.fee : record.amount + record.fee;
             if (enforceStateRules && available + 0.000001 < debit) {
@@ -383,6 +391,9 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
             temporaryBalances[record.recipient_public_key] += record.amount;
             temporaryBalances[record.sender_public_key] -= record.amount + record.fee;
             temporaryBalances[block.creator_key] += record.fee;
+            if (enforceStateRules && block.records_merkle_root.length() > 0) {
+                temporaryNonces[record.sender_public_key] = record.nonce;
+            }
         } else if (record.transaction_type == CFunctions::VOTE) {
             if (record.fee < 0.0 || (enforceStateRules && temporaryBalances[record.sender_public_key] + 0.000001 < record.fee)) {
                 reason = "vote fee overspends sender balance";
@@ -439,6 +450,7 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
 
     CNetworkConfig config = CNetworkConfig::load();
     std::map<std::string, double> balances;
+    std::map<std::string, long> nonces;
     std::vector<BranchMember> members;
     std::map<std::string, std::string> nameOwners;
     std::set<std::string> acceptedRecordHashes;
@@ -571,6 +583,13 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
                     reason = "transfer amount or fee is invalid";
                     return false;
                 }
+                if (block.records_merkle_root.length() > 0) {
+                    long expectedNonce = nonces[record.sender_public_key] + 1;
+                    if (record.nonce != expectedNonce) {
+                        reason = "transfer nonce is invalid";
+                        return false;
+                    }
+                }
                 double debit = record.sender_public_key.compare(record.recipient_public_key) == 0 ? record.fee : record.amount + record.fee;
                 if (balances[record.sender_public_key] + 0.000001 < debit) {
                     reason = "transfer overspends sender balance";
@@ -579,6 +598,9 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
                 balances[record.recipient_public_key] += record.amount;
                 balances[record.sender_public_key] -= record.amount + record.fee;
                 balances[block.creator_key] += record.fee;
+                if (block.records_merkle_root.length() > 0) {
+                    nonces[record.sender_public_key] = record.nonce;
+                }
             } else if (record.transaction_type == CFunctions::VOTE) {
                 if (record.fee < 0.0 || balances[record.sender_public_key] + 0.000001 < record.fee) {
                     reason = "vote fee overspends sender balance";

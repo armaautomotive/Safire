@@ -85,6 +85,7 @@ public:
         std::string network;                // name of network this record belongs to
         std::string time;
         CFunctions::transaction_types transaction_type;
+        long nonce = 0;                     // Sender sequence number for replay/double-spend protection.
         double amount;                      // Amount to transfer from sender to recipient. 0 if type is add_user or vote
         double fee;	                        // transaction fee
         std::string sender_public_key;		// Sender key

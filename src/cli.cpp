@@ -561,6 +561,24 @@ std::map<std::string, double> acceptedLedgerBalances(){
     return CLedgerState::build(blockDB).balances;
 }
 
+long nextTransferNonce(const std::string& publicKey){
+    CBlockDB blockDB;
+    CLedgerState::state ledgerState = CLedgerState::build(blockDB);
+    long nonce = ledgerState.nonces[publicKey];
+
+    CFunctions functions;
+    std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        if(record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+           record.sender_public_key.compare(publicKey) == 0 &&
+           record.nonce > nonce){
+            nonce = record.nonce;
+        }
+    }
+    return nonce + 1;
+}
+
 double acceptedMemberSupply(){
     CBlockDB blockDB;
     return CLedgerState::build(blockDB).ledger_balance_total;
@@ -764,6 +782,9 @@ std::string recordSummary(long blockNumber, int recordIndex, CFunctions::record_
     ss << " net " << (record.network.length() > 0 ? record.network : "-");
     ss << " amt " << record.amount;
     ss << " fee " << record.fee;
+    if(record.nonce > 0){
+        ss << " nonce " << record.nonce;
+    }
     if(record.transaction_type == CFunctions::JOIN_NETWORK || record.transaction_type == CFunctions::UPDATE_NAME){
         ss << " member " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
     } else {
@@ -789,6 +810,9 @@ std::string mempoolRecordSummary(int recordIndex, CFunctions::record_structure r
     ss << " net " << (record.network.length() > 0 ? record.network : "-");
     ss << " amt " << record.amount;
     ss << " fee " << record.fee;
+    if(record.nonce > 0){
+        ss << " nonce " << record.nonce;
+    }
     if(record.transaction_type == CFunctions::JOIN_NETWORK || record.transaction_type == CFunctions::UPDATE_NAME){
         ss << " member " << (fullKeys ? record.sender_public_key : shortKey(record.sender_public_key));
     } else {
@@ -1442,6 +1466,7 @@ void CCLI::processUserInput(){
                 sendRecord.fee = transactionFee;
                 sendRecord.sender_public_key = publicKey;
                 sendRecord.recipient_public_key = destination_address;
+                sendRecord.nonce = nextTransferNonce(publicKey);
                 sendRecord.hash = functions.getRecordHash(sendRecord);
                 std::string signature = "";
                 ecdsa.SignMessage(privateKey, sendRecord.hash, signature);
