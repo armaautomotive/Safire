@@ -1203,71 +1203,82 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string block_json){
     //std::cout << " parseBlockJson: " << block_json  << std::endl;    
     std::vector<CFunctions::block_structure> blocks;
-    CFunctions::block_structure block;
     std::string content = block_json;
-    int parenDepth = 0;
-    std::size_t start_i = content.find("{");
-    if(start_i!=std::string::npos){
-        CFunctions::block_structure latest_block;
-        for(int i = 0; i < content.length(); i++){
-            if(content[start_i + i] == '{'){
+    std::size_t search_i = 0;
+
+    while(true){
+        std::size_t start_i = content.find("{", search_i);
+        if(start_i==std::string::npos){
+            break;
+        }
+
+        int parenDepth = 0;
+        std::size_t end_i = std::string::npos;
+        for(std::size_t i = start_i; i < content.length(); i++){
+            if(content[i] == '{'){
                 parenDepth++;
-                //std::cout << "  +:  " << " " << i << " d: " << parenDepth  << std::endl;
             }
-            if(content[start_i + i] == '}'){
+            if(content[i] == '}'){
                 parenDepth--;
-                //std::cout << "  -:  " << " " << i << " d: " << parenDepth  << std::endl;
             }
             if(parenDepth == 0){
-                std::string block_section = content.substr(start_i, i + 1);
-
-                //std::cout << " block_section " << block_section << std::endl;                
-
-                latest_block.records.clear();
-                latest_block.creator_key = parseSectionString(block_section, "\"creator_key\":\"", "\""); 
-                latest_block.network = parseSectionString(block_section, "\"network\":\"", "\"");
-                latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
-                latest_block.time = parseSectionString(block_section, "\"time\":\"", "\"");
-                
-                if(latest_block.number > 204009003){
-                    std::cout << " OH DAM INVALID BLOCK NUMBER:  " << block_section << std::endl;
-                }
-                
-                latest_block.previous_block_id = parseSectionLong(block_section, "\"previous_block_id\":\"", "\"");
-                latest_block.previous_block_hash = parseSectionString(block_section, "\"previous_block_hash\":\"", "\"");
-                latest_block.records_merkle_root = parseSectionString(block_section, "\"records_merkle_root\":\"", "\"");
-                std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
-                latest_block.hash = hash;
-                latest_block.signature = parseSectionString(block_section, "\"signature\":\"", "\"");
-                
-                //std::string user_name = parseSectionString(block_section, "\"user_name\":\"", "\"" );
-                //latest_block.user_name = hash;
-                
-                std::string records_section = parseSectionBlock(block_section, "\"records\":", "{", "}");
-                std::string record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
-                while(record_section.compare("") != 0){
-                    CFunctions::record_structure record;
-                    record = parseRecordJson(record_section);
-                    latest_block.records.push_back(record);
-                    record_section = parseSectionBlock(records_section, "\"record\":", "{", "}"); 
-                }
-                if(latest_block.records.size() > 0){
-                    if(latest_block.time.length() == 0){
-                        latest_block.time = latest_block.records.at(0).time;
-                    }
-                    if(latest_block.previous_block_id <= 0 && latest_block.network.length() == 0){
-                        latest_block.network = latest_block.records.at(0).network;
-                    }
-                }
-                if( latest_block.number > 0 && latest_block.hash.length() > 0 ){
-                    blocks.push_back(latest_block);
-                } else {
-                    //std::cout << "  no " << blockJSON(latest_block)  << std::endl;
-                }
-                content = content.substr(start_i + i, content.length()); // strip out processed block
+                end_i = i;
+                break;
             }
         }
-    }  
+
+        if(end_i == std::string::npos){
+            break;
+        }
+
+        std::string block_section = content.substr(start_i, end_i - start_i + 1);
+
+        //std::cout << " block_section " << block_section << std::endl;
+
+        CFunctions::block_structure latest_block;
+        latest_block.records.clear();
+        latest_block.creator_key = parseSectionString(block_section, "\"creator_key\":\"", "\"");
+        latest_block.network = parseSectionString(block_section, "\"network\":\"", "\"");
+        latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
+        latest_block.time = parseSectionString(block_section, "\"time\":\"", "\"");
+
+        if(latest_block.number > 204009003){
+            std::cout << " OH DAM INVALID BLOCK NUMBER:  " << block_section << std::endl;
+        }
+
+        latest_block.previous_block_id = parseSectionLong(block_section, "\"previous_block_id\":\"", "\"");
+        latest_block.previous_block_hash = parseSectionString(block_section, "\"previous_block_hash\":\"", "\"");
+        latest_block.records_merkle_root = parseSectionString(block_section, "\"records_merkle_root\":\"", "\"");
+        std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
+        latest_block.hash = hash;
+        latest_block.signature = parseSectionString(block_section, "\"signature\":\"", "\"");
+
+        //std::string user_name = parseSectionString(block_section, "\"user_name\":\"", "\"" );
+        //latest_block.user_name = hash;
+
+        std::string records_section = parseSectionBlock(block_section, "\"records\":", "{", "}");
+        std::string record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
+        while(record_section.compare("") != 0){
+            CFunctions::record_structure record;
+            record = parseRecordJson(record_section);
+            latest_block.records.push_back(record);
+            record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
+        }
+        if(latest_block.records.size() > 0){
+            if(latest_block.time.length() == 0){
+                latest_block.time = latest_block.records.at(0).time;
+            }
+            if(latest_block.previous_block_id <= 0 && latest_block.network.length() == 0){
+                latest_block.network = latest_block.records.at(0).network;
+            }
+        }
+        if( latest_block.number > 0 && latest_block.hash.length() > 0 ){
+            blocks.push_back(latest_block);
+        } else {
+            //std::cout << "  no " << blockJSON(latest_block)  << std::endl;
+        }
+        search_i = end_i + 1;
+    }
     //std::cout << blocks.size() << std::endl;
     return blocks;
 }

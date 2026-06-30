@@ -1957,6 +1957,57 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
+  std::string blockBatchAfterHashPrefix = "/api/blocks/batch-after-hash/";
+  if (request_path.find(blockBatchAfterHashPrefix) == 0)
+  {
+    std::string blockHashAndLimit = request_path.substr(blockBatchAfterHashPrefix.length());
+    std::string blockHash = blockHashAndLimit;
+    int limit = 100;
+    std::size_t separator = blockHashAndLimit.find("/");
+    if (separator != std::string::npos)
+    {
+      blockHash = blockHashAndLimit.substr(0, separator);
+      limit = ::atoi(blockHashAndLimit.substr(separator + 1).c_str());
+    }
+    if (limit <= 0)
+    {
+      limit = 1;
+    }
+    if (limit > 250)
+    {
+      limit = 250;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlockByHash(blockHash);
+    if (block.number <= 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    std::stringstream batch;
+    int count = 0;
+    while (count < limit)
+    {
+      CFunctions::block_structure nextBlock = blockDB.getNextBlockByHash(block);
+      if (nextBlock.number <= 0 || nextBlock.number == block.number)
+      {
+        break;
+      }
+      batch << functions.blockJSON(nextBlock);
+      block = nextBlock;
+      ++count;
+    }
+
+    if (count == 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+    text_reply(rep, reply::ok, batch.str(), "application/json");
+    return;
+  }
+
   std::string blockPrefix = "/api/blocks/";
   if (request_path.find(blockPrefix) == 0
       && request_path.find("/api/blocks/after/") != 0

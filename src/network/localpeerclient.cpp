@@ -69,7 +69,8 @@ std::string peerCachePath()
 }
 
 const long PEER_PURGE_SECONDS = 3L * 24L * 60L * 60L;
-const int MAX_BLOCKS_PER_SYNC_BATCH = 200;
+const int MAX_BLOCKS_PER_SYNC_BATCH = 1000;
+const int MAX_BLOCKS_PER_SYNC_REQUEST = 250;
 const int MAX_BLOCKS_PER_PUSH_BATCH = 200;
 const int MAX_KNOWN_PEERS = 64;
 const int MAX_ACTIVE_SYNC_PEERS = 12;
@@ -392,6 +393,19 @@ bool storeBlocks(const std::string& blockJson)
     return stored;
 }
 
+int storeParsedBlocks(const std::vector<CFunctions::block_structure>& blocks, bool& changed)
+{
+    int storedCount = 0;
+    for (int i = 0; i < blocks.size(); ++i) {
+        if (blocks.at(i).number <= 0 || blocks.at(i).hash.empty()) {
+            continue;
+        }
+        changed = storeBlock(blocks.at(i)) || changed;
+        ++storedCount;
+    }
+    return storedCount;
+}
+
 bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structure& block, std::string& response)
 {
     CFunctions functions;
@@ -577,7 +591,11 @@ bool pullPeerCanonicalChain(const std::string& peer, long peerLatestBlockId, int
     changed = storeBlock(peerBlock) || changed;
     int received = 1;
     while (peerBlock.number > 0 && peerBlock.number < peerLatestBlockId && received < maxBlocksPerSync) {
-        response = httpGet(peer + "/api/blocks/after-hash/" + peerBlock.hash);
+        int requestLimit = std::min(MAX_BLOCKS_PER_SYNC_REQUEST, maxBlocksPerSync - received);
+        response = httpGet(peer + "/api/blocks/batch-after-hash/" + peerBlock.hash + "/" + boost::lexical_cast<std::string>(requestLimit));
+        if (response.empty()) {
+            response = httpGet(peer + "/api/blocks/after-hash/" + peerBlock.hash);
+        }
         if (response.empty()) {
             long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
             if (repairedLatestBlockId > latestBeforeRepair) {
@@ -595,17 +613,24 @@ bool pullPeerCanonicalChain(const std::string& peer, long peerLatestBlockId, int
             return received > 1;
         }
 
-        peerBlock = blocks.at(0);
-        if (peerBlock.number <= 0 || peerBlock.hash.empty()) {
+        int storedCount = 0;
+        for (int i = 0; i < blocks.size() && received < maxBlocksPerSync; ++i) {
+            peerBlock = blocks.at(i);
+            if (peerBlock.number <= 0 || peerBlock.hash.empty()) {
+                break;
+            }
+            changed = storeBlock(peerBlock) || changed;
+            ++storedCount;
+            ++received;
+        }
+
+        if (storedCount == 0 || peerBlock.number <= 0 || peerBlock.hash.empty()) {
             long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
             if (repairedLatestBlockId > latestBeforeRepair) {
                 changed = true;
             }
             return received > 1;
         }
-
-        changed = storeBlock(peerBlock) || changed;
-        received++;
     }
 
     long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
@@ -1004,11 +1029,15 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
 
         long beforeLatestBlockId = latestBlockId;
         CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
+        int requestLimit = std::min(MAX_BLOCKS_PER_SYNC_REQUEST, maxBlocksPerSync - received);
         std::string path = "/api/blocks/after/" + boost::lexical_cast<std::string>(latestBlockId);
         if (latestBlock.hash.length() > 0) {
-            path = "/api/blocks/after-hash/" + latestBlock.hash;
+            path = "/api/blocks/batch-after-hash/" + latestBlock.hash + "/" + boost::lexical_cast<std::string>(requestLimit);
         }
         std::string response = httpGet(peer + path);
+        if (response.empty() && latestBlock.hash.length() > 0) {
+            response = httpGet(peer + "/api/blocks/after-hash/" + latestBlock.hash);
+        }
         if (response.empty() && latestBlock.hash.length() > 0) {
             response = httpGet(peer + "/api/blocks/after/" + boost::lexical_cast<std::string>(latestBlockId));
         }
@@ -1023,15 +1052,11 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
             break;
         }
 
-        bool sawBlock = false;
         CFunctions functions;
         std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(response);
-        for (int i = 0; i < blocks.size(); ++i) {
-            sawBlock = true;
-            changed = storeBlock(blocks.at(i)) || changed;
-        }
+        int sawBlocks = storeParsedBlocks(blocks, changed);
 
-        if (!sawBlock) {
+        if (sawBlocks <= 0) {
             break;
         }
 
@@ -1039,7 +1064,7 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
         if (latestBlockId <= beforeLatestBlockId) {
             break;
         }
-        ++received;
+        received += sawBlocks;
     }
 
     return changed;
