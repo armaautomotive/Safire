@@ -119,6 +119,12 @@ private:
     void requestJson(const QString &path);
     QString receiveAddress() const;
     QString coreBinaryPath() const;
+    QString passwordHashFilePath() const;
+    QString passwordHashFor(const QString &password) const;
+    bool passwordHashExists() const;
+    QString readPasswordHash() const;
+    bool savePasswordHash(const QString &hash) const;
+    void openWalletShell(const QString &statusText);
     bool publicPeerModeEnabled() const;
     bool ensureBackendRunning();
 
@@ -136,9 +142,11 @@ private:
     double m_transactionFee;
     QString m_publicKey;
     QString m_publicName;
-    QLineEdit *m_userEdit;
     QLineEdit *m_passwordEdit;
     QLabel *m_loginMessage;
+    QLabel *m_loginHintLabel;
+    QPushButton *m_loginPrimaryButton;
+    QPushButton *m_loginSkipButton;
     QLabel *m_userLabel;
     QLabel *m_walletTitleLabel;
     QLabel *m_balanceLabel;

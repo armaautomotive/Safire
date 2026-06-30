@@ -8,8 +8,10 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QCloseEvent>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QFrame>
 #include <QGridLayout>
@@ -529,9 +531,11 @@ MainWindow::MainWindow(QWidget *parent)
       m_transactionFee(0.0),
       m_publicKey(QString()),
       m_publicName(QString()),
-      m_userEdit(0),
       m_passwordEdit(0),
       m_loginMessage(0),
+      m_loginHintLabel(0),
+      m_loginPrimaryButton(0),
+      m_loginSkipButton(0),
       m_userLabel(0),
       m_walletTitleLabel(0),
       m_balanceLabel(0),
@@ -675,8 +679,8 @@ QWidget *MainWindow::createLoginPage()
     intro->addWidget(makeLabel(tr("Safire"), "AppTitle"));
     intro->addWidget(makeLabel(tr("Proof-of-concept wallet for account balances, transfers, membership, and chain status."), "HeroText"));
     intro->addSpacing(18);
-    intro->addWidget(makeLabel(tr("Local wallet access"), "SmallTitle"));
-    intro->addWidget(makeLabel(tr("This first GUI keeps authentication local and mocked until the wallet core is connected."), "Muted"));
+    intro->addWidget(makeLabel(tr("Local wallet lock"), "SmallTitle"));
+    intro->addWidget(makeLabel(tr("Protect this GUI with a local password hash, or skip during prototype testing before a password is set."), "Muted"));
     intro->addStretch();
 
     QFrame *card = makePanel("LoginCard");
@@ -686,14 +690,13 @@ QWidget *MainWindow::createLoginPage()
     form->setSpacing(14);
 
     form->addWidget(makeLabel(tr("Open Wallet"), "SectionTitle"));
-    form->addWidget(makeLabel(tr("Sign in to continue."), "Muted"));
-
-    m_userEdit = new QLineEdit;
-    m_userEdit->setPlaceholderText(tr("User"));
-    form->addWidget(m_userEdit);
+    bool hasPassword = passwordHashExists();
+    m_loginHintLabel = makeLabel(hasPassword ? tr("Enter your wallet password to continue.") :
+                                               tr("No local password is set yet."), "Muted");
+    form->addWidget(m_loginHintLabel);
 
     m_passwordEdit = new QLineEdit;
-    m_passwordEdit->setPlaceholderText(tr("Password"));
+    m_passwordEdit->setPlaceholderText(hasPassword ? tr("Password") : tr("Choose a password"));
     m_passwordEdit->setEchoMode(QLineEdit::Password);
     form->addWidget(m_passwordEdit);
 
@@ -701,15 +704,16 @@ QWidget *MainWindow::createLoginPage()
     m_loginMessage->setMinimumHeight(22);
     form->addWidget(m_loginMessage);
 
-    QPushButton *signInButton = createPrimaryButton(tr("Sign In"));
-    form->addWidget(signInButton);
-    QPushButton *skipButton = createSecondaryButton(tr("Skip"));
-    form->addWidget(skipButton);
-    form->addWidget(makeLabel(tr("Prototype mode: sign in locally or skip to open the wallet."), "Muted"));
+    m_loginPrimaryButton = createPrimaryButton(hasPassword ? tr("Unlock Wallet") : tr("Set Password"));
+    form->addWidget(m_loginPrimaryButton);
+    m_loginSkipButton = createSecondaryButton(tr("Skip"));
+    m_loginSkipButton->setVisible(!hasPassword);
+    form->addWidget(m_loginSkipButton);
+    form->addWidget(makeLabel(tr("The password file stores only a SHA-256 hash in the program directory."), "Muted"));
     form->addStretch();
 
-    connect(signInButton, SIGNAL(clicked()), this, SLOT(signIn()));
-    connect(skipButton, SIGNAL(clicked()), this, SLOT(skipSignIn()));
+    connect(m_loginPrimaryButton, SIGNAL(clicked()), this, SLOT(signIn()));
+    connect(m_loginSkipButton, SIGNAL(clicked()), this, SLOT(skipSignIn()));
     connect(m_passwordEdit, SIGNAL(returnPressed()), this, SLOT(signIn()));
 
     layout->addLayout(intro, 1);
@@ -731,7 +735,7 @@ QWidget *MainWindow::createShellPage()
     nav->setSpacing(10);
 
     nav->addWidget(makeLabel(tr("Safire"), "AppTitle"));
-    m_userLabel = makeLabel(tr("Not signed in"), "Muted");
+    m_userLabel = makeLabel(tr("Wallet locked"), "Muted");
     nav->addWidget(m_userLabel);
     nav->addSpacing(16);
 
@@ -1814,6 +1818,47 @@ QString MainWindow::coreBinaryPath() const
     return QString();
 }
 
+QString MainWindow::passwordHashFilePath() const
+{
+    QDir appDir(QCoreApplication::applicationDirPath());
+    return appDir.absoluteFilePath("safire-gui-password.sha256");
+}
+
+QString MainWindow::passwordHashFor(const QString &password) const
+{
+    QByteArray digest = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256);
+    return QString::fromLatin1(digest.toHex());
+}
+
+bool MainWindow::passwordHashExists() const
+{
+    QFileInfo file(passwordHashFilePath());
+    return file.exists() && file.isFile() && file.size() > 0;
+}
+
+QString MainWindow::readPasswordHash() const
+{
+    QFile file(passwordHashFilePath());
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return QString();
+    }
+    return QString::fromLatin1(file.readAll()).trimmed();
+}
+
+bool MainWindow::savePasswordHash(const QString &hash) const
+{
+    QFile file(passwordHashFilePath());
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        return false;
+    }
+    file.write(hash.toLatin1());
+    file.write("\n");
+    file.close();
+    QFile::setPermissions(passwordHashFilePath(),
+                          QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    return true;
+}
+
 bool MainWindow::publicPeerModeEnabled() const
 {
     QSettings settings("Safire", "SafireWallet");
@@ -2530,29 +2575,45 @@ void MainWindow::applyPeers(const QString &json)
 
 void MainWindow::signIn()
 {
-    if (m_userEdit->text().trimmed().isEmpty() || m_passwordEdit->text().isEmpty()) {
-        m_loginMessage->setText(tr("Enter a user and password."));
+    QString password = m_passwordEdit->text();
+    if (password.isEmpty()) {
+        m_loginMessage->setText(passwordHashExists() ? tr("Enter your password.") : tr("Choose a password."));
         return;
     }
 
-    m_loginMessage->clear();
-    m_userLabel->setText(tr("Signed in as %1").arg(m_userEdit->text().trimmed()));
-    m_passwordEdit->clear();
-    m_rootStack->setCurrentIndex(1);
-    m_backendStartBlocked = false;
-    m_backendLockDetected = false;
-    ensureBackendRunning();
-    refreshWalletStatus();
-    m_statusTimer->start();
+    QString hash = passwordHashFor(password);
+    if (passwordHashExists()) {
+        QString storedHash = readPasswordHash();
+        if (storedHash.compare(hash, Qt::CaseInsensitive) != 0) {
+            m_loginMessage->setText(tr("Incorrect password."));
+            m_passwordEdit->selectAll();
+            return;
+        }
+        openWalletShell(tr("Wallet unlocked"));
+        return;
+    }
+
+    if (!savePasswordHash(hash)) {
+        m_loginMessage->setText(tr("Could not save password hash."));
+        return;
+    }
+
+    openWalletShell(tr("Wallet unlocked"));
 }
 
 void MainWindow::skipSignIn()
 {
-    m_loginMessage->clear();
-    if (m_userEdit->text().trimmed().isEmpty()) {
-        m_userEdit->setText(tr("guest"));
+    if (passwordHashExists()) {
+        m_loginMessage->setText(tr("Password required."));
+        return;
     }
-    m_userLabel->setText(tr("Signed in as %1").arg(m_userEdit->text().trimmed()));
+    openWalletShell(tr("Wallet unlocked without password"));
+}
+
+void MainWindow::openWalletShell(const QString &statusText)
+{
+    m_loginMessage->clear();
+    m_userLabel->setText(statusText);
     m_passwordEdit->clear();
     m_rootStack->setCurrentIndex(1);
     m_backendStartBlocked = false;
@@ -2567,6 +2628,17 @@ void MainWindow::signOut()
     m_statusTimer->stop();
     stopTerminal();
     m_rootStack->setCurrentIndex(0);
+    if (m_loginHintLabel) {
+        bool hasPassword = passwordHashExists();
+        m_loginHintLabel->setText(hasPassword ? tr("Enter your wallet password to continue.") :
+                                                tr("No local password is set yet."));
+    }
+    if (m_loginPrimaryButton) {
+        m_loginPrimaryButton->setText(passwordHashExists() ? tr("Unlock Wallet") : tr("Set Password"));
+    }
+    if (m_loginSkipButton) {
+        m_loginSkipButton->setVisible(!passwordHashExists());
+    }
     m_passwordEdit->setFocus();
 }
 
