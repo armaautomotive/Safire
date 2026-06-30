@@ -34,6 +34,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSizePolicy>
+#include <QStackedLayout>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTimer>
@@ -500,6 +501,15 @@ QString formatSfrValue(const QString &value)
     return amount;
 }
 
+bool isPageDataPath(const QString &path)
+{
+    return path == "/api/network/users" ||
+           path == "/api/wallet/history" ||
+           path == "/api/mempool" ||
+           path == "/api/blockchain/recent" ||
+           path == "/api/peers";
+}
+
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -510,6 +520,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_statusTimer(new QTimer(this)),
       m_networkManager(new QNetworkAccessManager(this)),
       m_pendingRequests(),
+      m_loadedDataPaths(),
       m_backendPort(4899),
       m_backendStartBlocked(false),
       m_backendLockDetected(false),
@@ -621,6 +632,7 @@ MainWindow::MainWindow(QWidget *parent)
         "QProgressBar::chunk { background: #166b76; border-radius: 5px; }"
         "QTableWidget { background: white; border: 1px solid #dce7ea; border-radius: 6px; gridline-color: #edf2f3; }"
         "QHeaderView::section { background: #edf4f5; color: #41545a; padding: 8px; border: 0; font-weight: 700; }"
+        "QFrame#LoadingOverlay { background: rgba(251, 253, 254, 220); border: 1px solid #dce7ea; border-radius: 6px; }"
     );
 
     m_rootStack->addWidget(createLoginPage());
@@ -969,9 +981,6 @@ QWidget *MainWindow::createContactsPage()
     m_contactSearchEdit->setPlaceholderText(tr("Search by name or address"));
     directoryLayout->addWidget(m_contactSearchEdit);
 
-    m_networkUsersLoadingRow = createLoadingRow(&m_networkUsersLoadingSpinner, tr("Loading network users..."));
-    directoryLayout->addWidget(m_networkUsersLoadingRow);
-
     m_networkUsersTable = new QTableWidget(0, 3);
     QStringList networkHeaders;
     networkHeaders << tr("Name") << tr("Address") << tr("Balance");
@@ -983,7 +992,8 @@ QWidget *MainWindow::createContactsPage()
     m_networkUsersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_networkUsersTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_networkUsersTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    directoryLayout->addWidget(m_networkUsersTable, 1);
+    m_networkUsersLoadingRow = createLoadingOverlay(&m_networkUsersLoadingSpinner, tr("Loading network users..."));
+    directoryLayout->addWidget(wrapWithLoadingOverlay(m_networkUsersTable, m_networkUsersLoadingRow), 1);
 
     QPushButton *addButton = createPrimaryButton(tr("Add Contact"));
     directoryLayout->addWidget(addButton, 0, Qt::AlignLeft);
@@ -1054,9 +1064,6 @@ QWidget *MainWindow::createHistoryPage()
     // m_historyChart = new HistoryChartWidget;
     // layout->addWidget(m_historyChart);
 
-    m_historyLoadingRow = createLoadingRow(&m_historyLoadingSpinner, tr("Loading wallet history..."));
-    layout->addWidget(m_historyLoadingRow);
-
     m_historyTable = new QTableWidget(0, 5);
     QStringList headers;
     headers << tr("Date") << tr("Type") << tr("Account") << tr("Amount") << tr("Status");
@@ -1066,7 +1073,8 @@ QWidget *MainWindow::createHistoryPage()
     m_historyTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_historyTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_historyTable->setWordWrap(true);
-    layout->addWidget(m_historyTable, 1);
+    m_historyLoadingRow = createLoadingOverlay(&m_historyLoadingSpinner, tr("Loading wallet history..."));
+    layout->addWidget(wrapWithLoadingOverlay(m_historyTable, m_historyLoadingRow), 1);
 
     // connect(m_historyRangeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(updateHistoryChart()));
     connect(m_historyPrevButton, SIGNAL(clicked()), this, SLOT(previousHistoryPage()));
@@ -1084,9 +1092,6 @@ QWidget *MainWindow::createMempoolPage()
     layout->addWidget(createSectionTitle(tr("Mempool")));
     layout->addWidget(makeLabel(tr("Pending records waiting to be included in a block."), "Muted"));
 
-    m_mempoolLoadingRow = createLoadingRow(&m_mempoolLoadingSpinner, tr("Loading mempool..."));
-    layout->addWidget(m_mempoolLoadingRow);
-
     m_mempoolTable = new QTableWidget(0, 8);
     QStringList headers;
     headers << tr("#") << tr("Type") << tr("Time") << tr("From / Member") << tr("To") << tr("Amount") << tr("Fee") << tr("Hash");
@@ -1103,7 +1108,8 @@ QWidget *MainWindow::createMempoolPage()
     m_mempoolTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_mempoolTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_mempoolTable->setWordWrap(true);
-    layout->addWidget(m_mempoolTable, 1);
+    m_mempoolLoadingRow = createLoadingOverlay(&m_mempoolLoadingSpinner, tr("Loading mempool..."));
+    layout->addWidget(wrapWithLoadingOverlay(m_mempoolTable, m_mempoolLoadingRow), 1);
 
     return page;
 }
@@ -1131,9 +1137,6 @@ QWidget *MainWindow::createBlockchainPage()
     m_blockchainSearchEdit->setPlaceholderText(tr("Search block, creator, hash, record type, name, or address"));
     layout->addWidget(m_blockchainSearchEdit);
 
-    m_blockchainLoadingRow = createLoadingRow(&m_blockchainLoadingSpinner, tr("Loading blockchain records..."));
-    layout->addWidget(m_blockchainLoadingRow);
-
     m_blockchainTable = new QTableWidget(0, 7);
     QStringList headers;
     headers << tr("Network") << tr("Block") << tr("Time") << tr("Creator") << tr("Records") << tr("Hash") << tr("Previous");
@@ -1149,7 +1152,8 @@ QWidget *MainWindow::createBlockchainPage()
     m_blockchainTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_blockchainTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_blockchainTable->setWordWrap(true);
-    layout->addWidget(m_blockchainTable, 1);
+    m_blockchainLoadingRow = createLoadingOverlay(&m_blockchainLoadingSpinner, tr("Loading blockchain records..."));
+    layout->addWidget(wrapWithLoadingOverlay(m_blockchainTable, m_blockchainLoadingRow), 1);
 
     connect(m_blockchainSearchEdit, SIGNAL(textChanged(QString)), this, SLOT(filterBlockchainBlocks(QString)));
     connect(m_blockchainPrevButton, SIGNAL(clicked()), this, SLOT(previousBlockchainPage()));
@@ -1167,11 +1171,9 @@ QWidget *MainWindow::createPeersPage()
     layout->addWidget(createSectionTitle(tr("Peers")));
     layout->addWidget(makeLabel(tr("Local peer connections reported by this node."), "Muted"));
 
-    m_peersLoadingRow = createLoadingRow(&m_peersLoadingSpinner, tr("Loading peers..."));
-    layout->addWidget(m_peersLoadingRow);
-
     m_peerMap = new PeerMapWidget;
-    layout->addWidget(m_peerMap, 2);
+    m_peersLoadingRow = createLoadingOverlay(&m_peersLoadingSpinner, tr("Loading peers..."));
+    layout->addWidget(wrapWithLoadingOverlay(m_peerMap, m_peersLoadingRow), 2);
 
     m_peersTable = new QTableWidget(0, 5);
     QStringList headers;
@@ -1302,25 +1304,44 @@ QLabel *MainWindow::createSectionTitle(const QString &text)
     return makeLabel(text, "SectionTitle");
 }
 
-QWidget *MainWindow::createLoadingRow(LoadingSpinnerWidget **spinner, const QString &text)
+QWidget *MainWindow::createLoadingOverlay(LoadingSpinnerWidget **spinner, const QString &text)
 {
-    QWidget *row = new QWidget;
-    QHBoxLayout *layout = new QHBoxLayout(row);
-    layout->setContentsMargins(0, 0, 0, 0);
+    QFrame *overlay = new QFrame;
+    overlay->setObjectName("LoadingOverlay");
+    QVBoxLayout *outerLayout = new QVBoxLayout(overlay);
+    outerLayout->setContentsMargins(12, 12, 12, 12);
+    outerLayout->addStretch();
+
+    QWidget *center = new QWidget(overlay);
+    QHBoxLayout *layout = new QHBoxLayout(center);
+    layout->setContentsMargins(12, 8, 12, 8);
     layout->setSpacing(8);
 
-    LoadingSpinnerWidget *loadingSpinner = new LoadingSpinnerWidget(row);
+    LoadingSpinnerWidget *loadingSpinner = new LoadingSpinnerWidget(center);
     QLabel *label = makeLabel(text, "Muted");
     layout->addWidget(loadingSpinner);
     layout->addWidget(label);
-    layout->addStretch();
+
+    outerLayout->addWidget(center, 0, Qt::AlignCenter);
+    outerLayout->addStretch();
 
     loadingSpinner->stop();
-    row->hide();
+    overlay->hide();
     if (spinner) {
         *spinner = loadingSpinner;
     }
-    return row;
+    return overlay;
+}
+
+QWidget *MainWindow::wrapWithLoadingOverlay(QWidget *content, QWidget *overlay)
+{
+    QWidget *container = new QWidget;
+    QStackedLayout *layout = new QStackedLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setStackingMode(QStackedLayout::StackAll);
+    layout->addWidget(content);
+    layout->addWidget(overlay);
+    return container;
 }
 
 void MainWindow::appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status)
@@ -1669,6 +1690,9 @@ void MainWindow::setLoadingWidget(QWidget *row, LoadingSpinnerWidget *spinner, b
         return;
     }
     row->setVisible(loading);
+    if (loading) {
+        row->raise();
+    }
     if (!spinner) {
         return;
     }
@@ -2964,8 +2988,14 @@ void MainWindow::requestJson(const QString &path)
         return;
     }
 
-    setLoadingState(path, true);
     m_pendingRequests.append(path);
+    if (isPageDataPath(path) && !m_loadedDataPaths.contains(path)) {
+        QTimer::singleShot(250, this, [this, path]() {
+            if (m_pendingRequests.contains(path) && !m_loadedDataPaths.contains(path)) {
+                setLoadingState(path, true);
+            }
+        });
+    }
     QUrl url(QString("http://127.0.0.1:%1%2").arg(m_backendPort).arg(path));
     QNetworkRequest request(url);
     m_networkManager->get(request);
@@ -3005,6 +3035,10 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         }
         reply->deleteLater();
         return;
+    }
+
+    if (isPageDataPath(path) && !m_loadedDataPaths.contains(path)) {
+        m_loadedDataPaths.append(path);
     }
 
     if (path == "/api/wallet/history") {

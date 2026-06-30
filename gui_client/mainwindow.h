@@ -88,7 +88,8 @@ private:
     QPushButton *createPrimaryButton(const QString &text);
     QPushButton *createSecondaryButton(const QString &text);
     QLabel *createSectionTitle(const QString &text);
-    QWidget *createLoadingRow(LoadingSpinnerWidget **spinner, const QString &text);
+    QWidget *createLoadingOverlay(LoadingSpinnerWidget **spinner, const QString &text);
+    QWidget *wrapWithLoadingOverlay(QWidget *content, QWidget *overlay);
     void appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status);
     void appendTerminalText(const QString &text);
     void renderHistoryPage();
@@ -120,6 +121,7 @@ private:
     QTimer *m_statusTimer;
     QNetworkAccessManager *m_networkManager;
     QStringList m_pendingRequests;
+    QStringList m_loadedDataPaths;
     int m_backendPort;
     bool m_backendStartBlocked;
     bool m_backendLockDetected;
