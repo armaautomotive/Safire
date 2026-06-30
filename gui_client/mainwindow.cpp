@@ -1803,7 +1803,13 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
     if (m_peerLabel) {
         QString peerLatestDisplay = (peerLatestBlock.isEmpty() || peerLatestBlock == "-1") ? tr("-") : peerLatestBlock;
-        m_peerLabel->setText(tr("Peers: %1  Peer latest block: %2").arg(peerCount).arg(peerLatestDisplay));
+        QString peerLatestDate = tr("-");
+        bool peerLatestBlockOk = false;
+        qint64 peerLatestBlockNumber = peerLatestBlock.toLongLong(&peerLatestBlockOk);
+        if (peerLatestBlockOk && peerLatestBlockNumber > 0) {
+            peerLatestDate = QDateTime::fromSecsSinceEpoch(peerLatestBlockNumber * 15).toString("yyyy-MM-dd HH:mm");
+        }
+        m_peerLabel->setText(tr("Peers: %1  Peer latest block: %2  Date: %3").arg(peerCount).arg(peerLatestDisplay).arg(peerLatestDate));
     }
     if (m_supplyLabel) {
         m_supplyLabel->setText(tr("Issued: %1 SFR").arg(supply));
