@@ -23,6 +23,7 @@
 #include "userdb.h"
 #include "log.h"
 #include "networkconfig.h"
+#include <fstream>
 #include <map>
 #include <set>
 
@@ -41,6 +42,93 @@ bool hasPendingHeartbeat(CFunctions& functions, const std::string& publicKey)
         }
     }
     return false;
+}
+
+bool recordExistsInAcceptedChain(CBlockDB& blockDB, const std::string& recordHash)
+{
+    if(recordHash.length() == 0){
+        return false;
+    }
+
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId < 0 || latestBlockId < 0){
+        return false;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            if(block.records.at(i).hash.compare(recordHash) == 0){
+                return true;
+            }
+        }
+
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+    return false;
+}
+
+void rewriteQueueRecords(CFunctions& functions, const std::vector<CFunctions::record_structure>& records)
+{
+    std::ofstream outfile;
+    outfile.open("queue.dat", std::ofstream::out | std::ofstream::trunc);
+    for(int i = 0; i < records.size(); i++){
+        outfile << functions.recordJSON(records.at(i));
+    }
+    outfile.close();
+}
+
+void pruneAcceptedQueueRecords(CFunctions& functions, CBlockDB& blockDB)
+{
+    std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
+    std::vector<CFunctions::record_structure> keptRecords;
+    std::set<std::string> seenHashes;
+    bool changed = false;
+
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        if(record.hash.length() > 0){
+            if(seenHashes.find(record.hash) != seenHashes.end()){
+                changed = true;
+                continue;
+            }
+            seenHashes.insert(record.hash);
+            if(recordExistsInAcceptedChain(blockDB, record.hash)){
+                changed = true;
+                continue;
+            }
+        }
+        keptRecords.push_back(record);
+    }
+
+    if(changed){
+        rewriteQueueRecords(functions, keptRecords);
+    }
+}
+
+void rebroadcastPendingQueueRecords(CFunctions& functions, CRelayClient& relayClient, CBlockDB& blockDB)
+{
+    pruneAcceptedQueueRecords(functions, blockDB);
+
+    std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        if(record.hash.length() == 0 || recordExistsInAcceptedChain(blockDB, record.hash)){
+            continue;
+        }
+        relayClient.sendRecord(record);
+        CLocalPeerClient::broadcastRecord(record);
+    }
 }
 
 bool includePendingTransfer(
@@ -323,6 +411,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     }
     
     long lastLocalBuiltBlockId = -1;
+    long lastPendingRecordRebroadcastEpoch = 0;
     
     int blockNumber = functions.latest_block.number + 1;
     //long timeBlock = 0;
@@ -330,6 +419,12 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //functions.parseBlockFile(publicKey, false); // depricate
         functions.scanChain(publicKey, false); // ??? check this
         queueHeartbeatIfDue(functions, relayClient, ecdsa, privateKey, publicKey);
+        CNetworkTime rebroadcastTime;
+        long rebroadcastEpoch = rebroadcastTime.getLocalEpoch();
+        if(lastPendingRecordRebroadcastEpoch == 0 || rebroadcastEpoch - lastPendingRecordRebroadcastEpoch >= 30){
+            rebroadcastPendingQueueRecords(functions, relayClient, blockDB);
+            lastPendingRecordRebroadcastEpoch = rebroadcastEpoch;
+        }
         
         timeBlock = selector.getCurrentTimeBlock();
         //std::cout << "here " << std::endl;
