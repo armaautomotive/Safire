@@ -1729,7 +1729,7 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
     if (m_joinNetworkButton) {
         m_joinNetworkButton->setVisible(joined != "yes");
-        m_joinNetworkButton->setEnabled(sync == "yes" && peerChainMatch != "no");
+        m_joinNetworkButton->setEnabled(true);
     }
     if (m_mainSendButton) {
         m_mainSendButton->setVisible(joined == "yes");

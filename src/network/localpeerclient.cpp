@@ -781,6 +781,12 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     }
     if(firstBlockId > 0){
         CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
+        if (firstBlock.number <= 0 || firstBlock.hash.length() == 0) {
+            changed = storeBlocks(httpGet(peer + "/api/blocks/first")) || changed;
+            firstBlockId = blockDB.getFirstBlockId();
+            latestBlockId = blockDB.getLatestBlockId();
+            firstBlock = blockDB.getBlock(firstBlockId);
+        }
         if(config.genesisMatches(firstBlockId, firstBlock.hash) == false){
             peerStatuses[peer].lastError = "local genesis mismatch";
             savePeerCache();

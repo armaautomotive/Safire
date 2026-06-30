@@ -1024,7 +1024,9 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
 
                     latest_block.records.clear();
                     latest_block.creator_key = parseSectionString(block_section, "\"creator_key\":\"", "\"");
+                    latest_block.network = parseSectionString(block_section, "\"network\":\"", "\"");
                     latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
+                    latest_block.time = parseSectionString(block_section, "\"time\":\"", "\"");
                     std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                     latest_block.hash = hash;
                     latest_block.signature = parseSectionString(block_section, "\"signature\":\"", "\"");
@@ -1210,7 +1212,9 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
 
                 latest_block.records.clear();
                 latest_block.creator_key = parseSectionString(block_section, "\"creator_key\":\"", "\""); 
+                latest_block.network = parseSectionString(block_section, "\"network\":\"", "\"");
                 latest_block.number = parseSectionLong(block_section, "\"number\":\"", "\"");
+                latest_block.time = parseSectionString(block_section, "\"time\":\"", "\"");
                 
                 if(latest_block.number > 204009003){
                     std::cout << " OH DAM INVALID BLOCK NUMBER:  " << block_section << std::endl;
