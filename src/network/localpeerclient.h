@@ -38,10 +38,14 @@ public:
     };
 
     static void setPeers(const std::vector<std::string>& peers);
+    static void setAdvertisedPeer(const std::string& peerUrl);
+    static std::string getAdvertisedPeer();
     static bool addPeer(const std::string& peerUrl, bool persist = true);
+    static bool addVerifiedPeer(const std::string& peerUrl, bool persist = true);
     static std::vector<std::string> getPeers();
     static std::vector<peer_status> getPeerStatuses();
     static void discoverPeers();
+    static void announceToPeers();
     static void stop();
 
     static void syncThread(int argc, char* argv[]);
@@ -65,6 +69,7 @@ private:
     static std::vector<std::string> peers;
     static std::map<std::string, peer_status> peerStatuses;
     static std::set<std::string> configuredPeers;
+    static std::string advertisedPeerUrl;
     static bool running;
 };
 

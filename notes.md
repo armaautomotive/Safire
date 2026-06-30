@@ -87,3 +87,17 @@ First implementation can use HTTP endpoints:
 - `GET /api/handoff/latest` returns the last accepted handoff message for inspection
 
 Later, this should become a direct P2P handoff path so the current creator can send the new block and handoff to the next creator quickly.
+
+## Peer Discovery and Topology
+
+For larger internet tests, the bootstrap server should act as a peer directory and first contact point, not as the authority for the chain. A new wallet should load the configured default peer, ask for known peers, verify each candidate peer against `/api/status`, and then keep a bounded set of healthy peers.
+
+Public nodes can advertise themselves with a public URL. Peers should only cache announced nodes after checking that they are reachable and on the configured genesis chain. This keeps the graph from filling with stale, private, or wrong-chain URLs.
+
+The node should avoid an all-to-all sync loop as the network grows. Keep a larger cache of known peers, but actively sync with the best-scored subset based on reachability, genesis match, height, and recent success. Slow or unavailable discovered peers can be purged after a few days; configured peers should stay pinned.
+
+This topology gives us:
+- discovery through the bootstrap node
+- redundancy through multiple active peers
+- lower latency propagation without making every client connect to every other client
+- less dependence on `safire.org` once peers have discovered each other

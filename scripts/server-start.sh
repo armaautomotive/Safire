@@ -29,6 +29,9 @@ fi
 args=("$@")
 if [[ ${#args[@]} -eq 0 ]]; then
   args=(--node-port "${SAFIRE_NODE_PORT:-4888}")
+  if [[ -n "${SAFIRE_PUBLIC_URL:-}" ]]; then
+    args+=(--public-url "$SAFIRE_PUBLIC_URL")
+  fi
 fi
 
 export LD_LIBRARY_PATH="$PROJECT_ROOT/src/leveldb:/usr/local/lib:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"

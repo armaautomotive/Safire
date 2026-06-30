@@ -16,6 +16,7 @@ public:
     long genesisBlock;
     std::string genesisHash;
     std::string defaultPeer;
+    std::string publicPeerUrl;
     bool strictGenesis;
     bool enableNatTraversal;
 
@@ -25,6 +26,7 @@ public:
         genesisBlock = -1;
         genesisHash = "";
         defaultPeer = "";
+        publicPeerUrl = "";
         strictGenesis = true;
         enableNatTraversal = false;
     }
@@ -52,6 +54,7 @@ public:
         outfile << "genesis_block=" << genesisBlock << "\n";
         outfile << "genesis_hash=" << genesisHash << "\n";
         outfile << "default_peer=" << defaultPeer << "\n";
+        outfile << "public_peer_url=" << publicPeerUrl << "\n";
         outfile << "strict_genesis=" << (strictGenesis ? "1" : "0") << "\n";
         outfile << "enable_nat=" << (enableNatTraversal ? "1" : "0") << "\n";
         outfile.close();
@@ -82,6 +85,8 @@ public:
                 config.genesisHash = value;
             } else if(key.compare("default_peer") == 0){
                 config.defaultPeer = value;
+            } else if(key.compare("public_peer_url") == 0 || key.compare("advertised_peer") == 0){
+                config.publicPeerUrl = value;
             } else if(key.compare("strict_genesis") == 0){
                 config.strictGenesis = value.compare("0") != 0 &&
                     value.compare("false") != 0 &&

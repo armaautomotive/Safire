@@ -85,6 +85,13 @@ static bool hasArg(int argc, char* argv[], const std::string& name){
     return false;
 }
 
+static std::string trimTrailingSlash(std::string value){
+    while(value.length() > 0 && value[value.length() - 1] == '/'){
+        value.erase(value.length() - 1);
+    }
+    return value;
+}
+
 int main(int argc, char* argv[])
 {
     std::cout << ANSI_COLOR_RED << "Safire Digital Currency v0.0.1.03" << ANSI_COLOR_RESET << std::endl;
@@ -168,6 +175,11 @@ int main(int argc, char* argv[])
     std::string publicKey;
     CNetworkConfig startupConfig = CNetworkConfig::load();
     std::string serverNodePort = getArgValue(argc, argv, "--node-port");
+    std::string publicPeerUrl = getArgValue(argc, argv, "--public-url");
+    if(publicPeerUrl.length() == 0){
+        publicPeerUrl = startupConfig.publicPeerUrl;
+    }
+    CLocalPeerClient::setAdvertisedPeer(publicPeerUrl);
     bool enableNatTraversal = (startupConfig.enableNatTraversal ||
         hasArg(argc, argv, "--enable-nat") ||
         hasArg(argc, argv, "--public-peer")) &&
@@ -179,11 +191,16 @@ int main(int argc, char* argv[])
     std::vector<std::string> localPeers = getArgValues(argc, argv, "--peer");
     if(localPeers.size() == 0 &&
        hasArg(argc, argv, "--peer") == false &&
-       serverNodePort.length() == 0 &&
        startupConfig.defaultPeer.length() > 0){
-        localPeers.push_back(startupConfig.defaultPeer);
+        bool selfDefaultPeer = publicPeerUrl.length() > 0 &&
+            trimTrailingSlash(publicPeerUrl).compare(trimTrailingSlash(startupConfig.defaultPeer)) == 0;
+        bool bootstrapWithoutPublicUrl = serverNodePort.length() > 0 && publicPeerUrl.length() == 0;
+        if(selfDefaultPeer == false && bootstrapWithoutPublicUrl == false){
+            localPeers.push_back(startupConfig.defaultPeer);
+        }
     }
     CLocalPeerClient::setPeers(localPeers);
+    CLocalPeerClient::setAdvertisedPeer(publicPeerUrl);
     CLocalPeerClient::syncNetworkTime();
 
     CWallet wallet;
@@ -273,6 +290,9 @@ int main(int argc, char* argv[])
             localNodeServer.reset(new http::server3::server("0.0.0.0", localNodePort, ".", 1));
             localNodeThread.reset(new std::thread(&http::server3::server::run, localNodeServer.get()));
             std::cout << " Local node API.         http://127.0.0.1:" << localNodePort << "/api/status" << std::endl;
+            if(CLocalPeerClient::getAdvertisedPeer().length() > 0){
+                std::cout << " Public peer URL.        " << CLocalPeerClient::getAdvertisedPeer() << std::endl;
+            }
             if(enableNatTraversal){
                 int natPort = std::atoi(localNodePort.c_str());
                 natMapper.start(natPort);

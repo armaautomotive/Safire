@@ -1223,6 +1223,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << latestBlock.hash << "\",";
+    ss << "\"public_peer_url\":\"" << json_escape(CLocalPeerClient::getAdvertisedPeer()) << "\",";
     ss << "\"nat_enabled\":\"" << (natStatus.enabled ? "yes" : "no") << "\",";
     ss << "\"nat_mapped\":\"" << (natStatus.mapped ? "yes" : "no") << "\",";
     ss << "\"nat_method\":\"" << json_escape(natStatus.method) << "\",";
@@ -1233,15 +1234,91 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
+  if (request_path.find("/api/peers/announce") == 0)
+  {
+    std::string submitted = submitted_value(req, request_path, "url");
+    std::string peerUrl = submitted;
+    if (submitted.find("\"url\":\"") != std::string::npos)
+    {
+      peerUrl = json_field(submitted, "url");
+    }
+
+    if (peerUrl.length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Missing peer URL.\"}", "application/json");
+      return;
+    }
+
+    if (CLocalPeerClient::getAdvertisedPeer().length() > 0 &&
+        peerUrl.compare(CLocalPeerClient::getAdvertisedPeer()) == 0)
+    {
+      text_reply(rep, reply::ok, "{\"status\":\"known\",\"message\":\"Peer is this node.\"}", "application/json");
+      return;
+    }
+
+    std::vector<CLocalPeerClient::peer_status> knownPeers = CLocalPeerClient::getPeerStatuses();
+    bool alreadyKnown = false;
+    for (int i = 0; i < knownPeers.size(); ++i)
+    {
+      if (knownPeers.at(i).url.compare(peerUrl) == 0)
+      {
+        alreadyKnown = true;
+        break;
+      }
+    }
+
+    if (alreadyKnown)
+    {
+      text_reply(rep, reply::ok, "{\"status\":\"known\",\"message\":\"Peer is already known.\"}", "application/json");
+      return;
+    }
+
+    if (CLocalPeerClient::addVerifiedPeer(peerUrl, true))
+    {
+      text_reply(rep, reply::ok, "{\"status\":\"ok\",\"message\":\"Peer announced and verified.\"}", "application/json");
+      return;
+    }
+
+    text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Peer could not be verified.\"}", "application/json");
+    return;
+  }
+
   if (request_path == "/api/peers")
   {
     std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
+    std::string advertisedPeer = CLocalPeerClient::getAdvertisedPeer();
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
+    CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
+    CNetworkConfig config = CNetworkConfig::load();
+    bool selfGenesisMatch = config.genesisMatches(firstBlockId, firstBlock.hash);
     std::stringstream ss;
     ss << "{\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
+    ss << "\"self_url\":\"" << json_escape(advertisedPeer) << "\",";
     ss << "\"peers\":[";
+    bool wrotePeer = false;
+    if (advertisedPeer.length() > 0)
+    {
+      ss << "{";
+      ss << "\"url\":\"" << json_escape(advertisedPeer) << "\",";
+      ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
+      ss << "\"latest_block_hash\":\"" << json_escape(latestBlock.hash) << "\",";
+      ss << "\"genesis_match\":\"" << (selfGenesisMatch ? "yes" : "no") << "\",";
+      ss << "\"reachable\":\"" << (latestBlockId >= 0 ? "yes" : "no") << "\",";
+      ss << "\"last_success_epoch\":\"0\",";
+      ss << "\"first_failure_epoch\":\"0\",";
+      ss << "\"score\":\"100\"";
+      ss << "}";
+      wrotePeer = true;
+    }
     for (int i = 0; i < peers.size(); ++i)
     {
-      if (i > 0)
+      if (advertisedPeer.length() > 0 && peers.at(i).url.compare(advertisedPeer) == 0)
+      {
+        continue;
+      }
+      if (wrotePeer)
       {
         ss << ",";
       }
@@ -1255,6 +1332,7 @@ void request_handler::handle_request(const request& req, reply& rep)
       ss << "\"first_failure_epoch\":\"" << peers.at(i).firstFailureEpoch << "\",";
       ss << "\"score\":\"" << peers.at(i).score << "\"";
       ss << "}";
+      wrotePeer = true;
     }
     ss << "]}";
     text_reply(rep, reply::ok, ss.str(), "application/json");

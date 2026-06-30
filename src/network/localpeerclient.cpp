@@ -20,6 +20,7 @@
 std::vector<std::string> CLocalPeerClient::peers;
 std::map<std::string, CLocalPeerClient::peer_status> CLocalPeerClient::peerStatuses;
 std::set<std::string> CLocalPeerClient::configuredPeers;
+std::string CLocalPeerClient::advertisedPeerUrl = "";
 bool CLocalPeerClient::running = true;
 
 namespace {
@@ -70,6 +71,9 @@ std::string peerCachePath()
 const long PEER_PURGE_SECONDS = 3L * 24L * 60L * 60L;
 const int MAX_BLOCKS_PER_SYNC_BATCH = 200;
 const int MAX_BLOCKS_PER_PUSH_BATCH = 200;
+const int MAX_KNOWN_PEERS = 64;
+const int MAX_ACTIVE_SYNC_PEERS = 12;
+const long ANNOUNCE_INTERVAL_SECONDS = 60;
 
 CLocalPeerClient::peer_status emptyPeerStatus(const std::string& peer)
 {
@@ -675,22 +679,62 @@ void CLocalPeerClient::setPeers(const std::vector<std::string>& peerUrls)
     running = true;
 }
 
+void CLocalPeerClient::setAdvertisedPeer(const std::string& peerUrl)
+{
+    advertisedPeerUrl = normalizePeerUrl(peerUrl);
+}
+
+std::string CLocalPeerClient::getAdvertisedPeer()
+{
+    return advertisedPeerUrl;
+}
+
 bool CLocalPeerClient::addPeer(const std::string& peerUrl, bool persist)
 {
-    const int maxPeers = 32;
     std::string peer = normalizePeerUrl(peerUrl);
     if (peer.empty()) {
+        return false;
+    }
+    if (!advertisedPeerUrl.empty() && peer.compare(advertisedPeerUrl) == 0) {
         return false;
     }
     if (peerStatuses.find(peer) != peerStatuses.end()) {
         return false;
     }
-    if (peers.size() >= maxPeers) {
+    if (peers.size() >= MAX_KNOWN_PEERS) {
         return false;
     }
 
     peers.push_back(peer);
     peerStatuses[peer] = emptyPeerStatus(peer);
+    if (persist) {
+        savePeerCache();
+    }
+    return true;
+}
+
+bool CLocalPeerClient::addVerifiedPeer(const std::string& peerUrl, bool persist)
+{
+    std::string peer = normalizePeerUrl(peerUrl);
+    if (peer.empty()) {
+        return false;
+    }
+    if (!advertisedPeerUrl.empty() && peer.compare(advertisedPeerUrl) == 0) {
+        return false;
+    }
+    if (peerStatuses.find(peer) != peerStatuses.end()) {
+        return false;
+    }
+
+    peer_status status = statusFromPeer(peer);
+    if (status.reachable == false || status.genesisMatch == false) {
+        return false;
+    }
+
+    if (addPeer(peer, false) == false) {
+        return false;
+    }
+    peerStatuses[peer] = status;
     if (persist) {
         savePeerCache();
     }
@@ -782,15 +826,41 @@ void CLocalPeerClient::discoverPeers()
                 continue;
             }
 
-            peer_status status = statusFromPeer(discoveredPeer);
-            if (status.reachable && status.genesisMatch) {
-                addPeer(discoveredPeer, true);
-                peerStatuses[discoveredPeer] = status;
-                savePeerCache();
-            }
+            addVerifiedPeer(discoveredPeer, true);
         }
     }
     purgeUnavailablePeers();
+}
+
+void CLocalPeerClient::announceToPeers()
+{
+    if (!running || advertisedPeerUrl.empty() || peers.empty()) {
+        return;
+    }
+
+    std::stringstream body;
+    body << "{\"url\":\"" << advertisedPeerUrl << "\"}";
+    std::vector<std::string> currentPeers = peers;
+    for (int i = 0; i < currentPeers.size(); ++i) {
+        if (!running) {
+            break;
+        }
+        std::string peer = normalizePeerUrl(currentPeers.at(i));
+        if (peer.empty() || peer.compare(advertisedPeerUrl) == 0) {
+            continue;
+        }
+        if (peerStatuses.find(peer) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[peer])) {
+            continue;
+        }
+        std::string response = httpPost(peer + "/api/peers/announce", body.str());
+        if (response.find("\"status\":\"ok\"") == std::string::npos &&
+            response.find("\"status\":\"known\"") == std::string::npos) {
+            std::string encodedPeer = urlEncode(advertisedPeerUrl);
+            if (!encodedPeer.empty()) {
+                httpGet(peer + "/api/peers/announce?url=" + encodedPeer);
+            }
+        }
+    }
 }
 
 void CLocalPeerClient::stop()
@@ -810,21 +880,36 @@ bool CLocalPeerClient::shouldSkipPeerForScore(const peer_status& status)
 
 void CLocalPeerClient::syncThread(int argc, char* argv[])
 {
+    CNetworkTime netTime;
+    long lastAnnounceEpoch = 0;
     while (running) {
         syncNetworkTime();
         discoverPeers();
+        long now = netTime.getLocalEpoch();
+        if (lastAnnounceEpoch == 0 || now - lastAnnounceEpoch >= ANNOUNCE_INTERVAL_SECONDS) {
+            announceToPeers();
+            lastAnnounceEpoch = now;
+        }
         purgeUnavailablePeers();
         std::vector<peer_status> statuses = getPeerStatuses();
         std::sort(statuses.begin(), statuses.end(),
             [](const peer_status& a, const peer_status& b){
+                if (a.score == b.score) {
+                    return a.latestBlockId > b.latestBlockId;
+                }
                 return a.score > b.score;
             });
+        int activePeers = 0;
         for (int i = 0; i < statuses.size(); ++i) {
             if (shouldSkipPeerForScore(statuses.at(i))) {
                 continue;
             }
+            if (activePeers >= MAX_ACTIVE_SYNC_PEERS) {
+                break;
+            }
             syncFromPeer(statuses.at(i).url);
             pushToPeer(statuses.at(i).url);
+            activePeers++;
         }
         if (running) {
             usleep(1000000 * 2);
