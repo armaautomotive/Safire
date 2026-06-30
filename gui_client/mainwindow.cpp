@@ -703,10 +703,13 @@ QWidget *MainWindow::createLoginPage()
 
     QPushButton *signInButton = createPrimaryButton(tr("Sign In"));
     form->addWidget(signInButton);
-    form->addWidget(makeLabel(tr("Prototype mode: any non-empty user and password will open the wallet."), "Muted"));
+    QPushButton *skipButton = createSecondaryButton(tr("Skip"));
+    form->addWidget(skipButton);
+    form->addWidget(makeLabel(tr("Prototype mode: sign in locally or skip to open the wallet."), "Muted"));
     form->addStretch();
 
     connect(signInButton, SIGNAL(clicked()), this, SLOT(signIn()));
+    connect(skipButton, SIGNAL(clicked()), this, SLOT(skipSignIn()));
     connect(m_passwordEdit, SIGNAL(returnPressed()), this, SLOT(signIn()));
 
     layout->addLayout(intro, 1);
@@ -2533,6 +2536,22 @@ void MainWindow::signIn()
     }
 
     m_loginMessage->clear();
+    m_userLabel->setText(tr("Signed in as %1").arg(m_userEdit->text().trimmed()));
+    m_passwordEdit->clear();
+    m_rootStack->setCurrentIndex(1);
+    m_backendStartBlocked = false;
+    m_backendLockDetected = false;
+    ensureBackendRunning();
+    refreshWalletStatus();
+    m_statusTimer->start();
+}
+
+void MainWindow::skipSignIn()
+{
+    m_loginMessage->clear();
+    if (m_userEdit->text().trimmed().isEmpty()) {
+        m_userEdit->setText(tr("guest"));
+    }
     m_userLabel->setText(tr("Signed in as %1").arg(m_userEdit->text().trimmed()));
     m_passwordEdit->clear();
     m_rootStack->setCurrentIndex(1);

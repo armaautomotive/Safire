@@ -35,6 +35,7 @@ public:
 
 private slots:
     void signIn();
+    void skipSignIn();
     void signOut();
     void showBalance();
     void showSend();
