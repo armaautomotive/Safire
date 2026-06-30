@@ -75,6 +75,17 @@ make linux<br>
 
 ./bin/Safire<br>
 
+<b>Linux server process:</b><br>
+Build, start, stop, and restart the server from SSH with the helper scripts:
+<br>
+<code>scripts/build.sh linux</code><br>
+<code>scripts/server-start.sh</code> starts <code>./bin/Safire --node-port 4888</code> with <code>nohup</code> in the background.<br>
+<code>scripts/server-status.sh</code> prints the PID, uptime, and log path.<br>
+<code>scripts/server-stop.sh</code> stops the background server.<br>
+<code>scripts/server-restart.sh</code> stops the server, rebuilds Linux, and starts it again.<br>
+Logs are written to <code>logs/safire-server.log</code> and the PID is written to <code>run/safire-server.pid</code>.<br>
+Pass custom runtime arguments to start or restart if needed, for example <code>scripts/server-start.sh --node-port 4888 --enable-nat</code>.<br>
+
 <b>Windows:</b><br>
 Instructions for building on windows will be comming later.<br> 
 
@@ -218,4 +229,3 @@ There is a bell curve of settings used to vote for network settings. Higher and 
 If some users settings are 1000% inflation and they are outside of the second or third deviation their settings are weighted much lower than a vote in the first standard deviation.
 
 Settings are stored as key value, certain keys have effect. The hash is of the key names and values. New settings added later will have defaults so that old users will adopt default settings without invalidating their history score.
-

@@ -2,5 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-exec "$PROJECT_ROOT/scripts/server-start.sh" "$@"
+
+"$SCRIPT_DIR/server-stop.sh"
+"$SCRIPT_DIR/build.sh" linux
+"$SCRIPT_DIR/server-start.sh" "$@"

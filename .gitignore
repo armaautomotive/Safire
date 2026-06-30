@@ -24,6 +24,8 @@ queue.dat
 peers.dat
 wallet.dat
 safire_*.log
+/logs/
+/run/
 /bin/chain.index
 /bin/wallet.dat
 /blockdb/
