@@ -213,6 +213,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         
         relayClient.sendBlock(block);
         CLocalPeerClient::broadcastBlock(block);
+        CLocalPeerClient::broadcastHandoff(block, privateKey);
         
         // Wait until the block period is over
         long currTimeBlock = selector.getCurrentTimeBlock();
@@ -405,6 +406,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                 blockDB.AddBlock(block);
                 relayClient.sendBlock(block);
                 CLocalPeerClient::broadcastBlock(block);
+                CLocalPeerClient::broadcastHandoff(block, privateKey);
             }
             lastLocalBuiltBlockId = block.number;
             

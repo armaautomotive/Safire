@@ -1,7 +1,10 @@
 #include "network/localpeerclient.h"
 
 #include "blockdb.h"
+#include "ecdsacrypto.h"
 #include "functions/functions.h"
+#include "functions/ledgerstate.h"
+#include "functions/selector.h"
 #include "networkconfig.h"
 #include "networktime.h"
 #include "wallet.h"
@@ -265,6 +268,84 @@ std::string urlEncode(const std::string& value)
     }
     curl_easy_cleanup(curl);
     return result;
+}
+
+std::string sha256String(const std::string& value)
+{
+    CECDSACrypto ecdsa;
+    char hash[65];
+    ecdsa.sha256((char*)value.c_str(), hash);
+    return std::string(hash);
+}
+
+std::string handoffMemberSetHash(const std::vector<std::string>& activeMemberKeys)
+{
+    std::stringstream ss;
+    for (int i = 0; i < activeMemberKeys.size(); ++i) {
+        if (i > 0) {
+            ss << ",";
+        }
+        ss << activeMemberKeys.at(i);
+    }
+    return sha256String(ss.str());
+}
+
+std::string handoffHashSeed(
+    long blockNumber,
+    const std::string& blockHash,
+    const std::string& parentHash,
+    const std::string& creatorKey,
+    long nextSlot,
+    const std::string& nextCreator,
+    const std::string& activeMemberSetHash)
+{
+    std::stringstream seed;
+    seed << blockNumber << "|"
+         << blockHash << "|"
+         << parentHash << "|"
+         << creatorKey << "|"
+         << nextSlot << "|"
+         << nextCreator << "|"
+         << activeMemberSetHash;
+    return sha256String(seed.str());
+}
+
+std::string handoffJson(const CFunctions::block_structure& block, const std::string& creatorPrivateKey)
+{
+    if (block.number <= 0 || block.hash.length() == 0 || creatorPrivateKey.length() == 0) {
+        return "";
+    }
+
+    CBlockDB blockDB;
+    CLedgerState::state ledgerState = CLedgerState::build(blockDB);
+    long nextSlot = block.number + 1;
+    std::string nextCreator = CSelector::getSelectedUserForBlock(nextSlot, block.hash, ledgerState.active_member_keys);
+    std::string activeMemberSetHash = handoffMemberSetHash(ledgerState.active_member_keys);
+    std::string handoffHash = handoffHashSeed(
+        block.number,
+        block.hash,
+        block.previous_block_hash,
+        block.creator_key,
+        nextSlot,
+        nextCreator,
+        activeMemberSetHash);
+
+    CECDSACrypto ecdsa;
+    std::string signature;
+    ecdsa.SignMessage(creatorPrivateKey, handoffHash, signature);
+
+    std::stringstream ss;
+    ss << "{\"type\":\"BLOCK_HANDOFF\",";
+    ss << "\"block_number\":\"" << block.number << "\",";
+    ss << "\"block_hash\":\"" << block.hash << "\",";
+    ss << "\"parent_hash\":\"" << block.previous_block_hash << "\",";
+    ss << "\"creator\":\"" << block.creator_key << "\",";
+    ss << "\"next_slot\":\"" << nextSlot << "\",";
+    ss << "\"next_creator\":\"" << nextCreator << "\",";
+    ss << "\"active_member_set_hash\":\"" << activeMemberSetHash << "\",";
+    ss << "\"handoff_hash\":\"" << handoffHash << "\",";
+    ss << "\"signature\":\"" << signature << "\"}";
+    return ss.str();
 }
 
 bool storeBlock(const CFunctions::block_structure& block)
@@ -1177,5 +1258,22 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
         if (!encodedBlock.empty()) {
             httpGet(peers.at(i) + "/api/blocks/submit?block=" + encodedBlock);
         }
+    }
+}
+
+void CLocalPeerClient::broadcastHandoff(const CFunctions::block_structure& block, const std::string& creatorPrivateKey)
+{
+    std::string body = handoffJson(block, creatorPrivateKey);
+    if (body.empty()) {
+        return;
+    }
+
+    std::vector<std::string> localPeers = getPeers();
+    for (int i = 0; i < localPeers.size(); ++i) {
+        std::string peer = normalizePeerUrl(localPeers.at(i));
+        if (peer.empty()) {
+            continue;
+        }
+        httpPost(peer + "/api/handoff/submit", body);
     }
 }

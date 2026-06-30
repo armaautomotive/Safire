@@ -23,6 +23,7 @@ chain.index
 queue.dat
 peers.dat
 wallet.dat
+handoff.dat
 safire_*.log
 /logs/
 /run/

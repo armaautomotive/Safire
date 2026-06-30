@@ -43,3 +43,47 @@ A node should not create a block merely because it appears selected from its loc
 - this wallet is selected using the parent-state rule
 
 If peers disagree about the latest parent hash, or if the node knows it is behind, it should wait and sync instead of creating a block.
+
+## Ephemeral Creator Handoff Protocol
+
+Safire should have a live coordination layer separate from the permanent ledger. These messages are not blockchain records and do not make any block valid by themselves. They are hints that help the next creator and other peers see what is happening.
+
+The current block creator has the best immediate view after creating a block because it knows:
+
+- the parent block it used
+- the final block contents and block hash
+- the membership and heartbeat state after applying the block
+- the next creator calculated from that new state
+
+After creating and signing a block, the creator should send a `BLOCK_HANDOFF` message to peers, especially the next calculated creator.
+
+Initial message shape:
+
+```text
+type: BLOCK_HANDOFF
+block_number: generated block slot
+block_hash: generated block hash
+parent_hash: parent block hash
+creator: current creator public key
+next_slot: next slot being announced
+next_creator: public key selected from state after this block
+active_member_set_hash: hash of active members after this block
+handoff_hash: hash of the handoff fields
+signature: handoff_hash signed by current creator
+```
+
+Peers can validate the message by checking:
+
+- the handoff hash matches the message fields
+- the signature verifies against the creator public key
+- if the block is known locally, the block hash, parent hash, and creator match the handoff
+- once the block is available, applying it produces the claimed active member set and next creator
+
+The handoff is advisory. The actual source of truth remains the block contents plus the parent chain state. A malicious or buggy creator can claim the wrong next creator, but peers should reject or ignore the claim after independent validation.
+
+First implementation can use HTTP endpoints:
+
+- `POST /api/handoff/submit` receives a handoff message
+- `GET /api/handoff/latest` returns the last accepted handoff message for inspection
+
+Later, this should become a direct P2P handoff path so the current creator can send the new block and handoff to the next creator quickly.

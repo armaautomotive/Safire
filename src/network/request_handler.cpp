@@ -44,6 +44,7 @@ namespace server3 {
 namespace {
 
 const double API_DEFAULT_TRANSACTION_FEE = 0.0;
+const char* HANDOFF_FILE = "handoff.dat";
 
 size_t request_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -72,6 +73,14 @@ std::string request_http_get(const std::string& url)
 }
 const double API_MAX_TRANSACTION_FEE = 0.1;
 const char* API_SETTINGS_FILE = "settings.dat";
+
+std::string sha256_string(const std::string& value)
+{
+  CECDSACrypto ecdsa;
+  char hash[65];
+  ecdsa.sha256((char*)value.c_str(), hash);
+  return std::string(hash);
+}
 
 std::string json_escape(const std::string& value)
 {
@@ -186,6 +195,150 @@ std::string submitted_value(const request& req, const std::string& request_path,
   }
 
   return query_value(request_path, key);
+}
+
+std::string json_field(const std::string& json, const std::string& key)
+{
+  CFunctions functions;
+  std::string token = "\"" + key + "\":\"";
+  return functions.parseSectionString(json, token, "\"");
+}
+
+long json_field_long(const std::string& json, const std::string& key)
+{
+  CFunctions functions;
+  std::string token = "\"" + key + "\":\"";
+  return functions.parseSectionLong(json, token, "\"");
+}
+
+std::string handoff_hash_seed(
+  long block_number,
+  const std::string& block_hash,
+  const std::string& parent_hash,
+  const std::string& creator,
+  long next_slot,
+  const std::string& next_creator,
+  const std::string& active_member_set_hash)
+{
+  std::stringstream seed;
+  seed << block_number << "|"
+       << block_hash << "|"
+       << parent_hash << "|"
+       << creator << "|"
+       << next_slot << "|"
+       << next_creator << "|"
+       << active_member_set_hash;
+  return sha256_string(seed.str());
+}
+
+std::string read_handoff_file()
+{
+  std::ifstream infile(HANDOFF_FILE);
+  if (!infile.good())
+  {
+    return "";
+  }
+
+  std::stringstream ss;
+  ss << infile.rdbuf();
+  return ss.str();
+}
+
+bool write_handoff_file(const std::string& json)
+{
+  std::ofstream outfile(HANDOFF_FILE);
+  if (!outfile.good())
+  {
+    return false;
+  }
+  outfile << json;
+  outfile.close();
+  return true;
+}
+
+std::string handoff_latest_json(CBlockDB& block_db)
+{
+  std::string handoff = read_handoff_file();
+  if (handoff.length() == 0)
+  {
+    return "{\"status\":\"empty\",\"message\":\"No handoff message has been received.\"}";
+  }
+
+  std::string block_hash = json_field(handoff, "block_hash");
+  CFunctions::block_structure block = block_db.getBlockByHash(block_hash);
+
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"block_known\":\"" << (block.number > 0 ? "yes" : "no") << "\",";
+  ss << "\"handoff\":" << handoff << "}";
+  return ss.str();
+}
+
+std::string submit_handoff_json(CBlockDB& block_db, const std::string& handoff, bool& accepted)
+{
+  accepted = false;
+  if (handoff.length() == 0)
+  {
+    return "{\"status\":\"error\",\"message\":\"Missing handoff message.\"}";
+  }
+
+  long block_number = json_field_long(handoff, "block_number");
+  std::string block_hash = json_field(handoff, "block_hash");
+  std::string parent_hash = json_field(handoff, "parent_hash");
+  std::string creator = json_field(handoff, "creator");
+  long next_slot = json_field_long(handoff, "next_slot");
+  std::string next_creator = json_field(handoff, "next_creator");
+  std::string active_member_set_hash = json_field(handoff, "active_member_set_hash");
+  std::string handoff_hash = json_field(handoff, "handoff_hash");
+  std::string signature = json_field(handoff, "signature");
+
+  if (block_number <= 0 || block_hash.length() == 0 || creator.length() == 0 ||
+      next_slot <= 0 || handoff_hash.length() == 0 || signature.length() == 0)
+  {
+    return "{\"status\":\"error\",\"message\":\"Incomplete handoff message.\"}";
+  }
+
+  std::string expected_hash = handoff_hash_seed(
+    block_number,
+    block_hash,
+    parent_hash,
+    creator,
+    next_slot,
+    next_creator,
+    active_member_set_hash);
+  if (expected_hash.compare(handoff_hash) != 0)
+  {
+    return "{\"status\":\"invalid\",\"message\":\"Handoff hash does not match message fields.\"}";
+  }
+
+  CECDSACrypto ecdsa;
+  if (ecdsa.VerifyMessageCompressed(handoff_hash, signature, creator) != 1)
+  {
+    return "{\"status\":\"invalid\",\"message\":\"Handoff signature is invalid.\"}";
+  }
+
+  CFunctions::block_structure block = block_db.getBlockByHash(block_hash);
+  bool block_known = block.number > 0;
+  bool block_matches = block_known &&
+    block.number == block_number &&
+    block.previous_block_hash.compare(parent_hash) == 0 &&
+    block.creator_key.compare(creator) == 0;
+
+  if (write_handoff_file(handoff) == false)
+  {
+    return "{\"status\":\"error\",\"message\":\"Unable to store handoff message.\"}";
+  }
+
+  accepted = true;
+  std::stringstream ss;
+  ss << "{\"status\":\"accepted\",";
+  ss << "\"verification\":\"hash_signature_valid\",";
+  ss << "\"block_known\":\"" << (block_known ? "yes" : "no") << "\",";
+  ss << "\"block_matches\":\"" << (block_matches ? "yes" : (block_known ? "no" : "unknown")) << "\",";
+  ss << "\"block_number\":\"" << block_number << "\",";
+  ss << "\"next_slot\":\"" << next_slot << "\",";
+  ss << "\"next_creator\":\"" << json_escape(next_creator) << "\"}";
+  return ss.str();
 }
 
 void text_reply(reply& rep, reply::status_type status, const std::string& content, const std::string& content_type)
@@ -1474,6 +1627,21 @@ void request_handler::handle_request(const request& req, reply& rep)
   if (request_path == "/api/blockchain/recent")
   {
     text_reply(rep, reply::ok, recent_blockchain_json(blockDB), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/handoff/latest")
+  {
+    text_reply(rep, reply::ok, handoff_latest_json(blockDB), "application/json");
+    return;
+  }
+
+  if (req.method == "POST" && request_path == "/api/handoff/submit")
+  {
+    bool accepted = false;
+    std::string handoff = submitted_value(req, request_path, "handoff");
+    std::string response = submit_handoff_json(blockDB, handoff, accepted);
+    text_reply(rep, accepted ? reply::accepted : reply::bad_request, response, "application/json");
     return;
   }
 

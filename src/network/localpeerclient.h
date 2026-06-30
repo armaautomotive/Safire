@@ -56,6 +56,7 @@ public:
     static long getNetworkTimeOffset();
     static void broadcastRecord(const CFunctions::record_structure& record);
     static void broadcastBlock(const CFunctions::block_structure& block);
+    static void broadcastHandoff(const CFunctions::block_structure& block, const std::string& creatorPrivateKey);
 
 private:
     static bool shouldSkipPeerForScore(const peer_status& status);
