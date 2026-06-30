@@ -860,13 +860,11 @@ void CBlockDB::DeleteAll(){
         std::cout << "Error: CBlockDB::DeleteAll \n";
         return;
     }
-    // Iterate over each item in the database and print them
+    std::vector<std::string> keys;
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
     for (it->SeekToFirst(); it->Valid(); it->Next())
     {
-        //cout << it->key().ToString() << " : " << it->value().ToString() << endl;
-        db->Delete(leveldb::WriteOptions(), it->key().ToString());
-        cout << "Delete: " << it->key().ToString() << "\n";
+        keys.push_back(it->key().ToString());
     }
     if (false == it->status().ok())
     {
@@ -874,5 +872,10 @@ void CBlockDB::DeleteAll(){
         cerr << it->status().ToString() << endl;
     }
     delete it;
+
+    for(int i = 0; i < keys.size(); i++){
+        db->Delete(writeOptions, keys.at(i));
+        cout << "Delete: " << keys.at(i) << "\n";
+    }
     //delete db;
 }

@@ -766,6 +766,11 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
+    if (firstBlockId < 0 && latestBlockId >= 0) {
+        blockDB.DeleteAll();
+        firstBlockId = -1;
+        latestBlockId = -1;
+    }
     std::string peerStatus = httpGet(peer + "/api/status");
     long peerFirstBlockId = firstBlockFromStatus(peerStatus);
     std::string peerFirstBlockHash = firstBlockHashFromStatus(peerStatus);
