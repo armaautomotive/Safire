@@ -1189,6 +1189,76 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
+  if (request_path.find("/api/wallet/join?") == 0
+      || (req.method == "POST" && request_path == "/api/wallet/join"))
+  {
+    CWallet wallet;
+    if (wallet.fileExists("wallet.dat") == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet file not found.\"}", "application/json");
+      return;
+    }
+
+    std::string name = submitted_value(req, request_path, "name");
+    if (normalized_public_name(name).length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Use 3-32 characters: letters, numbers, dash, or underscore.\"}", "application/json");
+      return;
+    }
+
+    std::string privateKey;
+    std::string publicKey;
+    wallet.read(privateKey, publicKey);
+    functions.scanChain(publicKey, false);
+    if (functions.joined == true)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"This wallet is already joined.\"}", "application/json");
+      return;
+    }
+    if (public_name_available_for_owner(blockDB, name, publicKey) == false)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"That public name is already taken.\"}", "application/json");
+      return;
+    }
+
+    CFunctions::record_structure joinRecord;
+    joinRecord.network = "main";
+    CNetworkTime netTime;
+    std::stringstream time_stream;
+    time_stream << netTime.getEpoch();
+    joinRecord.time = time_stream.str();
+    joinRecord.transaction_type = CFunctions::JOIN_NETWORK;
+    joinRecord.amount = 0.0;
+    joinRecord.fee = 0.0;
+    joinRecord.sender_public_key = publicKey;
+    joinRecord.recipient_public_key = "";
+    joinRecord.name = name;
+    joinRecord.hash = functions.getRecordHash(joinRecord);
+
+    CECDSACrypto ecdsa;
+    std::string signature = "";
+    ecdsa.SignMessage(privateKey, joinRecord.hash, signature);
+    joinRecord.signature = signature;
+
+    std::string queue_error;
+    if (queue_and_broadcast_record(functions, joinRecord, queue_error) == false)
+    {
+      std::stringstream error;
+      error << "{\"status\":\"error\",\"message\":\"Unable to join network: "
+            << json_escape(queue_error) << ".\"}";
+      text_reply(rep, reply::bad_request, error.str(), "application/json");
+      return;
+    }
+
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"message\":\"Join request queued and broadcast. Joined network will show yes after a block includes this record.\",";
+    ss << "\"name\":\"" << json_escape(name) << "\",";
+    ss << "\"hash\":\"" << json_escape(joinRecord.hash) << "\"}";
+    text_reply(rep, reply::accepted, ss.str(), "application/json");
+    return;
+  }
+
   if (request_path.find("/api/wallet/setname?") == 0
       || (req.method == "POST" && request_path == "/api/wallet/setname"))
   {

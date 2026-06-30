@@ -46,6 +46,7 @@ private slots:
     void showOptions();
     void copyReceiveAddress();
     void submitPayment();
+    void joinNetwork();
     void setWalletName();
     void previousHistoryPage();
     void nextHistoryPage();
@@ -97,6 +98,7 @@ private:
     void applyPeers(const QString &json);
     void applyNetworkUsers(const QString &json);
     void applySendPaymentResult(const QString &json, bool transportError);
+    void applyJoinNetworkResult(const QString &json, bool transportError);
     void applySetNameResult(const QString &json, bool transportError);
     void loadContacts();
     void saveContacts();
@@ -170,6 +172,8 @@ private:
     QLabel *m_terminalStatusLabel;
     QPushButton *m_terminalStartButton;
     QPushButton *m_terminalStopButton;
+    QPushButton *m_mainSendButton;
+    QPushButton *m_joinNetworkButton;
     QPushButton *m_balanceButton;
     QPushButton *m_sendButton;
     QPushButton *m_receiveButton;

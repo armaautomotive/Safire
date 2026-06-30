@@ -514,6 +514,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_terminalStatusLabel(0),
       m_terminalStartButton(0),
       m_terminalStopButton(0),
+      m_mainSendButton(0),
+      m_joinNetworkButton(0),
       m_balanceButton(0),
       m_sendButton(0),
       m_receiveButton(0),
@@ -725,11 +727,13 @@ QWidget *MainWindow::createBalancePage()
     summaryLayout->addWidget(m_balanceLabel, 2, 0);
 
     QHBoxLayout *actions = new QHBoxLayout;
-    QPushButton *sendNow = createPrimaryButton(tr("Send"));
+    m_joinNetworkButton = createPrimaryButton(tr("Join Network"));
+    m_mainSendButton = createPrimaryButton(tr("Send"));
     QPushButton *receiveNow = createSecondaryButton(tr("Receive"));
     QPushButton *historyNow = createSecondaryButton(tr("History"));
     QPushButton *setNameNow = createSecondaryButton(tr("Set Name"));
-    actions->addWidget(sendNow);
+    actions->addWidget(m_joinNetworkButton);
+    actions->addWidget(m_mainSendButton);
     actions->addWidget(receiveNow);
     actions->addWidget(historyNow);
     actions->addWidget(setNameNow);
@@ -776,7 +780,8 @@ QWidget *MainWindow::createBalancePage()
     m_supplyDifferenceLabel = makeLabel(tr("Difference: -"), "Muted");
     networkInfoLayout->addWidget(m_supplyDifferenceLabel, 2, 2);
 
-    connect(sendNow, SIGNAL(clicked()), this, SLOT(showSend()));
+    connect(m_joinNetworkButton, SIGNAL(clicked()), this, SLOT(joinNetwork()));
+    connect(m_mainSendButton, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(historyNow, SIGNAL(clicked()), this, SLOT(showHistory()));
     connect(setNameNow, SIGNAL(clicked()), this, SLOT(setWalletName()));
@@ -1479,6 +1484,36 @@ void MainWindow::applySendPaymentResult(const QString &json, bool transportError
     QMessageBox::warning(this, tr("Payment Not Sent"), message);
 }
 
+void MainWindow::applyJoinNetworkResult(const QString &json, bool transportError)
+{
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    QString status;
+    QString message;
+    QString hash;
+    if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+        QJsonObject object = document.object();
+        status = object.value("status").toString();
+        message = object.value("message").toString();
+        hash = object.value("hash").toString();
+    }
+
+    if (message.isEmpty()) {
+        message = transportError ? tr("Unable to send join request.") : tr("Join response was not understood.");
+    }
+
+    if (!transportError && status == "ok") {
+        if (!hash.isEmpty()) {
+            message += tr("\n\nRecord hash: %1").arg(shortAddress(hash));
+        }
+        QMessageBox::information(this, tr("Join Request Sent"), message);
+        refreshWalletStatus();
+        return;
+    }
+
+    QMessageBox::warning(this, tr("Join Not Sent"), message);
+}
+
 void MainWindow::applySetNameResult(const QString &json, bool transportError)
 {
     QJsonParseError parseError;
@@ -1691,6 +1726,13 @@ void MainWindow::applyWalletStatus(const QString &json)
 
     if (m_balanceLabel) {
         m_balanceLabel->setText(tr("%1 SFR").arg(balance));
+    }
+    if (m_joinNetworkButton) {
+        m_joinNetworkButton->setVisible(joined != "yes");
+        m_joinNetworkButton->setEnabled(sync == "yes" && peerChainMatch != "no");
+    }
+    if (m_mainSendButton) {
+        m_mainSendButton->setVisible(joined == "yes");
     }
     if (m_walletTitleLabel) {
         QString walletLabel = m_publicName.isEmpty() ? shortAddress(m_publicKey) : m_publicName;
@@ -2568,6 +2610,38 @@ void MainWindow::setWalletName()
     m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
+void MainWindow::joinNetwork()
+{
+    QString currentName = m_publicName;
+    bool ok = false;
+    QString name = QInputDialog::getText(this,
+                                         tr("Join Network"),
+                                         tr("Public name"),
+                                         QLineEdit::Normal,
+                                         currentName,
+                                         &ok).trimmed();
+    if (!ok) {
+        return;
+    }
+    if (name.isEmpty()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Enter a public name."));
+        return;
+    }
+
+    if (!ensureBackendRunning()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Backend is unavailable."));
+        return;
+    }
+
+    QUrl url(QString("http://127.0.0.1:%1/api/wallet/join").arg(m_backendPort));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery form;
+    form.addQueryItem("name", name);
+    m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
+}
+
 void MainWindow::startTerminal()
 {
     m_backendStartBlocked = false;
@@ -2755,6 +2829,11 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
             reply->deleteLater();
             return;
         }
+        if (path == "/api/wallet/join") {
+            applyJoinNetworkResult(QString::fromUtf8(body), true);
+            reply->deleteLater();
+            return;
+        }
         if (path == "/api/wallet/setname") {
             applySetNameResult(QString::fromUtf8(body), true);
             reply->deleteLater();
@@ -2782,6 +2861,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         applyNetworkUsers(QString::fromUtf8(body));
     } else if (path == "/api/wallet/send") {
         applySendPaymentResult(QString::fromUtf8(body), false);
+    } else if (path == "/api/wallet/join") {
+        applyJoinNetworkResult(QString::fromUtf8(body), false);
     } else if (path == "/api/wallet/setname") {
         applySetNameResult(QString::fromUtf8(body), false);
     } else {
