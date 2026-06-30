@@ -504,6 +504,23 @@ QString formatSfrValue(const QString &value)
     return amount;
 }
 
+QString formatSyncDuration(qint64 seconds)
+{
+    if (seconds < 1) {
+        return QObject::tr("less than 1s");
+    }
+    if (seconds < 60) {
+        return QObject::tr("%1s").arg(seconds);
+    }
+    if (seconds < 3600) {
+        return QObject::tr("%1m %2s").arg(seconds / 60).arg(seconds % 60);
+    }
+    if (seconds < 86400) {
+        return QObject::tr("%1h %2m").arg(seconds / 3600).arg((seconds % 3600) / 60);
+    }
+    return QObject::tr("%1d %2h").arg(seconds / 86400).arg((seconds % 86400) / 3600);
+}
+
 bool isPageDataPath(const QString &path)
 {
     return path == "/api/network/users" ||
@@ -544,6 +561,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_networkLabel(0),
       m_syncLabel(0),
       m_syncProgressBar(0),
+      m_syncEtaLabel(0),
       m_peerLabel(0),
       m_natLabel(0),
       m_membershipJoinedLabel(0),
@@ -609,7 +627,10 @@ MainWindow::MainWindow(QWidget *parent)
       m_blockchainButton(0),
       m_peersButton(0),
       m_terminalButton(0),
-      m_optionsButton(0)
+      m_optionsButton(0),
+      m_lastSyncProgress(-1.0),
+      m_lastSyncLatestBlock(-1),
+      m_lastSyncSampleMs(0)
 {
     setWindowTitle(tr("Safire Wallet"));
     resize(1120, 720);
@@ -853,10 +874,12 @@ QWidget *MainWindow::createBalancePage()
     m_syncProgressBar->setValue(0);
     m_syncProgressBar->setTextVisible(false);
     networkLayout->addWidget(m_syncProgressBar, 3, 0, 1, 2);
+    m_syncEtaLabel = makeLabel(tr("Time to sync: -"), "Muted");
+    networkLayout->addWidget(m_syncEtaLabel, 4, 0, 1, 2);
     m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
-    networkLayout->addWidget(m_peerLabel, 4, 0, 1, 2);
+    networkLayout->addWidget(m_peerLabel, 5, 0, 1, 2);
     m_natLabel = makeLabel(tr("Public peer: off"), "Muted");
-    networkLayout->addWidget(m_natLabel, 5, 0, 1, 2);
+    networkLayout->addWidget(m_natLabel, 6, 0, 1, 2);
 
     QFrame *networkInfoPanel = makePanel("Panel");
     QGridLayout *networkInfoLayout = new QGridLayout(networkInfoPanel);
@@ -1987,6 +2010,65 @@ QString MainWindow::receiveAddress() const
     return QString("03D245A704904A61B82E7876D123D5C561B990A391E427FC9019229439D2986680");
 }
 
+QString MainWindow::syncEtaText(double syncProgress,
+                                bool progressOk,
+                                qint64 latestBlockNumber,
+                                bool latestBlockOk,
+                                qint64 peerLatestBlockNumber,
+                                bool peerLatestBlockOk)
+{
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    QString text = tr("Time to sync: calculating");
+
+    if (!progressOk) {
+        m_lastSyncProgress = -1.0;
+        m_lastSyncLatestBlock = -1;
+        m_lastSyncSampleMs = 0;
+        return tr("Time to sync: -");
+    }
+
+    if (syncProgress >= 99.95 || (latestBlockOk && peerLatestBlockOk && latestBlockNumber >= peerLatestBlockNumber)) {
+        m_lastSyncProgress = syncProgress;
+        m_lastSyncLatestBlock = latestBlockOk ? latestBlockNumber : -1;
+        m_lastSyncSampleMs = now;
+        return tr("Time to sync: complete");
+    }
+
+    if ((m_lastSyncProgress >= 0.0 && syncProgress + 0.5 < m_lastSyncProgress) ||
+        (m_lastSyncLatestBlock >= 0 && latestBlockOk && latestBlockNumber < m_lastSyncLatestBlock)) {
+        m_lastSyncProgress = syncProgress;
+        m_lastSyncLatestBlock = latestBlockOk ? latestBlockNumber : -1;
+        m_lastSyncSampleMs = now;
+        return text;
+    }
+
+    if (m_lastSyncSampleMs > 0) {
+        double elapsedSeconds = static_cast<double>(now - m_lastSyncSampleMs) / 1000.0;
+        if (elapsedSeconds >= 1.0) {
+            if (latestBlockOk && peerLatestBlockOk && peerLatestBlockNumber > latestBlockNumber &&
+                m_lastSyncLatestBlock >= 0 && latestBlockNumber > m_lastSyncLatestBlock) {
+                double blocksPerSecond = static_cast<double>(latestBlockNumber - m_lastSyncLatestBlock) / elapsedSeconds;
+                if (blocksPerSecond > 0.001) {
+                    qint64 remainingBlocks = peerLatestBlockNumber - latestBlockNumber;
+                    qint64 secondsRemaining = static_cast<qint64>(qCeil(static_cast<double>(remainingBlocks) / blocksPerSecond));
+                    text = tr("Time to sync: about %1").arg(formatSyncDuration(secondsRemaining));
+                }
+            } else if (m_lastSyncProgress >= 0.0 && syncProgress > m_lastSyncProgress && syncProgress < 100.0) {
+                double percentPerSecond = (syncProgress - m_lastSyncProgress) / elapsedSeconds;
+                if (percentPerSecond > 0.001) {
+                    qint64 secondsRemaining = static_cast<qint64>(qCeil((100.0 - syncProgress) / percentPerSecond));
+                    text = tr("Time to sync: about %1").arg(formatSyncDuration(secondsRemaining));
+                }
+            }
+        }
+    }
+
+    m_lastSyncProgress = syncProgress;
+    m_lastSyncLatestBlock = latestBlockOk ? latestBlockNumber : -1;
+    m_lastSyncSampleMs = now;
+    return text;
+}
+
 QString MainWindow::coreBinaryPath() const
 {
     QStringList candidates;
@@ -2251,6 +2333,10 @@ void MainWindow::applyWalletStatus(const QString &json)
     if (progressValue > 100) {
         progressValue = 100;
     }
+    bool latestBlockNumberOk = false;
+    qint64 latestBlockNumber = latestBlock.toLongLong(&latestBlockNumberOk);
+    bool peerLatestBlockNumberOk = false;
+    qint64 peerLatestBlockNumber = peerLatestBlock.toLongLong(&peerLatestBlockNumberOk);
 
     if (m_balanceLabel) {
         m_balanceLabel->setText(tr("%1 SFR").arg(formatSfrValue(balance)));
@@ -2336,9 +2422,7 @@ void MainWindow::applyWalletStatus(const QString &json)
         } else if (!latestBlockTime.isEmpty()) {
             latestBlockDate = latestBlockTime;
         } else {
-            bool latestBlockOk = false;
-            qint64 latestBlockNumber = latestBlock.toLongLong(&latestBlockOk);
-            if (latestBlockOk && latestBlockNumber > 0) {
+            if (latestBlockNumberOk && latestBlockNumber > 0) {
                 latestBlockDate = QDateTime::fromSecsSinceEpoch(latestBlockNumber * 15).toString("yyyy-MM-dd HH:mm");
             }
         }
@@ -2356,12 +2440,18 @@ void MainWindow::applyWalletStatus(const QString &json)
             m_syncProgressBar->setRange(0, 0);
         }
     }
+    if (m_syncEtaLabel) {
+        m_syncEtaLabel->setText(syncEtaText(syncProgress,
+                                            progressOk,
+                                            latestBlockNumber,
+                                            latestBlockNumberOk,
+                                            peerLatestBlockNumber,
+                                            peerLatestBlockNumberOk));
+    }
     if (m_peerLabel) {
         QString peerLatestDisplay = (peerLatestBlock.isEmpty() || peerLatestBlock == "-1") ? tr("-") : peerLatestBlock;
         QString peerLatestDate = tr("-");
-        bool peerLatestBlockOk = false;
-        qint64 peerLatestBlockNumber = peerLatestBlock.toLongLong(&peerLatestBlockOk);
-        if (peerLatestBlockOk && peerLatestBlockNumber > 0) {
+        if (peerLatestBlockNumberOk && peerLatestBlockNumber > 0) {
             peerLatestDate = QDateTime::fromSecsSinceEpoch(peerLatestBlockNumber * 15).toString("yyyy-MM-dd HH:mm");
         }
         m_peerLabel->setText(tr("Peers: %1  Peer latest block: %2  Date: %3").arg(peerCount).arg(peerLatestDisplay).arg(peerLatestDate));

@@ -111,6 +111,12 @@ private:
     void applyJoinNetworkResult(const QString &json, bool transportError);
     void applySetNameResult(const QString &json, bool transportError);
     void applyBlockchainResetResult(const QString &json, bool transportError);
+    QString syncEtaText(double syncProgress,
+                        bool progressOk,
+                        qint64 latestBlockNumber,
+                        bool latestBlockOk,
+                        qint64 peerLatestBlockNumber,
+                        bool peerLatestBlockOk);
     void loadContacts();
     void saveContacts();
     void refreshContactDropdown();
@@ -163,6 +169,7 @@ private:
     QLabel *m_networkLabel;
     QLabel *m_syncLabel;
     QProgressBar *m_syncProgressBar;
+    QLabel *m_syncEtaLabel;
     QLabel *m_peerLabel;
     QLabel *m_natLabel;
     QLabel *m_membershipJoinedLabel;
@@ -229,6 +236,9 @@ private:
     QPushButton *m_peersButton;
     QPushButton *m_terminalButton;
     QPushButton *m_optionsButton;
+    double m_lastSyncProgress;
+    qint64 m_lastSyncLatestBlock;
+    qint64 m_lastSyncSampleMs;
 };
 
 #endif // MAINWINDOW_H
