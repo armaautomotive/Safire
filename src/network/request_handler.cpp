@@ -211,6 +211,16 @@ long json_field_long(const std::string& json, const std::string& key)
   return functions.parseSectionLong(json, token, "\"");
 }
 
+std::string submitted_value_any(const request& req, const std::string& request_path, const std::string& key)
+{
+  if (req.method == "POST" && !req.body.empty() &&
+      req.body.find("\"" + key + "\":\"") != std::string::npos)
+  {
+    return json_field(req.body, key);
+  }
+  return submitted_value(req, request_path, key);
+}
+
 std::string handoff_hash_seed(
   long block_number,
   const std::string& block_hash,
@@ -386,6 +396,32 @@ double api_default_transaction_fee()
     }
   }
   return API_DEFAULT_TRANSACTION_FEE;
+}
+
+std::string configured_exchange_api_key()
+{
+  std::ifstream infile(API_SETTINGS_FILE);
+  std::string line;
+  while (std::getline(infile, line))
+  {
+    std::size_t start = line.find("exchange_api_key:");
+    if (start == 0)
+    {
+      return line.substr(17);
+    }
+  }
+  return "";
+}
+
+bool exchange_api_authorized(const request& req, const std::string& request_path)
+{
+  std::string configured_key = configured_exchange_api_key();
+  if (configured_key.length() == 0)
+  {
+    return false;
+  }
+  std::string submitted_key = submitted_value_any(req, request_path, "api_key");
+  return submitted_key.length() > 0 && submitted_key.compare(configured_key) == 0;
 }
 
 long connected_block_count(CBlockDB& block_db)
@@ -651,6 +687,144 @@ std::string record_type_name(CFunctions::transaction_types type)
       return "UPDATE_NAME";
   }
   return "UNKNOWN";
+}
+
+struct exchange_record_location
+{
+  bool found;
+  bool pending;
+  long block_number;
+  int record_index;
+  long confirmations;
+  CFunctions::block_structure block;
+  CFunctions::record_structure record;
+};
+
+std::string path_argument_after_prefix(const std::string& request_path, const std::string& prefix)
+{
+  std::string value = request_path.substr(prefix.length());
+  std::size_t query = value.find("?");
+  if (query != std::string::npos)
+  {
+    value = value.substr(0, query);
+  }
+  return value;
+}
+
+exchange_record_location empty_exchange_record_location()
+{
+  exchange_record_location location;
+  location.found = false;
+  location.pending = false;
+  location.block_number = -1;
+  location.record_index = -1;
+  location.confirmations = 0;
+  return location;
+}
+
+std::string exchange_record_json(const exchange_record_location& location,
+                                 const std::map<std::string, std::string>& names)
+{
+  std::stringstream ss;
+  ss << "{";
+  ss << "\"hash\":\"" << json_escape(location.record.hash) << "\",";
+  ss << "\"status\":\"" << (location.pending ? "pending" : "accepted") << "\",";
+  ss << "\"confirmations\":\"" << location.confirmations << "\",";
+  ss << "\"block\":\"" << location.block_number << "\",";
+  ss << "\"index\":\"" << location.record_index << "\",";
+  ss << "\"block_hash\":\"" << json_escape(location.block.hash) << "\",";
+  ss << "\"type\":\"" << record_type_name(location.record.transaction_type) << "\",";
+  ss << "\"network\":\"" << json_escape(location.record.network) << "\",";
+  ss << "\"time\":\"" << json_escape(location.record.time) << "\",";
+  if (location.record.nonce > 0)
+  {
+    ss << "\"nonce\":\"" << location.record.nonce << "\",";
+  }
+  ss << "\"amount\":\"" << location.record.amount << "\",";
+  ss << "\"fee\":\"" << location.record.fee << "\",";
+  ss << "\"from_key\":\"" << json_escape(location.record.sender_public_key) << "\",";
+  ss << "\"from_name\":\"" << json_escape(name_for_key(names, location.record.sender_public_key)) << "\",";
+  ss << "\"to_key\":\"" << json_escape(location.record.recipient_public_key) << "\",";
+  ss << "\"to_name\":\"" << json_escape(name_for_key(names, location.record.recipient_public_key)) << "\",";
+  ss << "\"name\":\"" << json_escape(location.record.name) << "\",";
+  ss << "\"value\":\"" << json_escape(location.record.value) << "\"";
+  ss << "}";
+  return ss.str();
+}
+
+exchange_record_location find_exchange_record(CBlockDB& block_db, const std::string& record_hash)
+{
+  exchange_record_location location = empty_exchange_record_location();
+  if (record_hash.length() == 0)
+  {
+    return location;
+  }
+
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  if (first_block_id >= 0 && latest_block_id >= 0)
+  {
+    CFunctions::block_structure block = block_db.getBlock(first_block_id);
+    std::set<std::string> accepted_hashes;
+    int guard = 0;
+    while (block.number > 0 && guard < 100000)
+    {
+      for (int i = 0; i < block.records.size(); ++i)
+      {
+        CFunctions::record_structure record = block.records.at(i);
+        if (record.hash.length() > 0 && accepted_hashes.find(record.hash) != accepted_hashes.end())
+        {
+          continue;
+        }
+        if (record.hash.length() > 0)
+        {
+          accepted_hashes.insert(record.hash);
+        }
+        if (record.hash.compare(record_hash) == 0)
+        {
+          location.found = true;
+          location.pending = false;
+          location.block_number = block.number;
+          location.record_index = i;
+          location.confirmations = latest_block_id >= block.number ? latest_block_id - block.number + 1 : 0;
+          location.block = block;
+          location.record = record;
+          return location;
+        }
+      }
+
+      if (block.number == latest_block_id)
+      {
+        break;
+      }
+      CFunctions::block_structure next_block = block_db.getNextBlock(block);
+      if (next_block.number <= 0 || next_block.number == block.number)
+      {
+        break;
+      }
+      block = next_block;
+      ++guard;
+    }
+  }
+
+  CFunctions functions;
+  std::vector<CFunctions::record_structure> pending_records = functions.peekQueueRecords();
+  for (int i = 0; i < pending_records.size(); ++i)
+  {
+    CFunctions::record_structure record = pending_records.at(i);
+    if (record.hash.compare(record_hash) == 0)
+    {
+      location.found = true;
+      location.pending = true;
+      location.block_number = -1;
+      location.record_index = i;
+      location.confirmations = 0;
+      location.record = record;
+      return location;
+    }
+  }
+
+  return location;
 }
 
 std::string mempool_json()
@@ -1158,6 +1332,151 @@ std::string wallet_history_json(CBlockDB& block_db, const std::string& public_ke
     ss << "\"to_name\":\"" << json_escape(name_for_key(names, item.to_key)) << "\",";
     ss << "\"hash\":\"" << json_escape(item.record.hash) << "\"";
     ss << "}";
+  }
+  ss << "]}";
+  return ss.str();
+}
+
+double sync_progress_percent(long first_block_id,
+                             long latest_block_id,
+                             const std::vector<CLocalPeerClient::peer_status>& local_peers);
+
+bool local_chain_matches_peer(CBlockDB& block_db,
+                              const CLocalPeerClient::peer_status& peer);
+
+bool synced_with_peer_latest(CBlockDB& block_db,
+                             long latest_block_id,
+                             const std::vector<CLocalPeerClient::peer_status>& local_peers);
+
+std::string exchange_status_json(CBlockDB& block_db)
+{
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  long block_count = connected_block_count(block_db);
+  CFunctions::block_structure first_block = block_db.getBlock(first_block_id);
+  CFunctions::block_structure latest_block = block_db.getBlock(latest_block_id);
+  CNetworkConfig config = CNetworkConfig::load();
+  CNetworkTime net_time;
+  std::vector<CLocalPeerClient::peer_status> local_peers = CLocalPeerClient::getPeerStatuses();
+  CLocalPeerClient::peer_status best_peer;
+  bool has_best_peer = best_peer_status(local_peers, best_peer);
+  bool peer_chain_match = has_best_peer ? local_chain_matches_peer(block_db, best_peer) : true;
+  bool peer_sync = synced_with_peer_latest(block_db, latest_block_id, local_peers);
+  CLedgerState::state state = CLedgerState::build(block_db);
+
+  std::string public_key = "";
+  double wallet_balance = 0.0;
+  CWallet wallet;
+  if (wallet.fileExists("wallet.dat"))
+  {
+    std::string private_key;
+    wallet.read(private_key, public_key);
+    wallet_balance = state.balances[public_key];
+  }
+
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"role\":\"exchange_node\",";
+  ss << "\"public_key\":\"" << json_escape(public_key) << "\",";
+  ss << "\"wallet_balance\":\"" << wallet_balance << "\",";
+  ss << "\"first_block_id\":\"" << first_block_id << "\",";
+  ss << "\"first_block_hash\":\"" << json_escape(first_block.hash) << "\",";
+  ss << "\"latest_block_id\":\"" << latest_block_id << "\",";
+  ss << "\"latest_block_hash\":\"" << json_escape(latest_block.hash) << "\",";
+  ss << "\"latest_block_time\":\"" << json_escape(latest_block.time) << "\",";
+  ss << "\"block_count\":\"" << block_count << "\",";
+  ss << "\"issued_supply\":\"" << state.issued_supply << "\",";
+  ss << "\"ledger_balance_total\":\"" << state.ledger_balance_total << "\",";
+  ss << "\"user_count\":\"" << state.members.size() << "\",";
+  ss << "\"genesis_match\":\"" << (config.genesisMatches(first_block_id, first_block.hash) ? "yes" : "no") << "\",";
+  ss << "\"peer_sync\":\"" << (peer_sync ? "yes" : "no") << "\",";
+  ss << "\"peer_chain_match\":\"" << (peer_chain_match ? "yes" : "no") << "\",";
+  ss << "\"peer_latest_block_id\":\"" << (has_best_peer ? best_peer.latestBlockId : -1) << "\",";
+  ss << "\"peer_latest_block_hash\":\"" << json_escape(has_best_peer ? best_peer.latestBlockHash : "") << "\",";
+  ss << "\"sync_progress\":\"" << sync_progress_percent(first_block_id, latest_block_id, local_peers) << "\",";
+  ss << "\"network_time_offset\":\"" << net_time.getOffset() << "\",";
+  ss << "\"local_peers\":\"" << local_peers.size() << "\",";
+  ss << "\"withdrawal_api\":\"" << (configured_exchange_api_key().length() > 0 ? "configured" : "disabled") << "\"";
+  ss << "}";
+  return ss.str();
+}
+
+std::string exchange_deposits_json(CBlockDB& block_db, const std::string& address)
+{
+  if (address.length() == 0)
+  {
+    return "{\"status\":\"error\",\"message\":\"Deposit address is required.\",\"deposits\":[]}";
+  }
+
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  std::map<std::string, std::string> names = accepted_member_names(block_db);
+  std::deque<exchange_record_location> deposits;
+  const int limit = 500;
+
+  if (first_block_id >= 0 && latest_block_id >= 0)
+  {
+    CFunctions::block_structure block = block_db.getBlock(first_block_id);
+    std::set<std::string> accepted_hashes;
+    int guard = 0;
+    while (block.number > 0 && guard < 100000)
+    {
+      for (int i = 0; i < block.records.size(); ++i)
+      {
+        CFunctions::record_structure record = block.records.at(i);
+        if (record.hash.length() > 0 && accepted_hashes.find(record.hash) != accepted_hashes.end())
+        {
+          continue;
+        }
+        if (record.hash.length() > 0)
+        {
+          accepted_hashes.insert(record.hash);
+        }
+        if (record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+            record.recipient_public_key.compare(address) == 0)
+        {
+          exchange_record_location location = empty_exchange_record_location();
+          location.found = true;
+          location.pending = false;
+          location.block_number = block.number;
+          location.record_index = i;
+          location.confirmations = latest_block_id >= block.number ? latest_block_id - block.number + 1 : 0;
+          location.block = block;
+          location.record = record;
+          deposits.push_back(location);
+          if (deposits.size() > limit)
+          {
+            deposits.pop_front();
+          }
+        }
+      }
+
+      if (block.number == latest_block_id)
+      {
+        break;
+      }
+      CFunctions::block_structure next_block = block_db.getNextBlock(block);
+      if (next_block.number <= 0 || next_block.number == block.number)
+      {
+        break;
+      }
+      block = next_block;
+      ++guard;
+    }
+  }
+
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"address\":\"" << json_escape(address) << "\",";
+  ss << "\"limit\":\"" << limit << "\",";
+  ss << "\"deposits\":[";
+  for (int i = 0; i < deposits.size(); ++i)
+  {
+    if (i > 0)
+    {
+      ss << ",";
+    }
+    ss << exchange_record_json(deposits.at(i), names);
   }
   ss << "]}";
   return ss.str();
@@ -1765,6 +2084,202 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"total\":\"" << total_debit << "\",";
     ss << "\"nonce\":\"" << sendRecord.nonce << "\",";
     ss << "\"recipient\":\"" << json_escape(recipient) << "\",";
+    ss << "\"hash\":\"" << json_escape(sendRecord.hash) << "\"}";
+    text_reply(rep, reply::accepted, ss.str(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/exchange/status")
+  {
+    text_reply(rep, reply::ok, exchange_status_json(blockDB), "application/json");
+    return;
+  }
+
+  std::string exchangeDepositsPrefix = "/api/exchange/deposits/";
+  if (request_path.find(exchangeDepositsPrefix) == 0 || request_path.find("/api/exchange/deposits?") == 0)
+  {
+    std::string address = "";
+    if (request_path.find(exchangeDepositsPrefix) == 0)
+    {
+      address = path_argument_after_prefix(request_path, exchangeDepositsPrefix);
+    }
+    if (address.length() == 0)
+    {
+      address = submitted_value_any(req, request_path, "address");
+    }
+    if (address.length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Deposit address is required.\",\"deposits\":[]}", "application/json");
+      return;
+    }
+    text_reply(rep, reply::ok, exchange_deposits_json(blockDB, address), "application/json");
+    return;
+  }
+
+  std::string exchangeTxPrefix = "/api/exchange/tx/";
+  if (request_path.find(exchangeTxPrefix) == 0 || request_path.find("/api/exchange/tx?") == 0)
+  {
+    std::string hash = "";
+    if (request_path.find(exchangeTxPrefix) == 0)
+    {
+      hash = path_argument_after_prefix(request_path, exchangeTxPrefix);
+    }
+    if (hash.length() == 0)
+    {
+      hash = submitted_value_any(req, request_path, "hash");
+    }
+    if (hash.length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Transaction hash is required.\"}", "application/json");
+      return;
+    }
+
+    exchange_record_location location = find_exchange_record(blockDB, hash);
+    if (location.found == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"not_found\",\"message\":\"Transaction was not found.\"}", "application/json");
+      return;
+    }
+
+    std::map<std::string, std::string> names = accepted_member_names(blockDB);
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",\"transaction\":";
+    ss << exchange_record_json(location, names);
+    ss << "}";
+    text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
+  std::string exchangeConfirmationsPrefix = "/api/exchange/confirmations/";
+  if (request_path.find(exchangeConfirmationsPrefix) == 0 || request_path.find("/api/exchange/confirmations?") == 0)
+  {
+    std::string hash = "";
+    if (request_path.find(exchangeConfirmationsPrefix) == 0)
+    {
+      hash = path_argument_after_prefix(request_path, exchangeConfirmationsPrefix);
+    }
+    if (hash.length() == 0)
+    {
+      hash = submitted_value_any(req, request_path, "hash");
+    }
+    if (hash.length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Transaction hash is required.\"}", "application/json");
+      return;
+    }
+
+    exchange_record_location location = find_exchange_record(blockDB, hash);
+    if (location.found == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"not_found\",\"hash\":\"\",\"confirmations\":\"0\"}", "application/json");
+      return;
+    }
+
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"hash\":\"" << json_escape(location.record.hash) << "\",";
+    ss << "\"transaction_status\":\"" << (location.pending ? "pending" : "accepted") << "\",";
+    ss << "\"block\":\"" << location.block_number << "\",";
+    ss << "\"confirmations\":\"" << location.confirmations << "\"}";
+    text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
+  if (request_path.find("/api/exchange/withdraw?") == 0
+      || (req.method == "POST" && request_path == "/api/exchange/withdraw"))
+  {
+    if (configured_exchange_api_key().length() == 0)
+    {
+      text_reply(rep, reply::forbidden, "{\"status\":\"error\",\"message\":\"Exchange withdrawal API is disabled. Add exchange_api_key:<secret> to settings.dat to enable it.\"}", "application/json");
+      return;
+    }
+    if (exchange_api_authorized(req, request_path) == false)
+    {
+      text_reply(rep, reply::unauthorized, "{\"status\":\"error\",\"message\":\"Invalid or missing exchange API key.\"}", "application/json");
+      return;
+    }
+
+    CWallet wallet;
+    if (wallet.fileExists("wallet.dat") == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet file not found.\"}", "application/json");
+      return;
+    }
+
+    std::string recipient = submitted_value_any(req, request_path, "recipient");
+    std::string amount_value = submitted_value_any(req, request_path, "amount");
+    double amount = 0.0;
+    if (recipient.length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Recipient address is required.\"}", "application/json");
+      return;
+    }
+    if (parse_amount_value(amount_value, amount) == false || amount <= 0.0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Amount must be greater than zero.\"}", "application/json");
+      return;
+    }
+
+    std::string privateKey;
+    std::string publicKey;
+    wallet.read(privateKey, publicKey);
+    functions.scanChain(publicKey, false);
+
+    double transaction_fee = api_default_transaction_fee();
+    std::string fee_value = submitted_value_any(req, request_path, "fee");
+    if (fee_value.length() > 0 && parse_fee_amount(fee_value, transaction_fee) == false)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Fee must be zero or greater.\"}", "application/json");
+      return;
+    }
+    double total_debit = amount + transaction_fee;
+    if (total_debit > functions.balance)
+    {
+      std::stringstream error;
+      error << "{\"status\":\"error\",\"message\":\"Insufficient balance. Amount plus fee is "
+            << total_debit << " SFR.\"}";
+      text_reply(rep, reply::bad_request, error.str(), "application/json");
+      return;
+    }
+
+    CFunctions::record_structure sendRecord;
+    sendRecord.network = "main";
+    CNetworkTime netTime;
+    std::stringstream time_stream;
+    time_stream << netTime.getEpoch();
+    sendRecord.time = time_stream.str();
+    sendRecord.transaction_type = CFunctions::TRANSFER_CURRENCY;
+    sendRecord.amount = amount;
+    sendRecord.fee = transaction_fee;
+    sendRecord.sender_public_key = publicKey;
+    sendRecord.recipient_public_key = recipient;
+    sendRecord.nonce = next_transfer_nonce(blockDB, publicKey);
+    sendRecord.hash = functions.getRecordHash(sendRecord);
+
+    CECDSACrypto ecdsa;
+    std::string signature = "";
+    ecdsa.SignMessage(privateKey, sendRecord.hash, signature);
+    sendRecord.signature = signature;
+
+    std::string queue_error;
+    if (queue_and_broadcast_record(functions, sendRecord, queue_error) == false)
+    {
+      std::stringstream error;
+      error << "{\"status\":\"error\",\"message\":\"Unable to send exchange withdrawal: "
+            << json_escape(queue_error) << ".\"}";
+      text_reply(rep, reply::bad_request, error.str(), "application/json");
+      return;
+    }
+
+    std::stringstream ss;
+    ss << "{\"status\":\"accepted\",";
+    ss << "\"message\":\"Withdrawal queued and broadcast.\",";
+    ss << "\"sender\":\"" << json_escape(publicKey) << "\",";
+    ss << "\"recipient\":\"" << json_escape(recipient) << "\",";
+    ss << "\"amount\":\"" << amount << "\",";
+    ss << "\"fee\":\"" << transaction_fee << "\",";
+    ss << "\"total\":\"" << total_debit << "\",";
+    ss << "\"nonce\":\"" << sendRecord.nonce << "\",";
     ss << "\"hash\":\"" << json_escape(sendRecord.hash) << "\"}";
     text_reply(rep, reply::accepted, ss.str(), "application/json");
     return;
