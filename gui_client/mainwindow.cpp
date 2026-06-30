@@ -569,6 +569,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_sendContactCombo(0),
       m_sendToEdit(0),
       m_sendAmountEdit(0),
+      m_sendFeeEdit(0),
       m_sendMemoEdit(0),
       m_receiveAddressLabel(0),
       m_terminalOutput(0),
@@ -894,6 +895,10 @@ QWidget *MainWindow::createSendPage()
     m_sendAmountEdit->setPlaceholderText(tr("Amount in SFR"));
     layout->addWidget(m_sendAmountEdit);
 
+    m_sendFeeEdit = new QLineEdit;
+    m_sendFeeEdit->setPlaceholderText(tr("Transfer fee in SFR"));
+    layout->addWidget(m_sendFeeEdit);
+
     m_sendMemoEdit = new QTextEdit;
     m_sendMemoEdit->setPlaceholderText(tr("Memo"));
     m_sendMemoEdit->setFixedHeight(96);
@@ -911,6 +916,7 @@ QWidget *MainWindow::createSendPage()
     connect(submit, SIGNAL(clicked()), this, SLOT(submitPayment()));
     connect(clear, SIGNAL(clicked()), m_sendToEdit, SLOT(clear()));
     connect(clear, SIGNAL(clicked()), m_sendAmountEdit, SLOT(clear()));
+    connect(clear, SIGNAL(clicked()), m_sendFeeEdit, SLOT(clear()));
     connect(clear, SIGNAL(clicked()), m_sendMemoEdit, SLOT(clear()));
     connect(m_sendContactCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSendRecipientFromContact(int)));
 
@@ -1842,6 +1848,9 @@ void MainWindow::applyWalletStatus(const QString &json)
     double parsedFee = object.value("transaction_fee").toString().toDouble(&feeOk);
     if (feeOk) {
         m_transactionFee = parsedFee;
+        if (m_sendFeeEdit && m_sendFeeEdit->text().trimmed().isEmpty()) {
+            m_sendFeeEdit->setText(QString::number(m_transactionFee, 'f', 4));
+        }
     }
     bool progressOk = false;
     double syncProgress = object.value("sync_progress").toString().toDouble(&progressOk);
@@ -2675,6 +2684,7 @@ void MainWindow::submitPayment()
 {
     QString recipient = m_sendToEdit->text().trimmed();
     QString amount = m_sendAmountEdit->text().trimmed();
+    QString fee = m_sendFeeEdit ? m_sendFeeEdit->text().trimmed() : QString();
     if (recipient.isEmpty() || amount.isEmpty()) {
         QMessageBox::warning(this, tr("Safire"), tr("Enter a recipient address and amount."));
         return;
@@ -2687,11 +2697,21 @@ void MainWindow::submitPayment()
         return;
     }
 
-    double totalDebit = amountValue + m_transactionFee;
+    double feeValue = m_transactionFee;
+    if (!fee.isEmpty()) {
+        bool feeOk = false;
+        feeValue = fee.toDouble(&feeOk);
+        if (!feeOk || feeValue < 0.0) {
+            QMessageBox::warning(this, tr("Safire"), tr("Enter a transfer fee of zero or greater."));
+            return;
+        }
+    }
+
+    double totalDebit = amountValue + feeValue;
     QString confirmMessage = tr("Send %1 SFR to:\n%2\n\nFee: %3 SFR\nTotal debit: %4 SFR")
         .arg(QString::number(amountValue, 'f', 4))
         .arg(recipient)
-        .arg(QString::number(m_transactionFee, 'f', 4))
+        .arg(QString::number(feeValue, 'f', 4))
         .arg(QString::number(totalDebit, 'f', 4));
     int answer = QMessageBox::question(this, tr("Confirm Payment"), confirmMessage, QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) {
@@ -2710,6 +2730,7 @@ void MainWindow::submitPayment()
     QUrlQuery form;
     form.addQueryItem("recipient", recipient);
     form.addQueryItem("amount", amount);
+    form.addQueryItem("fee", QString::number(feeValue, 'f', 8));
     m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 

@@ -1359,6 +1359,12 @@ void request_handler::handle_request(const request& req, reply& rep)
     functions.scanChain(publicKey, false);
 
     double transaction_fee = api_default_transaction_fee();
+    std::string fee_value = submitted_value(req, request_path, "fee");
+    if (fee_value.length() > 0 && parse_fee_amount(fee_value, transaction_fee) == false)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Fee must be zero or greater.\"}", "application/json");
+      return;
+    }
     double total_debit = amount + transaction_fee;
     if (total_debit > functions.balance)
     {

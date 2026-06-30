@@ -179,6 +179,7 @@ private:
     QComboBox *m_sendContactCombo;
     QLineEdit *m_sendToEdit;
     QLineEdit *m_sendAmountEdit;
+    QLineEdit *m_sendFeeEdit;
     QTextEdit *m_sendMemoEdit;
     QLabel *m_receiveAddressLabel;
     QPlainTextEdit *m_terminalOutput;
