@@ -231,11 +231,13 @@ int main(int argc, char* argv[])
     
     std::cout << " Network up to date: " << (functions.IsChainUpToDate() == true ? "yes" : "no") << std::endl;
     if(localPeers.size() > 0){
-        CBlockDB statusBlockDB;
-        long peerLatestBlockId = CLocalPeerClient::getBestPeerLatestBlockId();
-        bool peerSynced = peerLatestBlockId > -1 && statusBlockDB.getLatestBlockId() >= peerLatestBlockId;
+        CLocalPeerClient::peer_status bestPeer = CLocalPeerClient::getBestPeerStatus();
+        bool peerSynced = CLocalPeerClient::isSyncedWithPeers();
         std::cout << " Peer sync: " << (peerSynced == true ? "yes" : "no") << std::endl;
-        std::cout << " Peer latest block: " << peerLatestBlockId << std::endl;
+        std::cout << " Peer latest block: " << bestPeer.latestBlockId << std::endl;
+        if(bestPeer.latestBlockHash.length() > 0){
+            std::cout << " Peer latest hash: " << bestPeer.latestBlockHash.substr(0, 12) << "..." << std::endl;
+        }
         std::cout << " Peer source: " << localPeers.at(0) << std::endl;
     } else {
         std::cout << " Sync Progress: " << functions.SyncProgress() << "% " << std::endl;

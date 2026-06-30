@@ -54,7 +54,9 @@ public:
     static push_result pushToPeerDetailed(const std::string& peerUrl);
     static push_result pushFullChainToPeerDetailed(const std::string& peerUrl);
     static long getPeerLatestBlockId(const std::string& peerUrl);
+    static peer_status getBestPeerStatus();
     static long getBestPeerLatestBlockId();
+    static std::string getBestPeerLatestBlockHash();
     static bool isSyncedWithPeers();
     static bool syncNetworkTime();
     static long getNetworkTimeOffset();

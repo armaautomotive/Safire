@@ -74,6 +74,7 @@ const int MAX_BLOCKS_PER_PUSH_BATCH = 200;
 const int MAX_KNOWN_PEERS = 64;
 const int MAX_ACTIVE_SYNC_PEERS = 12;
 const long ANNOUNCE_INTERVAL_SECONDS = 60;
+const long PEER_STATUS_REFRESH_SECONDS = 10;
 
 CLocalPeerClient::peer_status emptyPeerStatus(const std::string& peer)
 {
@@ -1201,35 +1202,65 @@ long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)
     return status.latestBlockId;
 }
 
-long CLocalPeerClient::getBestPeerLatestBlockId()
+CLocalPeerClient::peer_status CLocalPeerClient::getBestPeerStatus()
 {
-    long bestLatestBlockId = -1;
+    CNetworkTime netTime;
+    long now = netTime.getLocalEpoch();
     for (int i = 0; i < peers.size(); ++i) {
-        if (peerStatuses.find(peers.at(i)) == peerStatuses.end() || peerStatuses[peers.at(i)].lastSeenEpoch == 0) {
+        if (peerStatuses.find(peers.at(i)) == peerStatuses.end() ||
+            peerStatuses[peers.at(i)].lastSeenEpoch == 0 ||
+            now - peerStatuses[peers.at(i)].lastSeenEpoch >= PEER_STATUS_REFRESH_SECONDS) {
             getPeerLatestBlockId(peers.at(i));
         }
     }
+
+    peer_status best = emptyPeerStatus("");
+    bool found = false;
     std::vector<peer_status> statuses = getPeerStatuses();
     for (int i = 0; i < statuses.size(); ++i) {
         if (statuses.at(i).reachable == false || statuses.at(i).genesisMatch == false || shouldSkipPeerForScore(statuses.at(i))) {
             continue;
         }
-        if (statuses.at(i).latestBlockId > bestLatestBlockId) {
-            bestLatestBlockId = statuses.at(i).latestBlockId;
+        if (found == false ||
+            statuses.at(i).latestBlockId > best.latestBlockId ||
+            (statuses.at(i).latestBlockId == best.latestBlockId && statuses.at(i).score > best.score)) {
+            best = statuses.at(i);
+            found = true;
         }
     }
-    return bestLatestBlockId;
+    return best;
+}
+
+long CLocalPeerClient::getBestPeerLatestBlockId()
+{
+    return getBestPeerStatus().latestBlockId;
+}
+
+std::string CLocalPeerClient::getBestPeerLatestBlockHash()
+{
+    return getBestPeerStatus().latestBlockHash;
 }
 
 bool CLocalPeerClient::isSyncedWithPeers()
 {
-    long peerLatestBlockId = getBestPeerLatestBlockId();
-    if (peerLatestBlockId < 0) {
+    peer_status bestPeer = getBestPeerStatus();
+    if (bestPeer.latestBlockId < 0) {
         return false;
     }
 
     CBlockDB blockDB;
-    return blockDB.getLatestBlockId() >= peerLatestBlockId;
+    if (blockDB.getLatestBlockId() < bestPeer.latestBlockId) {
+        return false;
+    }
+
+    if (bestPeer.latestBlockHash.length() == 0) {
+        return true;
+    }
+
+    CFunctions::block_structure localPeerTip = blockDB.getBlock(bestPeer.latestBlockId);
+    return localPeerTip.number > 0 &&
+        localPeerTip.hash.length() > 0 &&
+        localPeerTip.hash.compare(bestPeer.latestBlockHash) == 0;
 }
 
 bool CLocalPeerClient::syncNetworkTime()

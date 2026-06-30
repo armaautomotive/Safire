@@ -1484,9 +1484,12 @@ void CCLI::processUserInput(){
             
             std::cout << " Network up to date: " << (functions.IsChainUpToDate() == true ? "yes" : "no ") << std::endl;
             if(CLocalPeerClient::getPeers().size() > 0){
-                long peerLatestBlockId = CLocalPeerClient::getBestPeerLatestBlockId();
+                CLocalPeerClient::peer_status bestPeer = CLocalPeerClient::getBestPeerStatus();
                 std::cout << " Peer sync: " << (CLocalPeerClient::isSyncedWithPeers() == true ? "yes" : "no ") << std::endl;
-                std::cout << " Peer latest block: " << peerLatestBlockId << std::endl;
+                std::cout << " Peer latest block: " << bestPeer.latestBlockId << std::endl;
+                if(bestPeer.latestBlockHash.length() > 0){
+                    std::cout << " Peer latest hash: " << shortKey(bestPeer.latestBlockHash) << std::endl;
+                }
             } else {
                 std::cout << " Sync Progress: " << functions.SyncProgress() << "% " << std::endl;
             }
