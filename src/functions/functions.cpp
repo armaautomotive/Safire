@@ -1155,6 +1155,14 @@ int CFunctions::parseBlockFile( std::string my_public_key, bool debug ){
                         // record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
                         record_section = parseSectionBlock(records_section, "\"record\":", "{", "}");
                     }
+                    if(latest_block.records.size() > 0){
+                        if(latest_block.time.length() == 0){
+                            latest_block.time = latest_block.records.at(0).time;
+                        }
+                        if(latest_block.previous_block_id <= 0 && latest_block.network.length() == 0){
+                            latest_block.network = latest_block.records.at(0).network;
+                        }
+                    }
                    	
                     // Is block valid???
                     //
@@ -1236,6 +1244,14 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                     record = parseRecordJson(record_section);
                     latest_block.records.push_back(record);
                     record_section = parseSectionBlock(records_section, "\"record\":", "{", "}"); 
+                }
+                if(latest_block.records.size() > 0){
+                    if(latest_block.time.length() == 0){
+                        latest_block.time = latest_block.records.at(0).time;
+                    }
+                    if(latest_block.previous_block_id <= 0 && latest_block.network.length() == 0){
+                        latest_block.network = latest_block.records.at(0).network;
+                    }
                 }
                 if( latest_block.number > 0 && latest_block.hash.length() > 0 ){
                     blocks.push_back(latest_block);

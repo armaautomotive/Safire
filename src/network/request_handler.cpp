@@ -1451,6 +1451,11 @@ void request_handler::handle_request(const request& req, reply& rep)
     }
 
     CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    if (block.number <= 0 || block.hash.length() == 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
     text_reply(rep, reply::ok, functions.blockJSON(block), "application/json");
     return;
   }
@@ -1465,6 +1470,11 @@ void request_handler::handle_request(const request& req, reply& rep)
     }
 
     CFunctions::block_structure block = blockDB.getBlock(latestBlockId);
+    if (block.number <= 0 || block.hash.length() == 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
     text_reply(rep, reply::ok, functions.blockJSON(block), "application/json");
     return;
   }

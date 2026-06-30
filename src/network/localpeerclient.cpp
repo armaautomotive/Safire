@@ -280,7 +280,7 @@ bool storeBlock(const CFunctions::block_structure& block)
     }
 
     bool added = blockDB.AddBlock(block);
-    if (blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0) {
+    if (added && blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0) {
         blockDB.setFirstBlockId(block.number);
     }
     if (added) {
@@ -782,7 +782,7 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     if(firstBlockId > 0){
         CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
         if (firstBlock.number <= 0 || firstBlock.hash.length() == 0) {
-            changed = storeBlocks(httpGet(peer + "/api/blocks/first")) || changed;
+            pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
             firstBlockId = blockDB.getFirstBlockId();
             latestBlockId = blockDB.getLatestBlockId();
             firstBlock = blockDB.getBlock(firstBlockId);
