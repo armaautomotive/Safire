@@ -308,6 +308,9 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         if(functions.joined == false){
             build_block = false;
         }
+        if(CLocalPeerClient::getPeers().size() > 0 && !CLocalPeerClient::isSyncedWithPeers()){
+            build_block = false;
+        }
         // If latest block is not up to date, don't build new block
         // Issue, this will fail if there is a gap in the chain. If a node doesn't generate a block.
         //long currBlock = selector.getCurrentTimeBlock(); // timeBlock

@@ -1001,7 +1001,7 @@ bool synced_with_peer_latest(CBlockDB& block_db,
   CLocalPeerClient::peer_status peer;
   if (best_peer_status(local_peers, peer) == false)
   {
-    return true;
+    return local_peers.empty();
   }
   return latest_block_id >= peer.latestBlockId &&
          local_chain_matches_peer(block_db, peer);
