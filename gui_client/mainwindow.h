@@ -115,6 +115,8 @@ private:
     void saveContacts();
     void refreshContactDropdown();
     void appendContact(const QString &name, const QString &address);
+    QString selectedNetworkUserAddress() const;
+    void restoreNetworkUserSelection(const QString &address);
     void setActiveNav(QPushButton *activeButton);
     void requestJson(const QString &path);
     QString receiveAddress() const;

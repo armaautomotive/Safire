@@ -1556,6 +1556,58 @@ void MainWindow::refreshContactDropdown()
     m_sendContactCombo->blockSignals(false);
 }
 
+QString MainWindow::selectedNetworkUserAddress() const
+{
+    if (!m_networkUsersTable) {
+        return QString();
+    }
+
+    int row = m_networkUsersTable->currentRow();
+    if (row >= 0 && row < m_networkUsersTable->rowCount()) {
+        QTableWidgetItem *item = m_networkUsersTable->item(row, 1);
+        if (item) {
+            QString address = item->data(Qt::UserRole).toString();
+            return address.isEmpty() ? item->text() : address;
+        }
+    }
+
+    QList<QTableWidgetItem *> selectedItems = m_networkUsersTable->selectedItems();
+    if (!selectedItems.isEmpty()) {
+        int selectedRow = selectedItems.first()->row();
+        QTableWidgetItem *item = m_networkUsersTable->item(selectedRow, 1);
+        if (item) {
+            QString address = item->data(Qt::UserRole).toString();
+            return address.isEmpty() ? item->text() : address;
+        }
+    }
+
+    return QString();
+}
+
+void MainWindow::restoreNetworkUserSelection(const QString &address)
+{
+    if (!m_networkUsersTable || address.isEmpty()) {
+        return;
+    }
+
+    for (int row = 0; row < m_networkUsersTable->rowCount(); ++row) {
+        QTableWidgetItem *item = m_networkUsersTable->item(row, 1);
+        if (!item) {
+            continue;
+        }
+        QString rowAddress = item->data(Qt::UserRole).toString();
+        if (rowAddress.isEmpty()) {
+            rowAddress = item->text();
+        }
+        if (rowAddress == address && !m_networkUsersTable->isRowHidden(row)) {
+            m_networkUsersTable->selectRow(row);
+            m_networkUsersTable->setCurrentCell(row, 0);
+            m_networkUsersTable->scrollToItem(item, QAbstractItemView::EnsureVisible);
+            return;
+        }
+    }
+}
+
 void MainWindow::applyNetworkUsers(const QString &json)
 {
     if (!m_networkUsersTable) {
@@ -1573,7 +1625,9 @@ void MainWindow::applyNetworkUsers(const QString &json)
         return;
     }
 
+    QString selectedAddress = selectedNetworkUserAddress();
     QJsonArray users = object.value("users").toArray();
+    m_networkUsersTable->setUpdatesEnabled(false);
     m_networkUsersTable->setRowCount(0);
     for (int i = 0; i < users.size(); ++i) {
         QJsonObject user = users.at(i).toObject();
@@ -1598,6 +1652,8 @@ void MainWindow::applyNetworkUsers(const QString &json)
     }
     m_networkUsersTable->resizeRowsToContents();
     filterNetworkUsers(m_contactSearchEdit ? m_contactSearchEdit->text() : QString());
+    restoreNetworkUserSelection(selectedAddress);
+    m_networkUsersTable->setUpdatesEnabled(true);
 }
 
 void MainWindow::applySendPaymentResult(const QString &json, bool transportError)
@@ -2756,6 +2812,7 @@ void MainWindow::filterNetworkUsers(const QString &text)
         return;
     }
 
+    QString selectedAddress = selectedNetworkUserAddress();
     QString needle = text.trimmed().toLower();
     for (int row = 0; row < m_networkUsersTable->rowCount(); ++row) {
         QString haystack;
@@ -2767,6 +2824,7 @@ void MainWindow::filterNetworkUsers(const QString &text)
         }
         m_networkUsersTable->setRowHidden(row, !needle.isEmpty() && !haystack.contains(needle));
     }
+    restoreNetworkUserSelection(selectedAddress);
 }
 
 void MainWindow::filterBlockchainBlocks(const QString &text)
@@ -2853,13 +2911,18 @@ void MainWindow::addSelectedNetworkUserToContacts()
         return;
     }
 
-    QList<QTableWidgetItem *> selectedItems = m_networkUsersTable->selectedItems();
-    if (selectedItems.isEmpty()) {
+    int row = m_networkUsersTable->currentRow();
+    if (row < 0 || row >= m_networkUsersTable->rowCount() || m_networkUsersTable->isRowHidden(row)) {
+        QList<QTableWidgetItem *> selectedItems = m_networkUsersTable->selectedItems();
+        if (!selectedItems.isEmpty()) {
+            row = selectedItems.first()->row();
+        }
+    }
+    if (row < 0 || row >= m_networkUsersTable->rowCount() || m_networkUsersTable->isRowHidden(row)) {
         QMessageBox::information(this, tr("Safire"), tr("Select a network user first."));
         return;
     }
 
-    int row = selectedItems.first()->row();
     QTableWidgetItem *nameItem = m_networkUsersTable->item(row, 0);
     QTableWidgetItem *addressItem = m_networkUsersTable->item(row, 1);
     QString name = nameItem ? nameItem->text() : QString();
