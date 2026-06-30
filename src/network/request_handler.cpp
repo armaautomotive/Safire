@@ -849,6 +849,7 @@ std::string recent_blockchain_json(CBlockDB& block_db)
     ss << "\"creator_name\":\"" << json_escape(name_for_key(names, current_block.creator_key)) << "\",";
     ss << "\"hash\":\"" << json_escape(current_block.hash) << "\",";
     ss << "\"previous_hash\":\"" << json_escape(current_block.previous_block_hash) << "\",";
+    ss << "\"records_merkle_root\":\"" << json_escape(current_block.records_merkle_root) << "\",";
     ss << "\"record_count\":\"" << current_block.records.size() << "\",";
     ss << "\"records\":[";
     for (int r = 0; r < current_block.records.size(); ++r)

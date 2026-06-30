@@ -891,6 +891,9 @@ std::string blockSummary(CFunctions::block_structure block){
     if(block.previous_block_hash.length() > 0){
         ss << " prevhash " << shortKey(block.previous_block_hash);
     }
+    if(block.records_merkle_root.length() > 0){
+        ss << " merkle " << shortKey(block.records_merkle_root);
+    }
     return ss.str();
 }
 

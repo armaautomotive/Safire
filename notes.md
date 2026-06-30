@@ -101,3 +101,13 @@ This topology gives us:
 - redundancy through multiple active peers
 - lower latency propagation without making every client connect to every other client
 - less dependence on `safire.org` once peers have discovered each other
+
+## Security Test Backlog
+
+Add explicit tests for double-spend protection. The test suite should cover attempts to spend the same balance twice through duplicate pending records, competing blocks, peer sync/fork repair, and replayed historical transactions.
+
+## Merkle Roots
+
+First-stage Merkle support adds a `records_merkle_root` to new blocks. This root is calculated from the hashes of records in the block and lets nodes verify that the block hash commits to the record set without folding every record hash directly into the block hash.
+
+Older blocks without `records_merkle_root` remain valid through the legacy block hash calculation. Later production work should add deterministic account state roots, checkpoint roots, and proof APIs for transactions and account state.

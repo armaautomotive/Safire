@@ -104,6 +104,7 @@ public:
         //std::string block_hash;           // sha256 hash of all record hashes in this block.
         long previous_block_id;             //
         std::string previous_block_hash;   	// ???  
+        std::string records_merkle_root;    // merkle root of record hashes in this block.
         std::string block_records;         	// string value of all records in block.
         std::string creator_key;            // public key of user that creates the block.
         std::string hash;                   // sha256 hash of block content and it's records.
@@ -142,6 +143,7 @@ public:
     std::string parseSectionBlock(std::string & content, std::string start, std::string open, std::string close);
     std::string parseSectionString(std::string content, std::string start, std::string end);
     std::string getBlockHash(block_structure block);
+    std::string getRecordsMerkleRoot(std::vector<CFunctions::record_structure> records);
     std::string getRecordHash(record_structure record);
     std::string getRecordSignature(record_structure record);
     std::string getBlockSignature(block_structure block);

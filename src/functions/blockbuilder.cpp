@@ -193,6 +193,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //std::string ts = ss.str();
         block.time = ts;
         
+        block.records_merkle_root = functions.getRecordsMerkleRoot(block.records);
         block.hash = functions.getBlockHash(block);
         ecdsa.SignMessage(privateKey, block.hash, signature);
         block.signature = signature;
@@ -398,6 +399,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             }
             
             block.previous_block_hash = previous_block.hash;
+            block.records_merkle_root = functions.getRecordsMerkleRoot(block.records);
             block.hash = functions.getBlockHash(block);
             ecdsa.SignMessage(privateKey, block.hash, signature);
             block.signature = signature;

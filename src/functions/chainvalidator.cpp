@@ -251,6 +251,13 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
         reason = "too many records";
         return false;
     }
+    if (block.records_merkle_root.length() > 0) {
+        std::string expectedRecordsMerkleRoot = functions.getRecordsMerkleRoot(block.records);
+        if (expectedRecordsMerkleRoot.compare(block.records_merkle_root) != 0) {
+            reason = "records merkle root mismatch";
+            return false;
+        }
+    }
 
     std::string expectedBlockHash = functions.getBlockHash(block);
     if (expectedBlockHash.compare(block.hash) != 0) {
@@ -453,6 +460,13 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
         if (block.records.size() > CFunctions::MAX_BLOCK_RECORDS) {
             reason = "too many records";
             return false;
+        }
+        if (block.records_merkle_root.length() > 0) {
+            std::string expectedRecordsMerkleRoot = functions.getRecordsMerkleRoot(block.records);
+            if (expectedRecordsMerkleRoot.compare(block.records_merkle_root) != 0) {
+                reason = "records merkle root mismatch";
+                return false;
+            }
         }
         std::string expectedBlockHash = functions.getBlockHash(block);
         if (expectedBlockHash.compare(block.hash) != 0) {

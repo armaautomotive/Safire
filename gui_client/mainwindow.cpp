@@ -2537,6 +2537,7 @@ void MainWindow::renderBlockchainPage()
             QString hash = block.value("hash").toString();
             QString previous = block.value("previous_block_id").toString();
             QString previousHash = block.value("previous_hash").toString();
+            QString recordsMerkleRoot = block.value("records_merkle_root").toString();
 
             QString timeValue = block.value("time").toString();
             bool timeOk = false;
@@ -2564,7 +2565,8 @@ void MainWindow::renderBlockchainPage()
 
             QStringList recordLines;
             QString searchBlob = number + QString(" ") + networkStatus + QString(" ") + peerHash + QString(" ") + peerUrl + QString(" ") +
-                                 timeValue + QString(" ") + creatorKey + QString(" ") + creatorName + QString(" ") + hash + QString(" ") + previous + QString(" ") + previousHash;
+                                 timeValue + QString(" ") + creatorKey + QString(" ") + creatorName + QString(" ") + hash + QString(" ") +
+                                 previous + QString(" ") + previousHash + QString(" ") + recordsMerkleRoot;
             QJsonArray records = block.value("records").toArray();
             for (int r = 0; r < records.size(); ++r) {
                 QJsonObject record = records.at(r).toObject();
@@ -2627,6 +2629,9 @@ void MainWindow::renderBlockchainPage()
                 item->setBackground(rowColor);
                 if (column == 0) {
                     QString tip = tr("Local hash: %1").arg(hash);
+                    if (!recordsMerkleRoot.isEmpty()) {
+                        tip += tr("\nRecords Merkle root: %1").arg(recordsMerkleRoot);
+                    }
                     if (!peerHash.isEmpty()) {
                         tip += tr("\nPeer hash: %1").arg(peerHash);
                     }

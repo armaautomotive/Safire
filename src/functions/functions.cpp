@@ -375,7 +375,11 @@ std::string CFunctions::blockJSON(CFunctions::block_structure block){
         "\"number\":\"" << block.number << "\"," <<
         "\"time\":\"" << block.time << "\"," <<
         "\"previous_block_id\":\"" << boost::lexical_cast<std::string>(block.previous_block_id) << "\"," <<
-        "\"previous_block_hash\":\"" << block.previous_block_hash + "\"," <<
+        "\"previous_block_hash\":\"" << block.previous_block_hash + "\",";
+    if(block.records_merkle_root.length() > 0){
+        ss << "\"records_merkle_root\":\"" << block.records_merkle_root + "\",";
+    }
+    ss <<
         "\"hash\":\"" << block.hash + "\"," <<
         "\"signature\":\"" << block.signature + "\"," <<
         "\"records\":{\n";
@@ -1230,6 +1234,7 @@ std::vector<CFunctions::block_structure> CFunctions::parseBlockJson(std::string 
                 
                 latest_block.previous_block_id = parseSectionLong(block_section, "\"previous_block_id\":\"", "\"");
                 latest_block.previous_block_hash = parseSectionString(block_section, "\"previous_block_hash\":\"", "\"");
+                latest_block.records_merkle_root = parseSectionString(block_section, "\"records_merkle_root\":\"", "\"");
                 std::string hash = parseSectionString(block_section, "\"hash\":\"", "\"" );
                 latest_block.hash = hash;
                 latest_block.signature = parseSectionString(block_section, "\"signature\":\"", "\"");
@@ -1337,21 +1342,25 @@ CFunctions::record_structure CFunctions::parseRecordJson(std::string record_sect
 */
 std::string CFunctions::getBlockHash(block_structure block){
     CECDSACrypto ecdsa;
+    std::string recordsMerkleRoot = block.records_merkle_root;
     std::string block_content = block.network + 
         boost::lexical_cast<std::string>(block.number) +
         block.time +
         block.previous_block_hash +
-        block.creator_key;
+        block.creator_key +
+        recordsMerkleRoot;
     std::vector<CFunctions::record_structure> records = block.records;
-    for(int i = 0; i < records.size(); i++){
-        CFunctions::record_structure record = records.at(i);
-        if(record.hash.compare("") == 0){
-            record.hash = getRecordHash(record);
+    if(recordsMerkleRoot.length() == 0){
+        for(int i = 0; i < records.size(); i++){
+            CFunctions::record_structure record = records.at(i);
+            if(record.hash.compare("") == 0){
+                record.hash = getRecordHash(record);
+            }
+            std::stringstream ss;
+            ss << block_content << record.hash;
+            block_content = ss.str();
         }
-        std::stringstream ss;
-        ss << block_content << record.hash;
-        block_content = ss.str();
-    } 
+    }
     std::string hash = "";
     char * c_hash = (char *)malloc( 65 );
     char *cstr = new char[block_content.length() + 1];
@@ -1361,6 +1370,39 @@ std::string CFunctions::getBlockHash(block_structure block){
     delete [] cstr;
     free(c_hash);
     return hash;
+}
+
+std::string CFunctions::getRecordsMerkleRoot(std::vector<CFunctions::record_structure> records){
+    CECDSACrypto ecdsa;
+    std::vector<std::string> level;
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        if(record.hash.length() == 0){
+            record.hash = getRecordHash(record);
+        }
+        level.push_back(record.hash);
+    }
+
+    if(level.size() == 0){
+        char emptyHash[65];
+        ecdsa.sha256((char*)"", emptyHash);
+        return std::string(emptyHash);
+    }
+
+    while(level.size() > 1){
+        std::vector<std::string> nextLevel;
+        for(int i = 0; i < level.size(); i += 2){
+            std::string left = level.at(i);
+            std::string right = (i + 1 < level.size()) ? level.at(i + 1) : left;
+            std::string combined = left + right;
+            char hash[65];
+            ecdsa.sha256((char*)combined.c_str(), hash);
+            nextLevel.push_back(std::string(hash));
+        }
+        level = nextLevel;
+    }
+
+    return level.at(0);
 }
 
 /**
