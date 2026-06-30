@@ -22,6 +22,7 @@ class QWidget;
 class QCloseEvent;
 class PeerMapWidget;
 class HistoryChartWidget;
+class LoadingSpinnerWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -87,10 +88,13 @@ private:
     QPushButton *createPrimaryButton(const QString &text);
     QPushButton *createSecondaryButton(const QString &text);
     QLabel *createSectionTitle(const QString &text);
+    QWidget *createLoadingRow(LoadingSpinnerWidget **spinner, const QString &text);
     void appendHistory(const QString &date, const QString &type, const QString &account, const QString &amount, const QString &status);
     void appendTerminalText(const QString &text);
     void renderHistoryPage();
     void renderBlockchainPage();
+    void setLoadingState(const QString &path, bool loading);
+    void setLoadingWidget(QWidget *row, LoadingSpinnerWidget *spinner, bool loading);
     void applyWalletStatus(const QString &json);
     void applyWalletHistory(const QString &json);
     void applyMempool(const QString &json);
@@ -142,6 +146,8 @@ private:
     QLabel *m_userCountLabel;
     QLabel *m_blockCountLabel;
     QTableWidget *m_historyTable;
+    QWidget *m_historyLoadingRow;
+    LoadingSpinnerWidget *m_historyLoadingSpinner;
     QComboBox *m_historyRangeCombo;
     HistoryChartWidget *m_historyChart;
     QJsonArray m_walletHistoryRecords;
@@ -150,8 +156,12 @@ private:
     QPushButton *m_historyPrevButton;
     QPushButton *m_historyNextButton;
     QTableWidget *m_mempoolTable;
+    QWidget *m_mempoolLoadingRow;
+    LoadingSpinnerWidget *m_mempoolLoadingSpinner;
     QLineEdit *m_blockchainSearchEdit;
     QTableWidget *m_blockchainTable;
+    QWidget *m_blockchainLoadingRow;
+    LoadingSpinnerWidget *m_blockchainLoadingSpinner;
     QJsonArray m_blockchainBlocks;
     int m_blockchainPage;
     QLabel *m_blockchainPageLabel;
@@ -159,8 +169,12 @@ private:
     QPushButton *m_blockchainNextButton;
     PeerMapWidget *m_peerMap;
     QTableWidget *m_peersTable;
+    QWidget *m_peersLoadingRow;
+    LoadingSpinnerWidget *m_peersLoadingSpinner;
     QLineEdit *m_contactSearchEdit;
     QTableWidget *m_networkUsersTable;
+    QWidget *m_networkUsersLoadingRow;
+    LoadingSpinnerWidget *m_networkUsersLoadingSpinner;
     QTableWidget *m_contactsTable;
     QComboBox *m_sendContactCombo;
     QLineEdit *m_sendToEdit;
