@@ -12,6 +12,7 @@
 #include "network/relayclient.h"
 #include "network/p2p.h"
 #include "network/localpeerclient.h"
+#include "network/natmapper.h"
 #include "network/server.h"
 #include "networktime.h"
 #include "networkconfig.h"
@@ -167,6 +168,10 @@ int main(int argc, char* argv[])
     std::string publicKey;
     CNetworkConfig startupConfig = CNetworkConfig::load();
     std::string serverNodePort = getArgValue(argc, argv, "--node-port");
+    bool enableNatTraversal = (startupConfig.enableNatTraversal ||
+        hasArg(argc, argv, "--enable-nat") ||
+        hasArg(argc, argv, "--public-peer")) &&
+        hasArg(argc, argv, "--disable-nat") == false;
     std::string localNodePort = serverNodePort;
     if(localNodePort.length() == 0){
         localNodePort = getArgValue(argc, argv, "--api-port");
@@ -262,11 +267,24 @@ int main(int argc, char* argv[])
 
     boost::shared_ptr<http::server3::server> localNodeServer;
     boost::shared_ptr<std::thread> localNodeThread;
+    CNatMapper natMapper;
     if(localNodePort.length() > 0){
         try {
             localNodeServer.reset(new http::server3::server("0.0.0.0", localNodePort, ".", 1));
             localNodeThread.reset(new std::thread(&http::server3::server::run, localNodeServer.get()));
             std::cout << " Local node API.         http://127.0.0.1:" << localNodePort << "/api/status" << std::endl;
+            if(enableNatTraversal){
+                int natPort = std::atoi(localNodePort.c_str());
+                natMapper.start(natPort);
+                CNatMapper::status natStatus = CNatMapper::currentStatus();
+                if(natStatus.mapped){
+                    std::cout << " Public peer mode.       [mapped] " << natStatus.method << " port " << natStatus.externalPort << std::endl;
+                } else {
+                    std::cout << " Public peer mode.       [pending] " << natStatus.message << std::endl;
+                }
+            } else {
+                std::cout << " Public peer mode.       [off]" << std::endl;
+            }
         } catch (const std::exception& ex) {
             std::cout << " Local node API.         [failed] " << ex.what() << std::endl;
             localNodeServer.reset();
@@ -344,6 +362,7 @@ int main(int argc, char* argv[])
 
     std::cout << "Shutting down... " << std::endl;
     CLocalPeerClient::stop();
+    natMapper.stop();
     chain.writeFile();
     heartbeat.stop();
     blockBuilder.stop();

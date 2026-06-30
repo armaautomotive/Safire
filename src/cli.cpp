@@ -29,6 +29,7 @@
 #include "network/p2p.h"
 #include "network/relayclient.h"
 #include "network/localpeerclient.h"
+#include "network/natmapper.h"
 #include "networkconfig.h"
 #include "networktime.h"
 #include "blockdb.h"
@@ -1502,6 +1503,20 @@ void CCLI::processUserInput(){
             std::vector<CRelayClient::node_status> peers = relayClient.getPeers();
             std::cout << " Peers: " << peers.size() << std::endl;
             std::cout << " Local peers: " << CLocalPeerClient::getPeers().size() << std::endl;
+            CNatMapper::status natStatus = CNatMapper::currentStatus();
+            std::cout << " Public peer mode: " << (natStatus.enabled ? "on" : "off");
+            if(natStatus.enabled && natStatus.mapped){
+                std::cout << " mapped";
+                if(natStatus.method.length() > 0){
+                    std::cout << " via " << natStatus.method;
+                }
+                if(natStatus.externalAddress.length() > 0){
+                    std::cout << " " << natStatus.externalAddress << ":" << natStatus.externalPort;
+                }
+            } else if(natStatus.enabled && natStatus.message.length() > 0){
+                std::cout << " " << natStatus.message;
+            }
+            std::cout << std::endl;
             //for(int i = 0; i < peers.size(); i++){ std::cout << peers.at(i).public_key << " "; } std::cout << std::endl;
      
             //CP2P p2p;

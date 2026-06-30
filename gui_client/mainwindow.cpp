@@ -537,6 +537,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_syncLabel(0),
       m_syncProgressBar(0),
       m_peerLabel(0),
+      m_natLabel(0),
       m_membershipJoinedLabel(0),
       m_membershipHeartbeatLabel(0),
       m_currentCreatorLabel(0),
@@ -588,6 +589,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_terminalStatusLabel(0),
       m_terminalStartButton(0),
       m_terminalStopButton(0),
+      m_publicPeerCheckBox(0),
       m_mainSendButton(0),
       m_joinNetworkButton(0),
       m_balanceButton(0),
@@ -834,6 +836,8 @@ QWidget *MainWindow::createBalancePage()
     networkLayout->addWidget(m_syncProgressBar, 3, 0, 1, 2);
     m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
     networkLayout->addWidget(m_peerLabel, 4, 0, 1, 2);
+    m_natLabel = makeLabel(tr("Public peer: off"), "Muted");
+    networkLayout->addWidget(m_natLabel, 5, 0, 1, 2);
 
     QFrame *networkInfoPanel = makePanel("Panel");
     QGridLayout *networkInfoLayout = new QGridLayout(networkInfoPanel);
@@ -1249,15 +1253,20 @@ QWidget *MainWindow::createOptionsPage()
     layout->addWidget(createSectionTitle(tr("Options")));
     layout->addWidget(makeLabel(tr("Wallet and node preferences for the proof of concept."), "Muted"));
 
+    QSettings settings("Safire", "SafireWallet");
     QCheckBox *startNetwork = new QCheckBox(tr("Start networking when the wallet opens"));
     QCheckBox *showAdvanced = new QCheckBox(tr("Show advanced chain diagnostics"));
     QCheckBox *confirmBeforeSend = new QCheckBox(tr("Require confirmation before sending"));
+    m_publicPeerCheckBox = new QCheckBox(tr("Help the network by accepting peer connections"));
+    m_publicPeerCheckBox->setChecked(settings.value("publicPeerMode", false).toBool());
     confirmBeforeSend->setChecked(true);
 
     layout->addWidget(startNetwork);
     layout->addWidget(showAdvanced);
     layout->addWidget(confirmBeforeSend);
+    layout->addWidget(m_publicPeerCheckBox);
     layout->addStretch();
+    connect(m_publicPeerCheckBox, SIGNAL(stateChanged(int)), this, SLOT(saveOptions()));
     return page;
 }
 
@@ -1740,6 +1749,12 @@ QString MainWindow::coreBinaryPath() const
     return QString();
 }
 
+bool MainWindow::publicPeerModeEnabled() const
+{
+    QSettings settings("Safire", "SafireWallet");
+    return settings.value("publicPeerMode", false).toBool();
+}
+
 bool MainWindow::ensureBackendRunning()
 {
     if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
@@ -1777,6 +1792,9 @@ bool MainWindow::ensureBackendRunning()
     m_terminalProcess->setWorkingDirectory(coreInfo.absoluteDir().absolutePath() + "/..");
     QStringList args;
     args << "--api-port" << QString::number(m_backendPort);
+    if (publicPeerModeEnabled()) {
+        args << "--enable-nat";
+    }
     appendTerminalText(tr("\nStarting console backend: %1\n").arg(corePath));
     m_terminalProcess->start(corePath, args);
 
@@ -1802,6 +1820,17 @@ bool MainWindow::ensureBackendRunning()
         m_terminalStopButton->setEnabled(true);
     }
     return true;
+}
+
+void MainWindow::saveOptions()
+{
+    QSettings settings("Safire", "SafireWallet");
+    if (m_publicPeerCheckBox) {
+        settings.setValue("publicPeerMode", m_publicPeerCheckBox->isChecked());
+    }
+    if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
+        appendTerminalText(tr("\nOptions saved. Restart the console backend to apply public peer mode changes.\n"));
+    }
 }
 
 void MainWindow::appendTerminalText(const QString &text)
@@ -1851,6 +1880,12 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString latestBlockTime = object.value("latest_block_time").toString();
     QString peerLatestBlock = object.value("peer_latest_block_id").toString();
     QString peerCount = object.value("local_peers").toString();
+    QString natEnabled = object.value("nat_enabled").toString();
+    QString natMapped = object.value("nat_mapped").toString();
+    QString natMethod = object.value("nat_method").toString();
+    QString natExternalAddress = object.value("nat_external_address").toString();
+    QString natExternalPort = object.value("nat_external_port").toString();
+    QString natMessage = object.value("nat_message").toString();
     QString supply = object.value("currency_supply").toString();
     QString ledgerBalanceTotal = object.value("ledger_balance_total").toString();
     QString supplyDifference = object.value("supply_difference").toString();
@@ -1972,6 +2007,16 @@ void MainWindow::applyWalletStatus(const QString &json)
             peerLatestDate = QDateTime::fromSecsSinceEpoch(peerLatestBlockNumber * 15).toString("yyyy-MM-dd HH:mm");
         }
         m_peerLabel->setText(tr("Peers: %1  Peer latest block: %2  Date: %3").arg(peerCount).arg(peerLatestDisplay).arg(peerLatestDate));
+    }
+    if (m_natLabel) {
+        if (natEnabled != "yes") {
+            m_natLabel->setText(tr("Public peer: off"));
+        } else if (natMapped == "yes") {
+            QString endpoint = natExternalAddress.isEmpty() ? QString::number(m_backendPort) : tr("%1:%2").arg(natExternalAddress).arg(natExternalPort);
+            m_natLabel->setText(tr("Public peer: mapped via %1 (%2)").arg(natMethod.isEmpty() ? tr("router") : natMethod).arg(endpoint));
+        } else {
+            m_natLabel->setText(tr("Public peer: waiting - %1").arg(natMessage.isEmpty() ? tr("router did not map the port") : natMessage));
+        }
     }
     if (m_supplyLabel) {
         m_supplyLabel->setText(tr("Issued: %1 SFR").arg(supply));

@@ -17,6 +17,7 @@ public:
     std::string genesisHash;
     std::string defaultPeer;
     bool strictGenesis;
+    bool enableNatTraversal;
 
     CNetworkConfig()
     {
@@ -25,6 +26,7 @@ public:
         genesisHash = "";
         defaultPeer = "";
         strictGenesis = true;
+        enableNatTraversal = false;
     }
 
     bool hasExpectedGenesis() const
@@ -51,6 +53,7 @@ public:
         outfile << "genesis_hash=" << genesisHash << "\n";
         outfile << "default_peer=" << defaultPeer << "\n";
         outfile << "strict_genesis=" << (strictGenesis ? "1" : "0") << "\n";
+        outfile << "enable_nat=" << (enableNatTraversal ? "1" : "0") << "\n";
         outfile.close();
         return true;
     }
@@ -83,6 +86,10 @@ public:
                 config.strictGenesis = value.compare("0") != 0 &&
                     value.compare("false") != 0 &&
                     value.compare("no") != 0;
+            } else if(key.compare("enable_nat") == 0 || key.compare("enable_nat_traversal") == 0){
+                config.enableNatTraversal = value.compare("1") == 0 ||
+                    value.compare("true") == 0 ||
+                    value.compare("yes") == 0;
             }
         }
         return config;

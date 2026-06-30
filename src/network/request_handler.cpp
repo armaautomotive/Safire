@@ -30,6 +30,7 @@
 #include "functions/functions.h"
 #include "functions/ledgerstate.h"
 #include "network/localpeerclient.h"
+#include "network/natmapper.h"
 #include "network/relayclient.h"
 #include "networkconfig.h"
 
@@ -1029,6 +1030,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
     CNetworkConfig config = CNetworkConfig::load();
+    CNatMapper::status natStatus = CNatMapper::currentStatus();
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
     ss << "\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
@@ -1039,7 +1041,13 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"expected_genesis_hash\":\"" << config.genesisHash << "\",";
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
-    ss << "\"latest_block_hash\":\"" << latestBlock.hash << "\"}";
+    ss << "\"latest_block_hash\":\"" << latestBlock.hash << "\",";
+    ss << "\"nat_enabled\":\"" << (natStatus.enabled ? "yes" : "no") << "\",";
+    ss << "\"nat_mapped\":\"" << (natStatus.mapped ? "yes" : "no") << "\",";
+    ss << "\"nat_method\":\"" << json_escape(natStatus.method) << "\",";
+    ss << "\"nat_external_address\":\"" << json_escape(natStatus.externalAddress) << "\",";
+    ss << "\"nat_external_port\":\"" << natStatus.externalPort << "\",";
+    ss << "\"nat_message\":\"" << json_escape(natStatus.message) << "\"}";
     text_reply(rep, reply::ok, ss.str(), "application/json");
     return;
   }
@@ -1101,6 +1109,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CNetworkTime netTime;
     std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
+    CNatMapper::status natStatus = CNatMapper::currentStatus();
     long peerLatestBlockId = best_peer_latest_block_id(localPeers);
     CLocalPeerClient::peer_status bestPeer;
     bool hasBestPeer = best_peer_status(localPeers, bestPeer);
@@ -1168,7 +1177,13 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"block_count\":\"" << blockCount << "\",";
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"network_time_offset\":\"" << netTime.getOffset() << "\",";
-    ss << "\"local_peers\":\"" << localPeers.size() << "\"}";
+    ss << "\"local_peers\":\"" << localPeers.size() << "\",";
+    ss << "\"nat_enabled\":\"" << (natStatus.enabled ? "yes" : "no") << "\",";
+    ss << "\"nat_mapped\":\"" << (natStatus.mapped ? "yes" : "no") << "\",";
+    ss << "\"nat_method\":\"" << json_escape(natStatus.method) << "\",";
+    ss << "\"nat_external_address\":\"" << json_escape(natStatus.externalAddress) << "\",";
+    ss << "\"nat_external_port\":\"" << natStatus.externalPort << "\",";
+    ss << "\"nat_message\":\"" << json_escape(natStatus.message) << "\"}";
     text_reply(rep, reply::ok, ss.str(), "application/json");
     return;
   }

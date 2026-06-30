@@ -7,6 +7,7 @@
 #include <QStringList>
 
 class QLabel;
+class QCheckBox;
 class QComboBox;
 class QLineEdit;
 class QNetworkAccessManager;
@@ -66,6 +67,7 @@ private slots:
     void readTerminalOutput();
     void terminalFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void terminalError(QProcess::ProcessError error);
+    void saveOptions();
     void refreshWalletStatus();
     void handleWalletStatusReply(QNetworkReply *reply);
 
@@ -113,6 +115,7 @@ private:
     void requestJson(const QString &path);
     QString receiveAddress() const;
     QString coreBinaryPath() const;
+    bool publicPeerModeEnabled() const;
     bool ensureBackendRunning();
 
     QStackedWidget *m_rootStack;
@@ -138,6 +141,7 @@ private:
     QLabel *m_syncLabel;
     QProgressBar *m_syncProgressBar;
     QLabel *m_peerLabel;
+    QLabel *m_natLabel;
     QLabel *m_membershipJoinedLabel;
     QLabel *m_membershipHeartbeatLabel;
     QLabel *m_currentCreatorLabel;
@@ -189,6 +193,7 @@ private:
     QLabel *m_terminalStatusLabel;
     QPushButton *m_terminalStartButton;
     QPushButton *m_terminalStopButton;
+    QCheckBox *m_publicPeerCheckBox;
     QPushButton *m_mainSendButton;
     QPushButton *m_joinNetworkButton;
     QPushButton *m_balanceButton;
