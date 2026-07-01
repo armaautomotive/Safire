@@ -2522,6 +2522,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     bool hasBestPeer = best_peer_status(localPeers, bestPeer);
     bool peerChainMatch = hasBestPeer ? local_chain_matches_peer(blockDB, bestPeer) : true;
     bool peerSync = synced_with_peer_latest(blockDB, latestBlockId, localPeers);
+    std::string blockCreationSafetyReason;
+    bool blockCreationSafe = CLocalPeerClient::canCreateBlocks(blockCreationSafetyReason);
     CLedgerState::state chainState = CLedgerState::build(blockDB, publicKey);
     long confirmedStopBlock = CLedgerState::confirmedStopBlock(blockDB, CFunctions::WALLET_CONFIRMATION_BLOCKS);
     CLedgerState::state confirmedChainState = CLedgerState::build(blockDB, publicKey, confirmedStopBlock);
@@ -2638,6 +2640,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"joined\":\"" << (creatorState.joined ? "yes" : "no") << "\",";
     ss << "\"active_heartbeat\":\"" << (creatorState.active_heartbeat ? "yes" : "no") << "\",";
     ss << "\"creator_mode\":\"" << (config.enableBlockCreation ? "yes" : "no") << "\",";
+    ss << "\"block_creation_safe\":\"" << (blockCreationSafe ? "yes" : "no") << "\",";
+    ss << "\"block_creation_reason\":\"" << json_escape(blockCreationSafetyReason) << "\",";
     ss << "\"creator_eligible\":\"" << (walletCreatorEligible ? "yes" : "no") << "\",";
     ss << "\"creator_eligibility_boundary_block\":\"" << currentSelectionBoundary << "\",";
     ss << "\"creator_eligibility_checkpoint_block\":\"" << currentSelectionState.latest_block.number << "\",";

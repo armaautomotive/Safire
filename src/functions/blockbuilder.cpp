@@ -496,7 +496,9 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         if(creatorModeEnabled == false){
             build_block = false;
         }
-        if(CLocalPeerClient::getPeers().size() > 0 && !CLocalPeerClient::isSyncedWithPeers()){
+        std::string blockCreationSafetyReason;
+        if(!CLocalPeerClient::canCreateBlocks(blockCreationSafetyReason)){
+            log.log("Block builder paused: " + blockCreationSafetyReason + "\n");
             build_block = false;
         }
         // If latest block is not up to date, don't build new block

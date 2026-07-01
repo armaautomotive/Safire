@@ -72,6 +72,7 @@ public:
     static long getBestPeerLatestBlockId();
     static std::string getBestPeerLatestBlockHash();
     static bool isSyncedWithPeers();
+    static bool canCreateBlocks(std::string& reason);
     static bool syncNetworkTime();
     static long getNetworkTimeOffset();
     static std::vector<creator_schedule_slot> getUpcomingCreatorSchedule(int slotCount);

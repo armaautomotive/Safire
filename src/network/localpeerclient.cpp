@@ -1378,13 +1378,32 @@ std::string CLocalPeerClient::getBestPeerLatestBlockHash()
 
 bool CLocalPeerClient::isSyncedWithPeers()
 {
+    std::string reason;
+    return canCreateBlocks(reason);
+}
+
+bool CLocalPeerClient::canCreateBlocks(std::string& reason)
+{
+    reason = "ok";
+    if (getPeers().empty()) {
+        return true;
+    }
+
     peer_status bestPeer = getBestPeerStatus();
     if (bestPeer.latestBlockId < 0) {
+        reason = "no compatible peer tip";
         return false;
     }
 
     CBlockDB blockDB;
-    if (blockDB.getLatestBlockId() < bestPeer.latestBlockId) {
+    long localLatestBlockId = blockDB.getLatestBlockId();
+    if (localLatestBlockId < 0) {
+        reason = "local chain is empty";
+        return false;
+    }
+
+    if (localLatestBlockId < bestPeer.latestBlockId) {
+        reason = "behind peer latest block";
         return false;
     }
 
@@ -1393,9 +1412,14 @@ bool CLocalPeerClient::isSyncedWithPeers()
     }
 
     CFunctions::block_structure localPeerTip = blockDB.getBlock(bestPeer.latestBlockId);
-    return localPeerTip.number > 0 &&
+    if (localPeerTip.number > 0 &&
         localPeerTip.hash.length() > 0 &&
-        localPeerTip.hash.compare(bestPeer.latestBlockHash) == 0;
+        localPeerTip.hash.compare(bestPeer.latestBlockHash) == 0) {
+        return true;
+    }
+
+    reason = "peer chain hash mismatch";
+    return false;
 }
 
 bool CLocalPeerClient::syncNetworkTime()
