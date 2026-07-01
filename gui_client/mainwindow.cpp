@@ -864,6 +864,7 @@ MainWindow::MainWindow(QWidget *parent)
         "#SectionTitle { color: #12272d; font-size: 21px; font-weight: 700; }"
         "#SmallTitle { color: #253b42; font-size: 15px; font-weight: 700; }"
         "#Muted { color: #6b7e84; }"
+        "#PublicPeerStatus { color: #6b7e84; font-size: 12px; }"
         "#Balance { color: #08282f; font-size: 32px; font-weight: 700; }"
         "#PendingBalance { color: #62767c; font-size: 13px; font-weight: 600; }"
         "#PendingBalance[active='true'] { color: #9a5c00; }"
@@ -1103,8 +1104,8 @@ QWidget *MainWindow::createBalancePage()
     QGridLayout *networkLayout = new QGridLayout(networkPanel);
     networkLayout->setContentsMargins(22, 18, 22, 18);
     networkLayout->setSpacing(8);
-    networkLayout->setColumnStretch(0, 1);
-    networkLayout->setColumnStretch(1, 1);
+    networkLayout->setColumnStretch(0, 3);
+    networkLayout->setColumnStretch(1, 2);
 
     networkLayout->addWidget(createSectionTitle(tr("Chain Sync")), 0, 0, 1, 2);
     m_networkLabel = makeLabel(tr("Network: not joined"), "StatusGood");
@@ -1120,8 +1121,11 @@ QWidget *MainWindow::createBalancePage()
     networkLayout->addWidget(m_syncEtaLabel, 4, 0, 1, 2);
     m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
     networkLayout->addWidget(m_peerLabel, 5, 0);
-    m_natLabel = makeLabel(tr("Public peer: off"), "Muted");
-    networkLayout->addWidget(m_natLabel, 5, 1, Qt::AlignRight | Qt::AlignVCenter);
+    m_natLabel = makeLabel(tr("Public peer: off"), "PublicPeerStatus");
+    m_natLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_natLabel->setWordWrap(false);
+    m_natLabel->setMinimumWidth(360);
+    networkLayout->addWidget(m_natLabel, 5, 1);
 
     QFrame *networkInfoPanel = makePanel("Panel");
     QGridLayout *networkInfoLayout = new QGridLayout(networkInfoPanel);
