@@ -33,7 +33,7 @@ public:
         storageProfile = "desktop";
         strictGenesis = true;
         enableNatTraversal = false;
-        enableBlockCreation = false;
+        enableBlockCreation = true;
         hasBlockCreationSetting = false;
     }
 

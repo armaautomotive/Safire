@@ -2349,7 +2349,7 @@ bool MainWindow::blockCreatorModeEnabled() const
 {
     QFile file(configFilePath());
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return false;
+        return true;
     }
 
     while (!file.atEnd()) {
@@ -2367,7 +2367,7 @@ bool MainWindow::blockCreatorModeEnabled() const
             return value == "1" || value == "true" || value == "yes" || value == "on";
         }
     }
-    return false;
+    return true;
 }
 
 QString MainWindow::storageProfile() const
