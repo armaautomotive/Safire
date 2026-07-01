@@ -196,6 +196,7 @@ private:
     QLabel *m_blocksBehindLabel;
     QLabel *m_peerLabel;
     QLabel *m_natLabel;
+    QLabel *m_chainHealthLabel;
     QLabel *m_membershipJoinedLabel;
     QLabel *m_membershipHeartbeatLabel;
     QLabel *m_membershipCreatorEligibleLabel;
@@ -208,6 +209,8 @@ private:
     QLabel *m_blockCountLabel;
     QLabel *m_latestBlockRecordCountLabel;
     QLabel *m_mempoolRecordCountLabel;
+    QLabel *m_forkCountLabel;
+    QLabel *m_lastReorgLabel;
     BlockActivityWidget *m_blockActivity;
     QTableWidget *m_historyTable;
     QWidget *m_historyLoadingRow;

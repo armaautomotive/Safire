@@ -776,6 +776,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_blocksBehindLabel(0),
       m_peerLabel(0),
       m_natLabel(0),
+      m_chainHealthLabel(0),
       m_membershipJoinedLabel(0),
       m_membershipHeartbeatLabel(0),
       m_membershipCreatorEligibleLabel(0),
@@ -788,6 +789,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_blockCountLabel(0),
       m_latestBlockRecordCountLabel(0),
       m_mempoolRecordCountLabel(0),
+      m_forkCountLabel(0),
+      m_lastReorgLabel(0),
       m_blockActivity(0),
       m_historyTable(0),
       m_historyLoadingRow(0),
@@ -871,6 +874,7 @@ MainWindow::MainWindow(QWidget *parent)
         "#PendingBalance[active='true'] { color: #9a5c00; }"
         "#AccountBalance { color: #0d343b; font-size: 20px; font-weight: 700; }"
         "#StatusGood { color: #18735d; font-weight: 700; }"
+        "#Warning { color: #9a5c00; font-weight: 700; }"
         "#Error { color: #b3261e; font-weight: 600; }"
         "#TerminalOutput { background: #0d171b; color: #d9f7ef; border: 1px solid #17343b; border-radius: 6px; font-family: Menlo, Consolas, monospace; font-size: 12px; padding: 8px; }"
         "QLineEdit, QTextEdit, QComboBox { background: #ffffff; border: 1px solid #cddadd; border-radius: 6px; padding: 8px; selection-background-color: #1b7f8a; }"
@@ -1130,6 +1134,9 @@ QWidget *MainWindow::createBalancePage()
     m_natLabel->setWordWrap(false);
     m_natLabel->setMinimumWidth(360);
     networkLayout->addWidget(m_natLabel, 5, 1);
+    m_chainHealthLabel = makeLabel(tr("Chain health: ok"), "Warning");
+    m_chainHealthLabel->setVisible(false);
+    networkLayout->addWidget(m_chainHealthLabel, 6, 0, 1, 2);
 
     QFrame *networkInfoPanel = makePanel("Panel");
     QGridLayout *networkInfoLayout = new QGridLayout(networkInfoPanel);
@@ -1153,10 +1160,14 @@ QWidget *MainWindow::createBalancePage()
     m_latestBlockRecordCountLabel = makeLabel(tr("Latest records: -"), "Muted");
     networkInfoLayout->addWidget(m_latestBlockRecordCountLabel, 3, 0);
     m_mempoolRecordCountLabel = makeLabel(tr("Mempool records: -"), "Muted");
-    networkInfoLayout->addWidget(m_mempoolRecordCountLabel, 3, 1, 1, 2);
-    networkInfoLayout->addWidget(makeLabel(tr("Latest block activity"), "Muted"), 4, 0, 1, 3);
+    networkInfoLayout->addWidget(m_mempoolRecordCountLabel, 3, 1);
+    m_forkCountLabel = makeLabel(tr("Forks: -"), "Muted");
+    networkInfoLayout->addWidget(m_forkCountLabel, 3, 2);
+    m_lastReorgLabel = makeLabel(tr("Last reorg: -"), "Muted");
+    networkInfoLayout->addWidget(m_lastReorgLabel, 4, 0, 1, 3);
+    networkInfoLayout->addWidget(makeLabel(tr("Latest block activity"), "Muted"), 5, 0, 1, 3);
     m_blockActivity = new BlockActivityWidget;
-    networkInfoLayout->addWidget(m_blockActivity, 5, 0, 1, 3);
+    networkInfoLayout->addWidget(m_blockActivity, 6, 0, 1, 3);
 
     connect(m_joinNetworkButton, SIGNAL(clicked()), this, SLOT(joinNetwork()));
     connect(m_mainSendButton, SIGNAL(clicked()), this, SLOT(showSend()));
@@ -2900,6 +2911,10 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString supplyDifference = object.value("supply_difference").toString();
     QString userCount = object.value("user_count").toString();
     QString blockCount = object.value("block_count").toString();
+    QString forkCount = object.value("fork_count").toString();
+    QString lastReorgPreviousBlock = object.value("last_reorg_previous_block").toString();
+    QString lastReorgNewBlock = object.value("last_reorg_new_block").toString();
+    QString lastReorgTime = object.value("last_reorg_time").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
     QString creatorMode = object.value("creator_mode").toString();
     QString creatorEligible = object.value("creator_eligible").toString();
@@ -3007,6 +3022,24 @@ void MainWindow::applyWalletStatus(const QString &json)
             peerSyncDisplay = tr("fork");
         }
         m_networkLabel->setText(tr("Network up to date: %1  Peer sync: %2").arg(sync).arg(peerSyncDisplay));
+    }
+    if (m_chainHealthLabel) {
+        QStringList healthWarnings;
+        bool forkCountOk = false;
+        int forkCountValue = forkCount.toInt(&forkCountOk);
+        if (peerChainMatch == "no") {
+            healthWarnings << tr("peer chain mismatch");
+        }
+        if (forkCountOk && forkCountValue > 0) {
+            healthWarnings << tr("%1 stored fork variant%2").arg(forkCountValue).arg(forkCountValue == 1 ? QString() : tr("s"));
+        }
+        if (healthWarnings.isEmpty()) {
+            m_chainHealthLabel->setText(tr("Chain health: ok"));
+            m_chainHealthLabel->setVisible(false);
+        } else {
+            m_chainHealthLabel->setText(tr("Chain health: %1").arg(healthWarnings.join(tr(", "))));
+            m_chainHealthLabel->setVisible(true);
+        }
     }
     if (m_membershipJoinedLabel) {
         m_membershipJoinedLabel->setText(tr("Joined: %1").arg(joined));
@@ -3154,6 +3187,36 @@ void MainWindow::applyWalletStatus(const QString &json)
     if (m_mempoolRecordCountLabel) {
         QString displayedMempoolCount = mempoolRecordCount.isEmpty() ? tr("-") : mempoolRecordCount;
         m_mempoolRecordCountLabel->setText(tr("Mempool records: %1").arg(displayedMempoolCount));
+    }
+    if (m_forkCountLabel) {
+        bool forkCountOk = false;
+        int forkCountValue = forkCount.toInt(&forkCountOk);
+        QString displayedForkCount = forkCountOk ? QString::number(forkCountValue) : tr("-");
+        m_forkCountLabel->setText(tr("Forks: %1").arg(displayedForkCount));
+        m_forkCountLabel->setObjectName((forkCountOk && forkCountValue > 0) ? "Warning" : "Muted");
+        m_forkCountLabel->style()->unpolish(m_forkCountLabel);
+        m_forkCountLabel->style()->polish(m_forkCountLabel);
+    }
+    if (m_lastReorgLabel) {
+        bool previousBlockOk = false;
+        bool newBlockOk = false;
+        bool reorgTimeOk = false;
+        qint64 previousBlockValue = lastReorgPreviousBlock.toLongLong(&previousBlockOk);
+        qint64 newBlockValue = lastReorgNewBlock.toLongLong(&newBlockOk);
+        qint64 reorgTimeValue = lastReorgTime.toLongLong(&reorgTimeOk);
+        if (previousBlockOk && newBlockOk && previousBlockValue > 0 && newBlockValue > 0) {
+            QString reorgDate = tr("-");
+            if (reorgTimeOk && reorgTimeValue > 0) {
+                reorgDate = QDateTime::fromSecsSinceEpoch(reorgTimeValue).toString("yyyy-MM-dd HH:mm");
+            }
+            m_lastReorgLabel->setText(tr("Last reorg: %1 -> %2 at %3").arg(previousBlockValue).arg(newBlockValue).arg(reorgDate));
+            m_lastReorgLabel->setObjectName("Warning");
+        } else {
+            m_lastReorgLabel->setText(tr("Last reorg: -"));
+            m_lastReorgLabel->setObjectName("Muted");
+        }
+        m_lastReorgLabel->style()->unpolish(m_lastReorgLabel);
+        m_lastReorgLabel->style()->polish(m_lastReorgLabel);
     }
 
     if (m_receiveAddressLabel && !publicKey.isEmpty()) {
