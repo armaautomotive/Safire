@@ -971,27 +971,36 @@ std::string recent_blockchain_json(CBlockDB& block_db)
 
   const int limit = 50;
   std::deque<CFunctions::block_structure> recent_blocks;
-  CFunctions::block_structure block = block_db.getBlock(first_block_id);
+  CFunctions::block_structure block = block_db.getBlock(latest_block_id);
   int guard = 0;
   while (block.number > 0 && guard < 100000)
   {
-    recent_blocks.push_back(block);
+    recent_blocks.push_front(block);
     if (recent_blocks.size() > limit)
     {
       recent_blocks.pop_front();
+      break;
     }
 
-    if (block.number == latest_block_id)
+    if (block.number == first_block_id || block.previous_block_id <= 0)
     {
       break;
     }
 
-    CFunctions::block_structure next_block = block_db.getNextBlock(block);
-    if (next_block.number <= 0 || next_block.number == block.number)
+    CFunctions::block_structure previous_block;
+    if (block.previous_block_hash.length() > 0)
+    {
+      previous_block = block_db.getBlockByHash(block.previous_block_hash);
+    }
+    if (previous_block.number <= 0)
+    {
+      previous_block = block_db.getBlock(block.previous_block_id);
+    }
+    if (previous_block.number <= 0 || previous_block.number == block.number)
     {
       break;
     }
-    block = next_block;
+    block = previous_block;
     ++guard;
   }
 
@@ -2684,8 +2693,8 @@ void request_handler::handle_request(const request& req, reply& rep)
       text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\"}", "application/json");
       return;
     }
-    functions.scanChain(publicKey, false);
-    if (functions.joined == true)
+    CLedgerState::state walletState = CLedgerState::build(blockDB, publicKey);
+    if (walletState.joined == true)
     {
       text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"This wallet is already joined.\"}", "application/json");
       return;
@@ -2758,8 +2767,8 @@ void request_handler::handle_request(const request& req, reply& rep)
       text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\"}", "application/json");
       return;
     }
-    functions.scanChain(publicKey, false);
-    if (functions.joined == false)
+    CLedgerState::state walletState = CLedgerState::build(blockDB, publicKey);
+    if (walletState.joined == false)
     {
       text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Join the network before updating your public name.\"}", "application/json");
       return;
@@ -2839,7 +2848,6 @@ void request_handler::handle_request(const request& req, reply& rep)
       text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\"}", "application/json");
       return;
     }
-    functions.scanChain(publicKey, false);
     long confirmedStopBlock = CLedgerState::confirmedStopBlock(blockDB, CFunctions::WALLET_CONFIRMATION_BLOCKS);
     CLedgerState::state confirmedChainState = CLedgerState::build(blockDB, publicKey, confirmedStopBlock);
     CFunctions pendingFunctions;
@@ -3050,7 +3058,6 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::string privateKey;
     std::string publicKey;
     wallet.read(privateKey, publicKey);
-    functions.scanChain(publicKey, false);
 
     double transaction_fee = api_default_transaction_fee();
     std::string fee_value = submitted_value_any(req, request_path, "fee");
@@ -3060,7 +3067,8 @@ void request_handler::handle_request(const request& req, reply& rep)
       return;
     }
     double total_debit = amount + transaction_fee;
-    if (total_debit > functions.balance)
+    CLedgerState::state walletState = CLedgerState::build(blockDB, publicKey);
+    if (total_debit > walletState.wallet_balance)
     {
       std::stringstream error;
       error << "{\"status\":\"error\",\"message\":\"Insufficient balance. Amount plus fee is "

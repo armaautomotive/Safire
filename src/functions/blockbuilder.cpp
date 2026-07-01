@@ -68,6 +68,20 @@ bool blockCreatorModeEnabled(int argc, char* argv[])
     return hasArg(argc, argv, "--node-port");
 }
 
+void applyLedgerStateToFunctions(CFunctions& functions, const CLedgerState::state& ledgerState)
+{
+    functions.balance = ledgerState.wallet_balance;
+    functions.currency_circulation = ledgerState.issued_supply;
+    functions.user_count = ledgerState.members.size();
+    functions.joined = ledgerState.joined;
+    functions.active_heartbeat = ledgerState.active_heartbeat;
+    functions.heartbeat_renewal_due = ledgerState.heartbeat_renewal_due;
+    functions.chain_has_heartbeat_records = ledgerState.chain_has_heartbeat_records;
+    functions.last_heartbeat_block = ledgerState.last_heartbeat_block;
+    functions.latest_block = ledgerState.latest_block;
+    CSelector::users = ledgerState.active_member_keys;
+}
+
 bool recordExistsInAcceptedChain(CBlockDB& blockDB, const std::string& recordHash)
 {
     if(recordHash.length() == 0){
@@ -236,7 +250,6 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     CECDSACrypto ecdsa;
     CFunctions functions;
     CBlockDB blockDB;
-    CUserDB userDB;
     CRelayClient relayClient;
     CSelector selector;
     selector.syncronizeTime();
@@ -266,7 +279,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     }
     
     //functions.parseBlockFile(publicKey, false); // depricate
-    functions.scanChain(publicKey, false);
+    applyLedgerStateToFunctions(functions, CLedgerState::build(blockDB, publicKey));
     
     // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
     // relayClient.getNewNetworkPeer(publicKey);
@@ -452,7 +465,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     while(isBuildingBlocks){
         wallet.readCreatorAccount(privateKey, publicKey);
         //functions.parseBlockFile(publicKey, false); // depricate
-        functions.scanChain(publicKey, false); // ??? check this
+        applyLedgerStateToFunctions(functions, CLedgerState::build(blockDB, publicKey));
         bool creatorModeEnabled = blockCreatorModeEnabled(argc, argv);
         queueHeartbeatIfDue(functions, relayClient, ecdsa, privateKey, publicKey, creatorModeEnabled);
         CNetworkTime rebroadcastTime;

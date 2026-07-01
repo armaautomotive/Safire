@@ -9,10 +9,52 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <mutex>
 #include <set>
 #include <sstream>
 
 namespace {
+
+std::map<std::string, CLedgerState::state> ledgerStateCache;
+std::mutex ledgerStateCacheMutex;
+
+std::string ledgerStateCacheKey(
+    const std::string& walletPublicKey,
+    long firstBlockId,
+    long latestBlockId,
+    const std::string& latestBlockHash,
+    long stopBlock,
+    long currentTimeBlock)
+{
+    std::stringstream ss;
+    ss << walletPublicKey << "|"
+       << firstBlockId << "|"
+       << latestBlockId << "|"
+       << latestBlockHash << "|"
+       << stopBlock << "|"
+       << currentTimeBlock;
+    return ss.str();
+}
+
+bool cachedLedgerState(const std::string& key, CLedgerState::state& state)
+{
+    std::lock_guard<std::mutex> lock(ledgerStateCacheMutex);
+    std::map<std::string, CLedgerState::state>::iterator it = ledgerStateCache.find(key);
+    if (it == ledgerStateCache.end()) {
+        return false;
+    }
+    state = it->second;
+    return true;
+}
+
+void cacheLedgerState(const std::string& key, const CLedgerState::state& state)
+{
+    std::lock_guard<std::mutex> lock(ledgerStateCacheMutex);
+    ledgerStateCache[key] = state;
+    while (ledgerStateCache.size() > 256) {
+        ledgerStateCache.erase(ledgerStateCache.begin());
+    }
+}
 
 std::string normalizedPublicName(const std::string& name)
 {
@@ -239,6 +281,17 @@ CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& wa
     long currentTimeBlock = selector.getCurrentTimeBlock();
     long heartbeatCutoff = currentTimeBlock - CFunctions::HEARTBEAT_VALID_BLOCKS;
     long heartbeatRenewCutoff = currentTimeBlock - CFunctions::HEARTBEAT_RENEW_BLOCKS;
+    CFunctions::block_structure cacheTip = blockDB.getBlock(result.latest_block_id);
+    std::string cacheKey = ledgerStateCacheKey(
+        walletPublicKey,
+        result.first_block_id,
+        result.latest_block_id,
+        cacheTip.hash,
+        stopBlock,
+        currentTimeBlock);
+    if (cachedLedgerState(cacheKey, result)) {
+        return result;
+    }
 
     CFunctions::block_structure block = blockDB.getBlock(result.first_block_id);
     int guard = 0;
@@ -347,6 +400,7 @@ CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& wa
         result.wallet_balance = result.balances[walletPublicKey];
     }
 
+    cacheLedgerState(cacheKey, result);
     return result;
 }
 
