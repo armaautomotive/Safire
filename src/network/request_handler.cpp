@@ -2189,15 +2189,24 @@ void request_handler::handle_request(const request& req, reply& rep)
     {
       supplyDifference = 0.0;
     }
-    std::vector<std::string> activeMemberKeys = chainState.active_member_keys;
     long currentTimeBlock = netTime.getEpoch() / 15;
     long nextTimeBlock = currentTimeBlock + 1;
     std::string currentCreator = "";
     std::string nextCreator = "";
-    if (activeMemberKeys.size() > 0 && latestBlock.hash.length() > 0)
+    long currentSelectionBoundary = CSelector::getSelectionBoundaryBlock(currentTimeBlock, firstBlockId);
+    long nextSelectionBoundary = CSelector::getSelectionBoundaryBlock(nextTimeBlock, firstBlockId);
+    CLedgerState::state currentSelectionState = CLedgerState::build(blockDB, "", currentSelectionBoundary);
+    CLedgerState::state nextSelectionState = nextSelectionBoundary == currentSelectionBoundary ?
+      currentSelectionState : CLedgerState::build(blockDB, "", nextSelectionBoundary);
+    std::vector<std::string> currentActiveMemberKeys = CLedgerState::activeMemberKeysAt(currentSelectionState, currentSelectionState.latest_block_id);
+    std::vector<std::string> nextActiveMemberKeys = CLedgerState::activeMemberKeysAt(nextSelectionState, nextSelectionState.latest_block_id);
+    if (currentActiveMemberKeys.size() > 0 && currentSelectionState.latest_block.hash.length() > 0)
     {
-      currentCreator = CSelector::getSelectedUserForBlock(currentTimeBlock, latestBlock.hash, activeMemberKeys);
-      nextCreator = CSelector::getSelectedUserForBlock(nextTimeBlock, latestBlock.hash, activeMemberKeys);
+      currentCreator = CSelector::getSelectedUserForBlock(currentTimeBlock, currentSelectionState.latest_block.hash, currentActiveMemberKeys);
+    }
+    if (nextActiveMemberKeys.size() > 0 && nextSelectionState.latest_block.hash.length() > 0)
+    {
+      nextCreator = CSelector::getSelectedUserForBlock(nextTimeBlock, nextSelectionState.latest_block.hash, nextActiveMemberKeys);
     }
     long secondsUntilNextBlock = (nextTimeBlock * 15) - netTime.getEpoch();
     if (secondsUntilNextBlock < 0)
@@ -2211,7 +2220,12 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"wallet_id\":\"" << json_escape(publicKey) << "\",";
     ss << "\"public_key\":\"" << publicKey << "\",";
     ss << "\"public_name\":\"" << json_escape(name_for_key(memberNames, publicKey)) << "\",";
-    ss << "\"active_member_count\":\"" << activeMemberKeys.size() << "\",";
+    ss << "\"active_member_count\":\"" << currentActiveMemberKeys.size() << "\",";
+    ss << "\"epoch_size_blocks\":\"" << CSelector::getEpochSizeBlocks() << "\",";
+    ss << "\"selection_lag_epochs\":\"" << CSelector::getSelectionLagEpochs() << "\",";
+    ss << "\"selection_boundary_block\":\"" << currentSelectionBoundary << "\",";
+    ss << "\"selection_checkpoint_block\":\"" << currentSelectionState.latest_block.number << "\",";
+    ss << "\"selection_checkpoint_hash\":\"" << json_escape(currentSelectionState.latest_block.hash) << "\",";
     ss << "\"current_block_id\":\"" << currentTimeBlock << "\",";
     ss << "\"current_block_creator\":\"" << json_escape(currentCreator) << "\",";
     ss << "\"current_block_creator_name\":\"" << json_escape(name_for_key(memberNames, currentCreator)) << "\",";

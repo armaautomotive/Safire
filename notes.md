@@ -13,36 +13,60 @@ This design needs review before implementation details are finalized, especially
 - how nodes prove a pruned state is still connected to the original genesis chain
 - how peers compare state when one node is fully historical and another is pruned
 
-## Block Creation Requires Parent-State Consensus
+## Staggered Epoch Creator Selection
 
-Safire block creator selection must be based on the accepted chain state after applying the parent block.
+Safire should select block creators from an older finalized/checkpointed view of the chain instead of the immediately previous block. This prevents a node from needing the absolute latest block before it can know whether it is scheduled to create an upcoming block.
 
-This matters because the latest block can change the set of eligible creators. For example, a block may include `JOIN_NETWORK`, `HEARTBEAT`, or other membership/status records. If a node has not received that block yet, it may calculate the next block creator from stale membership data.
+Current proof-of-concept constants:
+
+- `epoch_size_blocks = 100`
+- `selection_lag_epochs = 2`
+
+For a target block slot:
+
+```text
+current_epoch = (target_block - genesis_block) / epoch_size_blocks
+selection_epoch = current_epoch - selection_lag_epochs
+selection_boundary = end of selection_epoch
+selection_checkpoint = latest accepted block at or before selection_boundary
+creator_set = active heartbeat members at selection_boundary
+creator = hash(selection_checkpoint.hash + target_block) over creator_set
+```
+
+The first two epochs bootstrap from the genesis checkpoint. At 15 second slots, a 100 block epoch is about 25 minutes, so a join or heartbeat generally has about one epoch of propagation time before it affects creator selection.
+
+This design intentionally allows skipped slots. If no blocks are created for some time, the next valid creator can build on the latest accepted parent it knows, while creator selection still comes from the older staggered checkpoint. A full outage across an epoch should recover as long as nodes still share the last finalized checkpoint and reconnect to peers.
+
+## Block Creation Requires Checkpoint-State Consensus
+
+Safire block creator selection must be based on the accepted chain state at the staggered selection checkpoint.
+
+This matters because recent blocks can change the set of eligible creators. For example, a block may include `JOIN_NETWORK`, `HEARTBEAT`, or other membership/status records. If those records affected the very next slot, nodes that have not received the latest block yet may calculate different creators. The staggered checkpoint gives the network time to propagate and agree before membership changes affect consensus.
 
 A block should be valid only if:
 
-- its `previous_hash` references the accepted parent block
-- its creator was selected from the active member set after applying that parent block
-- the selector input includes the parent block hash and the new block number
+- its `previous_hash` references a known accepted parent block
+- its creator was selected from the active member set at the selection checkpoint
+- the selector input includes the selection checkpoint hash and the new block number
 
 Conceptually:
 
 ```text
-parent = accepted previous block
-state = ledger and membership state after parent
-expected_creator = hash(parent.hash + next_block_number) over state.active_members
+selection_checkpoint = latest accepted block at or before the staggered epoch boundary
+state = ledger and membership state at selection_checkpoint
+expected_creator = hash(selection_checkpoint.hash + target_block_number) over state.active_members
 block.creator must equal expected_creator
 ```
 
-A node should not create a block merely because it appears selected from its local tip. It should first have sync confidence that its local tip is the best known parent. At minimum for the proof of concept, block creation should require:
+A node should not create a block merely because it appears selected from its local tip. It should first have sync confidence that its local selection checkpoint is on the configured chain and that it is not knowingly behind peers. At minimum for the proof of concept, block creation should require:
 
 - local genesis matches configured genesis
 - local chain validates
-- local latest block matches the best known peer tip/hash
+- local selection checkpoint matches peers
 - network time offset is sane
-- this wallet is selected using the parent-state rule
+- this wallet is selected using the staggered checkpoint rule
 
-If peers disagree about the latest parent hash, or if the node knows it is behind, it should wait and sync instead of creating a block.
+If peers disagree about the selection checkpoint hash, or if the node knows it is behind the checkpoint needed for the current epoch, it should wait and sync instead of creating a block.
 
 ## Ephemeral Creator Handoff Protocol
 

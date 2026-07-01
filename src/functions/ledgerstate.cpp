@@ -358,3 +358,20 @@ double CLedgerState::balanceAtBlock(CBlockDB& blockDB, const std::string& public
     std::map<std::string, double> balances = balancesThroughBlock(blockDB, checkpointBlock);
     return balances[publicKey];
 }
+
+std::vector<std::string> CLedgerState::activeMemberKeysAt(const CLedgerState::state& ledgerState, long blockNumber)
+{
+    std::vector<std::string> active;
+    if (blockNumber <= 0) {
+        blockNumber = ledgerState.latest_block_id;
+    }
+
+    long heartbeatCutoff = blockNumber - CFunctions::HEARTBEAT_VALID_BLOCKS;
+    for (int i = 0; i < ledgerState.members.size(); ++i) {
+        if (ledgerState.chain_has_heartbeat_records == false ||
+            ledgerState.members.at(i).last_heartbeat_block >= heartbeatCutoff) {
+            active.push_back(ledgerState.members.at(i).public_key);
+        }
+    }
+    return active;
+}

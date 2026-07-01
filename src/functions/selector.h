@@ -30,8 +30,12 @@ public:
     void syncronizeTime();
     bool isSelected(std::string publicKey);
     std::string getSelectedUser(long time);
-    static long getSelectedIndexForBlock(long blockNumber, const std::string& parentBlockHash, long userCount);
-    static std::string getSelectedUserForBlock(long blockNumber, const std::string& parentBlockHash, const std::vector<std::string>& activeUsers);
+    static long getEpochSizeBlocks();
+    static long getSelectionLagEpochs();
+    static long getEpochForBlock(long blockNumber, long genesisBlock);
+    static long getSelectionBoundaryBlock(long blockNumber, long genesisBlock);
+    static long getSelectedIndexForBlock(long blockNumber, const std::string& selectionSeedHash, long userCount);
+    static std::string getSelectedUserForBlock(long blockNumber, const std::string& selectionSeedHash, const std::vector<std::string>& activeUsers);
     long getCurrentTimeBlock();
     void addUser(std::string user);
 

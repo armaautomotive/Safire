@@ -323,10 +323,12 @@ std::string handoffJson(const CFunctions::block_structure& block, const std::str
     }
 
     CBlockDB blockDB;
-    CLedgerState::state ledgerState = CLedgerState::build(blockDB);
     long nextSlot = block.number + 1;
-    std::string nextCreator = CSelector::getSelectedUserForBlock(nextSlot, block.hash, ledgerState.active_member_keys);
-    std::string activeMemberSetHash = handoffMemberSetHash(ledgerState.active_member_keys);
+    long selectionBoundary = CSelector::getSelectionBoundaryBlock(nextSlot, blockDB.getFirstBlockId());
+    CLedgerState::state ledgerState = CLedgerState::build(blockDB, "", selectionBoundary);
+    std::vector<std::string> activeMemberKeys = CLedgerState::activeMemberKeysAt(ledgerState, ledgerState.latest_block_id);
+    std::string nextCreator = CSelector::getSelectedUserForBlock(nextSlot, ledgerState.latest_block.hash, activeMemberKeys);
+    std::string activeMemberSetHash = handoffMemberSetHash(activeMemberKeys);
     std::string handoffHash = handoffHashSeed(
         block.number,
         block.hash,

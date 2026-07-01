@@ -246,6 +246,13 @@ struct BranchMember {
     long last_heartbeat_block;
 };
 
+struct BranchSnapshot {
+    long block_number;
+    std::string block_hash;
+    std::vector<BranchMember> members;
+    bool chain_has_heartbeat_records;
+};
+
 int branchMemberIndexByKey(const std::vector<BranchMember>& members, const std::string& publicKey)
 {
     for (int i = 0; i < members.size(); ++i) {
@@ -325,6 +332,24 @@ std::vector<std::string> activeMemberKeysForBlock(const std::vector<CLedgerState
         }
     }
     return active;
+}
+
+const BranchSnapshot* selectionSnapshotForBlock(const std::vector<BranchSnapshot>& snapshots, long blockNumber, long genesisBlock)
+{
+    if (snapshots.size() == 0) {
+        return 0;
+    }
+
+    long selectionBoundary = CSelector::getSelectionBoundaryBlock(blockNumber, genesisBlock);
+    const BranchSnapshot* selected = &snapshots.front();
+    for (int i = 0; i < snapshots.size(); ++i) {
+        if (snapshots.at(i).block_number <= selectionBoundary) {
+            selected = &snapshots.at(i);
+        } else {
+            break;
+        }
+    }
+    return selected;
 }
 
 long parseCarryForwardValueLong(const std::string& value, const std::string& key)
@@ -462,12 +487,18 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
                 parentState = CLedgerState::build(blockDB, "", parent.number);
                 cacheLedgerStateForBlock(parent, parentState);
             }
-            std::vector<std::string> activeMemberKeys = activeMemberKeysForBlock(parentState.members, parentState.chain_has_heartbeat_records, block.number);
+            long firstBlockId = blockDB.getFirstBlockId();
+            long selectionBoundary = CSelector::getSelectionBoundaryBlock(block.number, firstBlockId);
+            CLedgerState::state selectionState = CLedgerState::build(blockDB, "", selectionBoundary);
+            if (selectionState.latest_block.hash.length() == 0) {
+                selectionState = parentState;
+            }
+            std::vector<std::string> activeMemberKeys = CLedgerState::activeMemberKeysAt(selectionState, selectionState.latest_block_id);
             if (activeMemberKeys.empty()) {
                 reason = "no active members can create blocks";
                 return false;
             }
-            std::string selectedCreator = CSelector::getSelectedUserForBlock(block.number, parent.hash, activeMemberKeys);
+            std::string selectedCreator = CSelector::getSelectedUserForBlock(block.number, selectionState.latest_block.hash, activeMemberKeys);
             if (selectedCreator.compare(block.creator_key) != 0) {
                 reason = "block creator is not selected for this slot";
                 return false;
@@ -618,6 +649,7 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
     std::map<std::string, std::string> nameOwners;
     std::set<std::string> acceptedRecordHashes;
     std::set<std::string> acceptedCarryForwardKeys;
+    std::vector<BranchSnapshot> snapshots;
     bool chainHasHeartbeatRecords = false;
 
     for (int b = 0; b < chain.size(); ++b) {
@@ -682,12 +714,18 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
                 return false;
             }
 
-            std::vector<std::string> activeMemberKeys = activeMemberKeysForBlock(members, chainHasHeartbeatRecords, block.number);
+            long selectionBoundary = CSelector::getSelectionBoundaryBlock(block.number, chain.front().number);
+            const BranchSnapshot* selectionSnapshot = selectionSnapshotForBlock(snapshots, block.number, chain.front().number);
+            if (selectionSnapshot == 0 || selectionSnapshot->block_hash.length() == 0) {
+                reason = "selection checkpoint is missing";
+                return false;
+            }
+            std::vector<std::string> activeMemberKeys = activeMemberKeysForBlock(selectionSnapshot->members, selectionSnapshot->chain_has_heartbeat_records, selectionBoundary);
             if (activeMemberKeys.empty()) {
                 reason = "no active members can create blocks";
                 return false;
             }
-            std::string selectedCreator = CSelector::getSelectedUserForBlock(block.number, parent.hash, activeMemberKeys);
+            std::string selectedCreator = CSelector::getSelectedUserForBlock(block.number, selectionSnapshot->block_hash, activeMemberKeys);
             if (selectedCreator.compare(block.creator_key) != 0) {
                 reason = "block creator is not selected for this slot";
                 return false;
@@ -831,6 +869,13 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
                 return false;
             }
         }
+
+        BranchSnapshot snapshot;
+        snapshot.block_number = block.number;
+        snapshot.block_hash = block.hash;
+        snapshot.members = members;
+        snapshot.chain_has_heartbeat_records = chainHasHeartbeatRecords;
+        snapshots.push_back(snapshot);
     }
 
     return true;

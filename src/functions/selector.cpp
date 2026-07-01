@@ -79,14 +79,47 @@ std::string CSelector::getSelectedUser(long time){
     return getSelectedUserForBlock(time, "", users);
 }
 
-long CSelector::getSelectedIndexForBlock(long blockNumber, const std::string& parentBlockHash, long userCount)
+long CSelector::getEpochSizeBlocks()
+{
+    return 100;
+}
+
+long CSelector::getSelectionLagEpochs()
+{
+    return 2;
+}
+
+long CSelector::getEpochForBlock(long blockNumber, long genesisBlock)
+{
+    if (genesisBlock <= 0 || blockNumber <= genesisBlock) {
+        return 0;
+    }
+    return (blockNumber - genesisBlock) / getEpochSizeBlocks();
+}
+
+long CSelector::getSelectionBoundaryBlock(long blockNumber, long genesisBlock)
+{
+    if (genesisBlock <= 0) {
+        return blockNumber;
+    }
+
+    long currentEpoch = getEpochForBlock(blockNumber, genesisBlock);
+    if (currentEpoch < getSelectionLagEpochs()) {
+        return genesisBlock;
+    }
+
+    long selectionEpoch = currentEpoch - getSelectionLagEpochs();
+    return genesisBlock + ((selectionEpoch + 1) * getEpochSizeBlocks()) - 1;
+}
+
+long CSelector::getSelectedIndexForBlock(long blockNumber, const std::string& selectionSeedHash, long userCount)
 {
     if (userCount <= 0) {
         return -1;
     }
 
     std::stringstream seed;
-    seed << parentBlockHash << ":" << blockNumber;
+    seed << selectionSeedHash << ":" << blockNumber;
 
     CECDSACrypto ecdsa;
     char hash[65];
@@ -100,9 +133,9 @@ long CSelector::getSelectedIndexForBlock(long blockNumber, const std::string& pa
     return static_cast<long>(value % static_cast<unsigned long long>(userCount));
 }
 
-std::string CSelector::getSelectedUserForBlock(long blockNumber, const std::string& parentBlockHash, const std::vector<std::string>& activeUsers)
+std::string CSelector::getSelectedUserForBlock(long blockNumber, const std::string& selectionSeedHash, const std::vector<std::string>& activeUsers)
 {
-    long index = getSelectedIndexForBlock(blockNumber, parentBlockHash, activeUsers.size());
+    long index = getSelectedIndexForBlock(blockNumber, selectionSeedHash, activeUsers.size());
     if (index < 0 || index >= activeUsers.size()) {
         return "";
     }

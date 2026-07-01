@@ -438,7 +438,10 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         // Is it the current user's turn to generate a block from the known canonical parent?
         bool build_block = false;
         if(previous_block.number > 0 && previous_block.number < timeBlock){
-            std::string selectedCreator = CSelector::getSelectedUserForBlock(timeBlock, previous_block.hash, CSelector::users);
+            long selectionBoundary = CSelector::getSelectionBoundaryBlock(timeBlock, blockDB.getFirstBlockId());
+            CLedgerState::state selectionState = CLedgerState::build(blockDB, "", selectionBoundary);
+            std::vector<std::string> activeMemberKeys = CLedgerState::activeMemberKeysAt(selectionState, selectionState.latest_block_id);
+            std::string selectedCreator = CSelector::getSelectedUserForBlock(timeBlock, selectionState.latest_block.hash, activeMemberKeys);
             build_block = selectedCreator.compare(publicKey) == 0;
         }
         // Can't build block unless a member of the block.

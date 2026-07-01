@@ -701,7 +701,27 @@ std::vector<CFunctions::record_structure> activeMembershipRecords(){
     return activeMembers;
 }
 
-void printSelectedBlockCreator(const std::vector<CFunctions::record_structure>& members, long timeBlock, const std::string& parentHash, const std::string& label, const std::string& localPublicKey){
+std::vector<CFunctions::record_structure> selectionMembersForSlot(CBlockDB& blockDB, long timeBlock, CFunctions::block_structure& seedBlock)
+{
+    std::vector<CFunctions::record_structure> members;
+    long selectionBoundary = CSelector::getSelectionBoundaryBlock(timeBlock, blockDB.getFirstBlockId());
+    CLedgerState::state selectionState = CLedgerState::build(blockDB, "", selectionBoundary);
+    seedBlock = selectionState.latest_block;
+    std::vector<std::string> activeKeys = CLedgerState::activeMemberKeysAt(selectionState, selectionState.latest_block_id);
+    std::set<std::string> activeSet(activeKeys.begin(), activeKeys.end());
+    for(int i = 0; i < selectionState.members.size(); i++){
+        if(activeSet.find(selectionState.members.at(i).public_key) == activeSet.end()){
+            continue;
+        }
+        CFunctions::record_structure member;
+        member.sender_public_key = selectionState.members.at(i).public_key;
+        member.name = selectionState.members.at(i).name;
+        members.push_back(member);
+    }
+    return members;
+}
+
+void printSelectedBlockCreator(const std::vector<CFunctions::record_structure>& members, long timeBlock, const std::string& selectionSeedHash, const std::string& label, const std::string& localPublicKey){
     std::cout << " " << label << " block: " << timeBlock << std::endl;
     std::cout << " Time: " << formatSlotTime(timeBlock) << std::endl;
     if(members.size() == 0){
@@ -709,7 +729,7 @@ void printSelectedBlockCreator(const std::vector<CFunctions::record_structure>& 
         return;
     }
 
-    long userIndex = CSelector::getSelectedIndexForBlock(timeBlock, parentHash, members.size());
+    long userIndex = CSelector::getSelectedIndexForBlock(timeBlock, selectionSeedHash, members.size());
     if(userIndex < 0 || userIndex >= members.size()){
         std::cout << " Creator: none selected; parent block is unknown." << std::endl;
         return;
@@ -723,15 +743,18 @@ void printSelectedBlockCreator(const std::vector<CFunctions::record_structure>& 
     }
 }
 
-void printNextLocalCreatorSlot(const std::vector<CFunctions::record_structure>& members, long startBlock, const std::string& parentHash, const std::string& localPublicKey){
-    if(members.size() == 0 || localPublicKey.length() == 0){
+void printNextLocalCreatorSlot(CBlockDB& blockDB, long startBlock, const std::string& localPublicKey){
+    if(localPublicKey.length() == 0){
         std::cout << " Next time this node is selected: unknown" << std::endl;
         return;
     }
 
-    for(long offset = 0; offset <= 1; offset++){
+    long searchLimit = CSelector::getEpochSizeBlocks() * (CSelector::getSelectionLagEpochs() + 2);
+    for(long offset = 0; offset <= searchLimit; offset++){
         long candidateBlock = startBlock + offset;
-        long userIndex = CSelector::getSelectedIndexForBlock(candidateBlock, parentHash, members.size());
+        CFunctions::block_structure seedBlock;
+        std::vector<CFunctions::record_structure> members = selectionMembersForSlot(blockDB, candidateBlock, seedBlock);
+        long userIndex = CSelector::getSelectedIndexForBlock(candidateBlock, seedBlock.hash, members.size());
         if(userIndex < 0 || userIndex >= members.size()){
             continue;
         }
@@ -746,7 +769,7 @@ void printNextLocalCreatorSlot(const std::vector<CFunctions::record_structure>& 
         }
     }
 
-    std::cout << " Next time this node is selected: depends on future block hashes" << std::endl;
+    std::cout << " Next time this node is selected: not in the searched epoch window" << std::endl;
 }
 
 void printNextBlockSelection(const std::string& localPublicKey){
@@ -758,7 +781,10 @@ void printNextBlockSelection(const std::string& localPublicKey){
     long currentBlock = selector.getCurrentTimeBlock();
     long nextBlock = currentBlock + 1;
     std::vector<CFunctions::record_structure> acceptedMembers = acceptedMembershipRecords();
-    std::vector<CFunctions::record_structure> members = activeMembershipRecords();
+    CFunctions::block_structure currentSeedBlock;
+    CFunctions::block_structure nextSeedBlock;
+    std::vector<CFunctions::record_structure> currentMembers = selectionMembersForSlot(blockDB, currentBlock, currentSeedBlock);
+    std::vector<CFunctions::record_structure> nextMembers = selectionMembersForSlot(blockDB, nextBlock, nextSeedBlock);
     long now = netTime.getEpoch();
     long secondsUntilNextBlock = (nextBlock * 15) - now;
     if(secondsUntilNextBlock < 0){
@@ -767,13 +793,19 @@ void printNextBlockSelection(const std::string& localPublicKey){
 
     std::cout << " Block creator selection:" << std::endl;
     std::cout << " Network time offset: " << netTime.getOffset() << "s" << std::endl;
+    std::cout << " Epoch size: " << CSelector::getEpochSizeBlocks() << " blocks" << std::endl;
+    std::cout << " Selection lag: " << CSelector::getSelectionLagEpochs() << " epochs" << std::endl;
     std::cout << " Accepted members: " << acceptedMembers.size() << std::endl;
-    std::cout << " Active heartbeat members: " << members.size() << std::endl;
+    std::cout << " Active heartbeat members at selection checkpoint: " << currentMembers.size() << std::endl;
     std::cout << " Parent block: " << latestBlock.number << " hash " << shortKey(parentHash) << std::endl;
-    printSelectedBlockCreator(members, currentBlock, parentHash, "Current", localPublicKey);
+    std::cout << " Selection checkpoint: " << currentSeedBlock.number << " hash " << shortKey(currentSeedBlock.hash) << std::endl;
+    printSelectedBlockCreator(currentMembers, currentBlock, currentSeedBlock.hash, "Current", localPublicKey);
     std::cout << " Seconds until next block: " << secondsUntilNextBlock << std::endl;
-    printSelectedBlockCreator(members, nextBlock, parentHash, "Next", localPublicKey);
-    printNextLocalCreatorSlot(members, currentBlock, parentHash, localPublicKey);
+    if(nextSeedBlock.hash.compare(currentSeedBlock.hash) != 0){
+        std::cout << " Next selection checkpoint: " << nextSeedBlock.number << " hash " << shortKey(nextSeedBlock.hash) << std::endl;
+    }
+    printSelectedBlockCreator(nextMembers, nextBlock, nextSeedBlock.hash, "Next", localPublicKey);
+    printNextLocalCreatorSlot(blockDB, currentBlock, localPublicKey);
 }
 
 std::string recordSummary(long blockNumber, int recordIndex, CFunctions::record_structure record, bool fullKeys){

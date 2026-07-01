@@ -48,6 +48,7 @@ public:
 
     static state build(CBlockDB& block_db, const std::string& wallet_public_key = "", long stop_block = -1);
     static double balanceAtBlock(CBlockDB& block_db, const std::string& public_key, long checkpoint_block);
+    static std::vector<std::string> activeMemberKeysAt(const state& ledger_state, long block_number);
 };
 
 #endif
