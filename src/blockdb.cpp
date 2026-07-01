@@ -7,6 +7,7 @@
 
 #include "blockdb.h"
 #include <algorithm>
+#include <ctime>
 #include <map>
 #include <set>
 #include <sstream>
@@ -166,6 +167,43 @@ std::string canonicalHashKey(long number){
     return ss.str();
 }
 
+std::string reorgMetaKey(const std::string& name){
+    return "last_reorg_" + name;
+}
+
+std::string forkVariantCountKey(){
+    return "fork_variant_count";
+}
+
+long scanForkVariantCount(leveldb::DB* db){
+    if(!db){
+        return 0;
+    }
+
+    std::map<long, long> variantsByBlock;
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for(it->SeekToFirst(); it->Valid(); it->Next()){
+        std::string key = it->key().ToString();
+        if(boost::algorithm::starts_with(key, "slot:")){
+            std::size_t firstColon = key.find(":");
+            std::size_t secondColon = key.find(":", firstColon + 1);
+            if(firstColon != std::string::npos && secondColon != std::string::npos){
+                std::string blockNumber = key.substr(firstColon + 1, secondColon - firstColon - 1);
+                variantsByBlock[boost::lexical_cast<long>(blockNumber)]++;
+            }
+        }
+    }
+    delete it;
+
+    long forkVariants = 0;
+    for(std::map<long, long>::iterator it = variantsByBlock.begin(); it != variantsByBlock.end(); ++it){
+        if(it->second > 1){
+            forkVariants += it->second - 1;
+        }
+    }
+    return forkVariants;
+}
+
 }
 
 CBlockDB::CBlockDB(){
@@ -320,6 +358,16 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     bool sameSlotVariant = canonicalBlock.number > 0;
     if(sameSlotVariant){
         log.log("Store same-slot block variant: " + hashKey + "\n");
+        std::string forkCountValue;
+        long forkCount = 0;
+        db->Get(leveldb::ReadOptions(), forkVariantCountKey(), &forkCountValue);
+        if(forkCountValue.length() > 0){
+            forkCount = boost::lexical_cast<long>(forkCountValue);
+            forkCount++;
+        } else {
+            forkCount = scanForkVariantCount(db);
+        }
+        db->Put(writeOptions, forkVariantCountKey(), boost::lexical_cast<std::string>(forkCount));
     }
     if(sameSlotVariant && shouldWriteCanonical == false){
         return true;
@@ -538,6 +586,13 @@ long CBlockDB::rebuildBestChainIndex(){
         return -1;
     }
 
+    long previousTipId = getLatestBlockId();
+    CFunctions::block_structure previousTip;
+    previousTip.number = -1;
+    if(previousTipId > 0){
+        previousTip = getBlock(previousTipId);
+    }
+
     std::vector<CFunctions::block_structure> blocks = getStoredBlocks();
     if(blocks.size() == 0){
         return -1;
@@ -621,6 +676,7 @@ long CBlockDB::rebuildBestChainIndex(){
     }
 
     long latestBestBlockId = bestChain.back().number;
+    CFunctions::block_structure newTip = bestChain.back();
 
     leveldb::WriteOptions writeOptions;
     std::vector<std::string> nextIndexKeys;
@@ -657,7 +713,117 @@ long CBlockDB::rebuildBestChainIndex(){
     }
 
     setLatestBlockId(latestBestBlockId);
+    if(previousTip.number > 0 &&
+       previousTip.hash.length() > 0 &&
+       newTip.number > 0 &&
+       newTip.hash.length() > 0 &&
+       previousTip.hash.compare(newTip.hash) != 0){
+        std::string previousBlock = boost::lexical_cast<std::string>(previousTip.number);
+        std::string newBlock = boost::lexical_cast<std::string>(newTip.number);
+        db->Put(writeOptions, reorgMetaKey("previous_block"), previousBlock);
+        db->Put(writeOptions, reorgMetaKey("previous_hash"), previousTip.hash);
+        db->Put(writeOptions, reorgMetaKey("new_block"), newBlock);
+        db->Put(writeOptions, reorgMetaKey("new_hash"), newTip.hash);
+        db->Put(writeOptions, reorgMetaKey("time"), boost::lexical_cast<std::string>(std::time(0)));
+        db->Put(writeOptions, reorgMetaKey("reason"), "best chain index rebuilt");
+
+        CFileLogger log;
+        log.log("Chain reorg: " + previousBlock + " " + previousTip.hash + " -> " + newBlock + " " + newTip.hash + "\n");
+    }
     return latestBestBlockId;
+}
+
+long CBlockDB::getForkVariantCount(){
+    leveldb::DB* db = getDatabase();
+    if(!db){
+        return 0;
+    }
+
+    std::string cachedValue;
+    db->Get(leveldb::ReadOptions(), forkVariantCountKey(), &cachedValue);
+    if(cachedValue.length() > 0){
+        return boost::lexical_cast<long>(cachedValue);
+    }
+
+    long forkVariants = scanForkVariantCount(db);
+    db->Put(leveldb::WriteOptions(), forkVariantCountKey(), boost::lexical_cast<std::string>(forkVariants));
+    return forkVariants;
+}
+
+std::vector<CBlockDB::fork_variant> CBlockDB::getForkVariants(int limit){
+    std::vector<fork_variant> variants;
+    std::vector<CFunctions::block_structure> blocks = getStoredBlocks();
+    std::map<long, long> variantsByBlock;
+    for(int i = 0; i < blocks.size(); i++){
+        CFunctions::block_structure block = blocks.at(i);
+        if(block.number > 0 && block.hash.length() > 0){
+            variantsByBlock[block.number]++;
+        }
+    }
+
+    for(int i = 0; i < blocks.size(); i++){
+        CFunctions::block_structure block = blocks.at(i);
+        if(block.number <= 0 || block.hash.length() == 0 || variantsByBlock[block.number] <= 1){
+            continue;
+        }
+        CFunctions::block_structure canonicalBlock = getBlock(block.number);
+        fork_variant variant;
+        variant.block_number = block.number;
+        variant.hash = block.hash;
+        variant.previous_hash = block.previous_block_hash;
+        variant.creator_key = block.creator_key;
+        variant.canonical = canonicalBlock.hash.length() > 0 && canonicalBlock.hash.compare(block.hash) == 0;
+        variants.push_back(variant);
+    }
+
+    std::sort(variants.begin(), variants.end(),
+        [](const CBlockDB::fork_variant& a, const CBlockDB::fork_variant& b){
+            if(a.block_number != b.block_number){
+                return a.block_number > b.block_number;
+            }
+            if(a.canonical != b.canonical){
+                return a.canonical;
+            }
+            return a.hash.compare(b.hash) < 0;
+        });
+
+    if(limit > 0 && variants.size() > limit){
+        variants.resize(limit);
+    }
+    return variants;
+}
+
+CBlockDB::reorg_info CBlockDB::getLastReorgInfo(){
+    reorg_info info;
+    info.previous_block = -1;
+    info.new_block = -1;
+    info.time = 0;
+
+    leveldb::DB* db = getDatabase();
+    if(!db){
+        return info;
+    }
+
+    std::string previousBlock;
+    std::string newBlock;
+    std::string time;
+    db->Get(leveldb::ReadOptions(), reorgMetaKey("previous_block"), &previousBlock);
+    db->Get(leveldb::ReadOptions(), reorgMetaKey("previous_hash"), &info.previous_hash);
+    db->Get(leveldb::ReadOptions(), reorgMetaKey("new_block"), &newBlock);
+    db->Get(leveldb::ReadOptions(), reorgMetaKey("new_hash"), &info.new_hash);
+    db->Get(leveldb::ReadOptions(), reorgMetaKey("time"), &time);
+    db->Get(leveldb::ReadOptions(), reorgMetaKey("reason"), &info.reason);
+
+    if(previousBlock.length() > 0){
+        info.previous_block = boost::lexical_cast<long>(previousBlock);
+    }
+    if(newBlock.length() > 0){
+        info.new_block = boost::lexical_cast<long>(newBlock);
+    }
+    if(time.length() > 0){
+        info.time = boost::lexical_cast<long>(time);
+    }
+    return info;
 }
 
 /**

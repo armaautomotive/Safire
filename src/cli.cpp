@@ -1180,6 +1180,49 @@ void printChainDiagnostics(){
     }
 }
 
+void printForkDiagnostics(){
+    CBlockDB blockDB;
+    long forkVariantCount = blockDB.getForkVariantCount();
+    std::vector<CBlockDB::fork_variant> variants = blockDB.getForkVariants(50);
+
+    std::cout << " Fork diagnostics:" << std::endl;
+    std::cout << "  non-canonical fork variants: " << forkVariantCount << std::endl;
+    if(variants.size() == 0){
+        std::cout << "  variants: -" << std::endl;
+        return;
+    }
+
+    std::cout << "  recent fork slots:" << std::endl;
+    for(int i = 0; i < variants.size(); i++){
+        CBlockDB::fork_variant variant = variants.at(i);
+        std::cout << "    block " << variant.block_number
+                  << " " << (variant.canonical ? "canonical" : "fork")
+                  << " hash " << shortKey(variant.hash);
+        if(variant.previous_hash.length() > 0){
+            std::cout << " prevhash " << shortKey(variant.previous_hash);
+        }
+        if(variant.creator_key.length() > 0){
+            std::cout << " creator " << shortKey(variant.creator_key);
+        }
+        std::cout << std::endl;
+    }
+}
+
+void printReorgDiagnostics(){
+    CBlockDB blockDB;
+    CBlockDB::reorg_info info = blockDB.getLastReorgInfo();
+
+    std::cout << " Reorg diagnostics:" << std::endl;
+    if(info.previous_block <= 0 || info.new_block <= 0){
+        std::cout << "  last reorg: -" << std::endl;
+        return;
+    }
+    std::cout << "  previous tip: " << info.previous_block << " hash " << shortKey(info.previous_hash) << std::endl;
+    std::cout << "  new tip: " << info.new_block << " hash " << shortKey(info.new_hash) << std::endl;
+    std::cout << "  time: " << info.time << std::endl;
+    std::cout << "  reason: " << (info.reason.length() > 0 ? info.reason : "-") << std::endl;
+}
+
 void printChainIdentity(){
     CNetworkConfig config = CNetworkConfig::load();
     CBlockDB blockDB;
@@ -1401,6 +1444,8 @@ void CCLI::printAdvancedCommands(){
     " tests                  - Run tests to verify this build is functioning correctly.\n" <<
     " chainid                - Print configured and local genesis identity.\n" <<
     " chain                  - Scan the complete blockchain for verification. Reports findings.\n" <<
+    " forks                  - Print stored fork variants and canonical choices.\n" <<
+    " reorgs                 - Print the last local chain reorganization.\n" <<
     " repairchain            - Rebuild next-block indexes using the best stored branch.\n" <<
     " printchain             - Print the blockchain summary and validation.\n" <<
     " printqueue             - Print the local mempool queue.\n" <<
@@ -1924,6 +1969,12 @@ void CCLI::processUserInput(){
 
         } else if ( command.compare("chain") == 0){
            printChainDiagnostics();
+
+        } else if ( command.compare("forks") == 0){
+           printForkDiagnostics();
+
+        } else if ( command.compare("reorgs") == 0 || command.compare("reorg") == 0){
+           printReorgDiagnostics();
 
         } else if ( command.compare("repairchain") == 0){
             CBlockDB blockDB;

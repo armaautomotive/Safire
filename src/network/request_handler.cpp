@@ -904,6 +904,48 @@ std::string mempool_json()
   return ss.str();
 }
 
+std::string forks_json(CBlockDB& block_db)
+{
+  long forkCount = block_db.getForkVariantCount();
+  std::vector<CBlockDB::fork_variant> variants = block_db.getForkVariants(100);
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"fork_count\":\"" << forkCount << "\",";
+  ss << "\"variants\":[";
+  for (int i = 0; i < variants.size(); ++i)
+  {
+    if (i > 0)
+    {
+      ss << ",";
+    }
+    CBlockDB::fork_variant variant = variants.at(i);
+    ss << "{";
+    ss << "\"block_id\":\"" << variant.block_number << "\",";
+    ss << "\"hash\":\"" << json_escape(variant.hash) << "\",";
+    ss << "\"previous_hash\":\"" << json_escape(variant.previous_hash) << "\",";
+    ss << "\"creator_key\":\"" << json_escape(variant.creator_key) << "\",";
+    ss << "\"canonical\":\"" << (variant.canonical ? "yes" : "no") << "\"";
+    ss << "}";
+  }
+  ss << "]}";
+  return ss.str();
+}
+
+std::string reorg_json(CBlockDB& block_db)
+{
+  CBlockDB::reorg_info info = block_db.getLastReorgInfo();
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"has_reorg\":\"" << (info.previous_block > 0 && info.new_block > 0 ? "yes" : "no") << "\",";
+  ss << "\"previous_block\":\"" << info.previous_block << "\",";
+  ss << "\"previous_hash\":\"" << json_escape(info.previous_hash) << "\",";
+  ss << "\"new_block\":\"" << info.new_block << "\",";
+  ss << "\"new_hash\":\"" << json_escape(info.new_hash) << "\",";
+  ss << "\"time\":\"" << info.time << "\",";
+  ss << "\"reason\":\"" << json_escape(info.reason) << "\"}";
+  return ss.str();
+}
+
 bool best_peer_status(const std::vector<CLocalPeerClient::peer_status>& local_peers,
                       CLocalPeerClient::peer_status& best_peer)
 {
@@ -2262,6 +2304,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
     CNetworkConfig config = CNetworkConfig::load();
     CNatMapper::status natStatus = CNatMapper::currentStatus();
+    long forkCount = blockDB.getForkVariantCount();
+    CBlockDB::reorg_info reorgInfo = blockDB.getLastReorgInfo();
     CWallet wallet;
     std::string privateKey;
     std::string publicKey;
@@ -2287,6 +2331,12 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << latestBlock.hash << "\",";
+    ss << "\"fork_count\":\"" << forkCount << "\",";
+    ss << "\"last_reorg_previous_block\":\"" << reorgInfo.previous_block << "\",";
+    ss << "\"last_reorg_previous_hash\":\"" << json_escape(reorgInfo.previous_hash) << "\",";
+    ss << "\"last_reorg_new_block\":\"" << reorgInfo.new_block << "\",";
+    ss << "\"last_reorg_new_hash\":\"" << json_escape(reorgInfo.new_hash) << "\",";
+    ss << "\"last_reorg_time\":\"" << reorgInfo.time << "\",";
     ss << "\"public_peer_url\":\"" << json_escape(CLocalPeerClient::getAdvertisedPeer()) << "\",";
     ss << "\"nat_enabled\":\"" << (natStatus.enabled ? "yes" : "no") << "\",";
     ss << "\"nat_mapped\":\"" << (natStatus.mapped ? "yes" : "no") << "\",";
@@ -2295,6 +2345,18 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"nat_external_port\":\"" << natStatus.externalPort << "\",";
     ss << "\"nat_message\":\"" << json_escape(natStatus.message) << "\"}";
     text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/forks")
+  {
+    text_reply(rep, reply::ok, forks_json(blockDB), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/reorgs" || request_path == "/api/reorg")
+  {
+    text_reply(rep, reply::ok, reorg_json(blockDB), "application/json");
     return;
   }
 
@@ -2514,6 +2576,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     }
     CNetworkConfig config = CNetworkConfig::load();
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
+    long forkCount = blockDB.getForkVariantCount();
+    CBlockDB::reorg_info reorgInfo = blockDB.getLastReorgInfo();
     CNetworkTime netTime;
     std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
     CNatMapper::status natStatus = CNatMapper::currentStatus();
@@ -2665,6 +2729,12 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"latest_block_time\":\"" << json_escape(latestBlockTime) << "\",";
     ss << "\"latest_block_record_count\":\"" << latestBlock.records.size() << "\",";
     ss << "\"block_count\":\"" << blockCount << "\",";
+    ss << "\"fork_count\":\"" << forkCount << "\",";
+    ss << "\"last_reorg_previous_block\":\"" << reorgInfo.previous_block << "\",";
+    ss << "\"last_reorg_previous_hash\":\"" << json_escape(reorgInfo.previous_hash) << "\",";
+    ss << "\"last_reorg_new_block\":\"" << reorgInfo.new_block << "\",";
+    ss << "\"last_reorg_new_hash\":\"" << json_escape(reorgInfo.new_hash) << "\",";
+    ss << "\"last_reorg_time\":\"" << reorgInfo.time << "\",";
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"network_time_offset\":\"" << netTime.getOffset() << "\",";
     ss << "\"local_peers\":\"" << localPeers.size() << "\",";

@@ -23,7 +23,23 @@ private:
     static leveldb::DB * db;
 
 public:
-    
+    struct fork_variant {
+        long block_number;
+        std::string hash;
+        std::string previous_hash;
+        std::string creator_key;
+        bool canonical;
+    };
+
+    struct reorg_info {
+        long previous_block;
+        std::string previous_hash;
+        long new_block;
+        std::string new_hash;
+        long time;
+        std::string reason;
+    };
+
     //! Construct an invalid private key.
     CBlockDB();
 
@@ -41,6 +57,9 @@ public:
     long getLatestBlockId();
     long getConnectedLatestBlockId();
     long rebuildBestChainIndex();
+    long getForkVariantCount();
+    std::vector<fork_variant> getForkVariants(int limit);
+    reorg_info getLastReorgInfo();
     long getNextBlockId(long previousBlockId);
     CFunctions::block_structure getNextBlockByHash(CFunctions::block_structure block);
     CFunctions::block_structure getNextBlock(CFunctions::block_structure block);
