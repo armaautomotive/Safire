@@ -115,12 +115,12 @@ bool preferChainPath(
     return candidateTip.hash.compare(currentTip.hash) < 0;
 }
 
-void collectBestValidChain(
+void collectReachableChainCandidates(
     const CFunctions::block_structure& block,
     const std::map<std::string, std::vector<CFunctions::block_structure> >& childrenByParentHash,
     std::vector<CFunctions::block_structure>& path,
     std::set<std::string>& pathHashes,
-    std::vector<CFunctions::block_structure>& bestChain
+    std::vector<std::vector<CFunctions::block_structure> >& candidates
 ){
     if(block.hash.length() == 0 || pathHashes.find(block.hash) != pathHashes.end()){
         return;
@@ -129,13 +129,8 @@ void collectBestValidChain(
     path.push_back(block);
     pathHashes.insert(block.hash);
 
-    std::string reason;
-    if(CChainValidator::validateConnectedChain(path, reason) && preferChainPath(path, bestChain)){
-        bestChain = path;
-    }
-
     std::map<std::string, std::vector<CFunctions::block_structure> >::const_iterator childrenIt = childrenByParentHash.find(block.hash);
-    if(childrenIt != childrenByParentHash.end()){
+    if(childrenIt != childrenByParentHash.end() && childrenIt->second.size() > 0){
         std::vector<CFunctions::block_structure> children = childrenIt->second;
         std::sort(children.begin(), children.end(),
             [](const CFunctions::block_structure& a, const CFunctions::block_structure& b){
@@ -145,8 +140,10 @@ void collectBestValidChain(
                 return a.hash.compare(b.hash) < 0;
             });
         for(int i = 0; i < children.size(); ++i){
-            collectBestValidChain(children.at(i), childrenByParentHash, path, pathHashes, bestChain);
+            collectReachableChainCandidates(children.at(i), childrenByParentHash, path, pathHashes, candidates);
         }
+    } else {
+        candidates.push_back(path);
     }
 
     pathHashes.erase(block.hash);
@@ -320,8 +317,11 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         db->Put(writeOptions, legacyCanonicalKey.str(), valueStream.str());
     }
 
-    if(canonicalBlock.number > 0){
+    bool sameSlotVariant = canonicalBlock.number > 0;
+    if(sameSlotVariant){
         log.log("Store same-slot block variant: " + hashKey + "\n");
+    }
+    if(sameSlotVariant && shouldWriteCanonical == false){
         return true;
     }
    
@@ -542,7 +542,6 @@ long CBlockDB::rebuildBestChainIndex(){
     if(blocks.size() == 0){
         return -1;
     }
-
     std::map<std::string, CFunctions::block_structure> blockByHash;
     std::map<std::string, std::vector<CFunctions::block_structure> > childrenByParentHash;
     std::vector<CFunctions::block_structure> genesisCandidates;
@@ -584,11 +583,38 @@ long CBlockDB::rebuildBestChainIndex(){
             return a.hash.compare(b.hash) < 0;
         });
 
-    std::vector<CFunctions::block_structure> bestChain;
+    std::vector<std::vector<CFunctions::block_structure> > candidateChains;
     for(int i = 0; i < genesisCandidates.size(); i++){
         std::vector<CFunctions::block_structure> path;
         std::set<std::string> pathHashes;
-        collectBestValidChain(genesisCandidates.at(i), childrenByParentHash, path, pathHashes, bestChain);
+        collectReachableChainCandidates(genesisCandidates.at(i), childrenByParentHash, path, pathHashes, candidateChains);
+    }
+
+    std::sort(candidateChains.begin(), candidateChains.end(),
+        [](const std::vector<CFunctions::block_structure>& a, const std::vector<CFunctions::block_structure>& b){
+            return preferChainPath(a, b);
+        });
+
+    std::vector<CFunctions::block_structure> bestChain;
+    for(int i = 0; i < candidateChains.size(); ++i){
+        std::vector<CFunctions::block_structure> candidate = candidateChains.at(i);
+        while(candidate.size() > 0){
+            std::string reason;
+            if(CChainValidator::validateConnectedChain(candidate, reason)){
+                if(candidate.size() == candidateChains.at(i).size()){
+                    bestChain = candidate;
+                    break;
+                }
+                if(preferChainPath(candidate, bestChain)){
+                    bestChain = candidate;
+                }
+                break;
+            }
+            candidate.pop_back();
+        }
+        if(bestChain.size() > 0 && bestChain.size() == candidateChains.at(i).size()){
+            break;
+        }
     }
     if(bestChain.size() == 0){
         return -1;

@@ -480,9 +480,16 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
         }
 
         CFunctions::block_structure canonicalParent = blockDB.getBlock(parent.number);
+        CFunctions::block_structure canonicalSameSlot = blockDB.getBlock(block.number);
         bool parentIsCanonical = canonicalParent.number == parent.number && canonicalParent.hash.compare(parent.hash) == 0;
-        enforceStateRules = parentIsCanonical;
-        if (parentIsCanonical) {
+        bool sameSlotFork = canonicalSameSlot.number == block.number &&
+            canonicalSameSlot.hash.length() > 0 &&
+            canonicalSameSlot.hash.compare(block.hash) != 0;
+        bool extendsCanonicalTip = block.previous_block_id == blockDB.getLatestBlockId();
+        // Same-height fork candidates must be stored first so rebuildBestChainIndex can
+        // validate and compare the full branch before changing the accepted chain.
+        enforceStateRules = parentIsCanonical && sameSlotFork == false && extendsCanonicalTip;
+        if (enforceStateRules) {
             if (cachedLedgerStateForBlock(parent, parentState) == false) {
                 parentState = CLedgerState::build(blockDB, "", parent.number);
                 cacheLedgerStateForBlock(parent, parentState);

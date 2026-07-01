@@ -193,6 +193,7 @@ private:
     QLabel *m_syncLabel;
     QProgressBar *m_syncProgressBar;
     QLabel *m_syncEtaLabel;
+    QLabel *m_blocksBehindLabel;
     QLabel *m_peerLabel;
     QLabel *m_natLabel;
     QLabel *m_membershipJoinedLabel;

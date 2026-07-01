@@ -694,6 +694,26 @@ bool pullPeerBlocksByNumberRange(const std::string& peer, long startBlockId, lon
     return received > 0;
 }
 
+bool pullPeerForkRepairWindow(const std::string& peer,
+                              long firstBlockId,
+                              long localLatestBlockId,
+                              long peerLatestBlockId,
+                              int maxBlocksPerSync,
+                              bool& changed)
+{
+    if (peerLatestBlockId < 0 || firstBlockId < 0) {
+        return false;
+    }
+
+    const long forkRepairLookbackSlots = 60;
+    long startBlockId = localLatestBlockId - forkRepairLookbackSlots;
+    if (startBlockId < firstBlockId) {
+        startBlockId = firstBlockId;
+    }
+
+    return pullPeerBlocksByNumberRange(peer, startBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
+}
+
 }
 
 void CLocalPeerClient::setPeers(const std::vector<std::string>& peerUrls)
@@ -1035,11 +1055,20 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
         }
     }
 
+    long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
+    if (repairedLatestBlockId > latestBlockId) {
+        changed = true;
+        latestBlockId = repairedLatestBlockId;
+    }
+
     if (peerLatestBlockId > -1 && latestBlockId >= peerLatestBlockId) {
         CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
         if (peerLatestBlockHash.length() > 0 && latestBlock.hash.compare(peerLatestBlockHash) != 0) {
-            if (pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed) == false) {
-                pullPeerBlocksByNumberRange(peer, firstBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
+            long beforeRepairLatestBlockId = blockDB.getLatestBlockId();
+            bool pulled = pullPeerForkRepairWindow(peer, firstBlockId, latestBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
+            long afterForkPullLatestBlockId = blockDB.getLatestBlockId();
+            if (pulled == false || afterForkPullLatestBlockId <= beforeRepairLatestBlockId) {
+                pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
             }
             return changed;
         }
@@ -1076,8 +1105,10 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
             response = httpGet(peer + "/api/blocks/after/" + boost::lexical_cast<std::string>(latestBlockId));
         }
         if (response.empty()) {
-            if (pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed) == false) {
-                pullPeerBlocksByNumberRange(peer, firstBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
+            bool pulled = pullPeerForkRepairWindow(peer, firstBlockId, beforeLatestBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
+            latestBlockId = blockDB.getLatestBlockId();
+            if (pulled == false || latestBlockId <= beforeLatestBlockId) {
+                pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
             }
             latestBlockId = blockDB.getLatestBlockId();
             if (latestBlockId > beforeLatestBlockId) {
@@ -1091,10 +1122,22 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
         int sawBlocks = storeParsedBlocks(blocks, changed);
 
         if (sawBlocks <= 0) {
-            break;
+            bool pulled = pullPeerForkRepairWindow(peer, firstBlockId, beforeLatestBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
+            latestBlockId = blockDB.getLatestBlockId();
+            if (pulled == false || latestBlockId <= beforeLatestBlockId) {
+                break;
+            }
+            continue;
         }
 
         latestBlockId = blockDB.getLatestBlockId();
+        if (latestBlockId <= beforeLatestBlockId) {
+            long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
+            if (repairedLatestBlockId > latestBlockId) {
+                changed = true;
+                latestBlockId = repairedLatestBlockId;
+            }
+        }
         if (latestBlockId <= beforeLatestBlockId) {
             break;
         }

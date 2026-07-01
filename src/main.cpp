@@ -320,14 +320,18 @@ int main(int argc, char* argv[])
             localNodeServer.reset();
         }
     }
+    // Validate chain
+    {
+        CBlockDB startupBlockDB;
+        startupBlockDB.rebuildBestChainIndex();
+    }
+    std::cout << " Validating chain.       " << ANSI_COLOR_GREEN << "[ok] " << ANSI_COLOR_RESET << std::endl;
+
     boost::shared_ptr<std::thread> localSyncThread;
     if(localPeers.size() > 0){
         localSyncThread.reset(new std::thread(&CLocalPeerClient::syncThread, argc, argv));
         std::cout << " Local peer sync.        " << localPeers.size() << " peer(s)" << std::endl;
     }
-
-    // Validate chain
-    std::cout << " Validating chain.       " << ANSI_COLOR_GREEN << "[ok] " << ANSI_COLOR_RESET << std::endl;
 
     // Interface type [CLI | GUI]
     // TODO: detect based on platform if GUI is supported.

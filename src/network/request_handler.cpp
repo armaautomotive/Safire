@@ -1546,9 +1546,21 @@ std::string sync_peers_json()
     long before = blockDB.getLatestBlockId();
     long peerBefore = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
     bool pulled = CLocalPeerClient::syncFromPeer(localPeers.at(i));
-    CLocalPeerClient::push_result pushResult = CLocalPeerClient::pushToPeerDetailed(localPeers.at(i));
     long after = blockDB.getLatestBlockId();
     long peerAfter = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
+    CLocalPeerClient::push_result pushResult;
+    pushResult.candidateBlocks = 0;
+    pushResult.pushedBlocks = 0;
+    pushResult.failedBlockId = -1;
+    pushResult.response = "";
+    if (peerAfter < 0 || after >= peerAfter)
+    {
+      pushResult = CLocalPeerClient::pushToPeerDetailed(localPeers.at(i));
+    }
+    else
+    {
+      pushResult.response = "skipped push while catching up";
+    }
 
     if (i > 0)
     {

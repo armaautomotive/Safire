@@ -773,6 +773,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_syncLabel(0),
       m_syncProgressBar(0),
       m_syncEtaLabel(0),
+      m_blocksBehindLabel(0),
       m_peerLabel(0),
       m_natLabel(0),
       m_membershipJoinedLabel(0),
@@ -1118,7 +1119,10 @@ QWidget *MainWindow::createBalancePage()
     m_syncProgressBar->setTextVisible(false);
     networkLayout->addWidget(m_syncProgressBar, 3, 0, 1, 2);
     m_syncEtaLabel = makeLabel(tr("Time to sync: -"), "Muted");
-    networkLayout->addWidget(m_syncEtaLabel, 4, 0, 1, 2);
+    networkLayout->addWidget(m_syncEtaLabel, 4, 0);
+    m_blocksBehindLabel = makeLabel(tr("Blocks behind: -"), "Muted");
+    m_blocksBehindLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    networkLayout->addWidget(m_blocksBehindLabel, 4, 1);
     m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
     networkLayout->addWidget(m_peerLabel, 5, 0);
     m_natLabel = makeLabel(tr("Public peer: off"), "PublicPeerStatus");
@@ -3087,6 +3091,17 @@ void MainWindow::applyWalletStatus(const QString &json)
                                             latestBlockNumberOk,
                                             peerLatestBlockNumber,
                                             peerLatestBlockNumberOk));
+    }
+    if (m_blocksBehindLabel) {
+        QString blocksBehind = tr("-");
+        if (latestBlockNumberOk && peerLatestBlockNumberOk && peerLatestBlockNumber > 0) {
+            qint64 behind = peerLatestBlockNumber - latestBlockNumber;
+            if (behind < 0) {
+                behind = 0;
+            }
+            blocksBehind = QString::number(behind);
+        }
+        m_blocksBehindLabel->setText(tr("Blocks behind: %1").arg(blocksBehind));
     }
     if (m_peerLabel) {
         QString peerLatestDisplay = (peerLatestBlock.isEmpty() || peerLatestBlock == "-1") ? tr("-") : peerLatestBlock;
