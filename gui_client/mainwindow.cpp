@@ -3102,6 +3102,16 @@ void MainWindow::applyWalletStatus(const QString &json)
         } else if (natMapped == "yes") {
             QString endpoint = natExternalAddress.isEmpty() ? QString::number(m_backendPort) : tr("%1:%2").arg(natExternalAddress).arg(natExternalPort);
             m_natLabel->setText(tr("Public peer: mapped via %1 (%2)").arg(natMethod.isEmpty() ? tr("router") : natMethod).arg(endpoint));
+        } else if (natMessage == "automatic router mapping unavailable" ||
+                   natMessage == "router gateway not found" ||
+                   natMessage == "router did not answer NAT-PMP" ||
+                   natMessage == "router does not support NAT-PMP" ||
+                   natMessage == "router refused automatic port mapping" ||
+                   natMessage == "router did not answer UPnP discovery" ||
+                   natMessage == "router does not expose UPnP port mapping" ||
+                   natMessage == "router refused UPnP port mapping" ||
+                   natMessage == "local network address not found") {
+            m_natLabel->setText(tr("Public peer: unavailable"));
         } else {
             m_natLabel->setText(tr("Public peer: waiting - %1").arg(natMessage.isEmpty() ? tr("router did not map the port") : natMessage));
         }
