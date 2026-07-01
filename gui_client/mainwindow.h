@@ -160,6 +160,7 @@ private:
     QStringList m_pendingRequests;
     QStringList m_loadedDataPaths;
     int m_backendPort;
+    int m_accountRefreshTicks;
     bool m_backendStartBlocked;
     bool m_backendLockDetected;
     bool m_backendRestartPending;

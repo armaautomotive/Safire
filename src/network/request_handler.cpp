@@ -585,6 +585,18 @@ bool claim_public_name(std::vector<CFunctions::record_structure>& members,
   return true;
 }
 
+const CLedgerState::member_state* ledger_member_by_key(const CLedgerState::state& state, const std::string& public_key)
+{
+  for (int i = 0; i < state.members.size(); ++i)
+  {
+    if (state.members.at(i).public_key.compare(public_key) == 0)
+    {
+      return &state.members.at(i);
+    }
+  }
+  return 0;
+}
+
 std::vector<CFunctions::record_structure> accepted_membership_records(CBlockDB& block_db)
 {
   std::vector<CFunctions::record_structure> members;
@@ -1627,7 +1639,6 @@ std::string wallet_accounts_json(CBlockDB& block_db)
   CWallet wallet;
   std::vector<CWallet::account> accounts = wallet.listAccounts();
   std::string active_id = wallet.activeAccountId();
-  std::map<std::string, std::string> names = accepted_member_names(block_db);
   CLedgerState::state chain_state = CLedgerState::build(block_db);
 
   std::stringstream ss;
@@ -1641,17 +1652,20 @@ std::string wallet_accounts_json(CBlockDB& block_db)
       ss << ",";
     }
     CWallet::account account = accounts.at(i);
-    CLedgerState::state account_state = CLedgerState::build(block_db, account.public_key);
+    const CLedgerState::member_state* member = ledger_member_by_key(chain_state, account.public_key);
+    bool joined = member != 0;
+    bool activeHeartbeat = member != 0 && member->active;
+    long lastHeartbeatBlock = member != 0 ? member->last_heartbeat_block : -1;
     ss << "{";
     ss << "\"wallet_id\":\"" << json_escape(account.id) << "\",";
     ss << "\"label\":\"" << json_escape(account.label) << "\",";
     ss << "\"public_key\":\"" << json_escape(account.public_key) << "\",";
-    ss << "\"public_name\":\"" << json_escape(name_for_key(names, account.public_key)) << "\",";
+    ss << "\"public_name\":\"" << json_escape(name_for_key(chain_state.names, account.public_key)) << "\",";
     ss << "\"active\":\"" << (account.id.compare(active_id) == 0 ? "yes" : "no") << "\",";
     ss << "\"balance\":\"" << chain_state.balances[account.public_key] << "\",";
-    ss << "\"joined\":\"" << (account_state.joined ? "yes" : "no") << "\",";
-    ss << "\"active_heartbeat\":\"" << (account_state.active_heartbeat ? "yes" : "no") << "\",";
-    ss << "\"last_heartbeat_block\":\"" << account_state.last_heartbeat_block << "\"";
+    ss << "\"joined\":\"" << (joined ? "yes" : "no") << "\",";
+    ss << "\"active_heartbeat\":\"" << (activeHeartbeat ? "yes" : "no") << "\",";
+    ss << "\"last_heartbeat_block\":\"" << lastHeartbeatBlock << "\"";
     ss << "}";
   }
   ss << "]}";
@@ -2142,7 +2156,6 @@ void request_handler::handle_request(const request& req, reply& rep)
       text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\"}", "application/json");
       return;
     }
-    functions.scanChain(publicKey, false);
 
     long firstBlockId = blockDB.getFirstBlockId();
     long latestBlockId = blockDB.getLatestBlockId();
@@ -2165,15 +2178,13 @@ void request_handler::handle_request(const request& req, reply& rep)
     bool hasBestPeer = best_peer_status(localPeers, bestPeer);
     bool peerChainMatch = hasBestPeer ? local_chain_matches_peer(blockDB, bestPeer) : true;
     bool peerSync = synced_with_peer_latest(blockDB, latestBlockId, localPeers);
-    std::map<std::string, std::string> memberNames = accepted_member_names(blockDB);
-    std::vector<CFunctions::record_structure> acceptedMembers = accepted_membership_records(blockDB);
-    CLedgerState::state chainState = CLedgerState::build(blockDB);
-    std::map<std::string, double> ledgerBalances = chainState.balances;
+    CLedgerState::state chainState = CLedgerState::build(blockDB, publicKey);
+    std::map<std::string, std::string> memberNames = chainState.names;
     double ledgerBalanceTotal = chainState.ledger_balance_total;
     int pendingWalletRecordCount = 0;
     double pendingWalletDelta = pending_wallet_balance_delta(publicKey, pendingWalletRecordCount);
-    double estimatedWalletBalance = functions.balance + pendingWalletDelta;
-    double supplyDifference = ledgerBalanceTotal - functions.currency_circulation;
+    double estimatedWalletBalance = chainState.wallet_balance + pendingWalletDelta;
+    double supplyDifference = ledgerBalanceTotal - chainState.issued_supply;
     if (std::fabs(supplyDifference) < 0.000001)
     {
       supplyDifference = 0.0;
@@ -2210,20 +2221,20 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"next_block_creator_name\":\"" << json_escape(name_for_key(memberNames, nextCreator)) << "\",";
     ss << "\"next_block_creator_is_wallet\":\"" << (nextCreator.compare(publicKey) == 0 ? "yes" : "no") << "\",";
     ss << "\"seconds_until_next_block\":\"" << secondsUntilNextBlock << "\",";
-    ss << "\"balance\":\"" << functions.balance << "\",";
+    ss << "\"balance\":\"" << chainState.wallet_balance << "\",";
     ss << "\"pending_balance_delta\":\"" << pendingWalletDelta << "\",";
     ss << "\"estimated_balance\":\"" << estimatedWalletBalance << "\",";
     ss << "\"pending_wallet_records\":\"" << pendingWalletRecordCount << "\",";
     ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
-    ss << "\"joined\":\"" << (functions.joined ? "yes" : "no") << "\",";
-    ss << "\"active_heartbeat\":\"" << (functions.active_heartbeat ? "yes" : "no") << "\",";
-    ss << "\"heartbeat_renewal_due\":\"" << (functions.heartbeat_renewal_due ? "yes" : "no") << "\",";
-    ss << "\"last_heartbeat_block\":\"" << functions.last_heartbeat_block << "\",";
-    ss << "\"currency_supply\":\"" << functions.currency_circulation << "\",";
+    ss << "\"joined\":\"" << (chainState.joined ? "yes" : "no") << "\",";
+    ss << "\"active_heartbeat\":\"" << (chainState.active_heartbeat ? "yes" : "no") << "\",";
+    ss << "\"heartbeat_renewal_due\":\"" << (chainState.heartbeat_renewal_due ? "yes" : "no") << "\",";
+    ss << "\"last_heartbeat_block\":\"" << chainState.last_heartbeat_block << "\",";
+    ss << "\"currency_supply\":\"" << chainState.issued_supply << "\",";
     ss << "\"ledger_balance_total\":\"" << ledgerBalanceTotal << "\",";
     ss << "\"supply_difference\":\"" << supplyDifference << "\",";
-    ss << "\"user_count\":\"" << acceptedMembers.size() << "\",";
-    ss << "\"network_up_to_date\":\"" << (functions.IsChainUpToDate() ? "yes" : "no") << "\",";
+    ss << "\"user_count\":\"" << chainState.members.size() << "\",";
+    ss << "\"network_up_to_date\":\"" << (latestBlockId > -1 ? "yes" : "no") << "\",";
     ss << "\"peer_sync\":\"" << (peerSync ? "yes" : "no") << "\",";
     ss << "\"peer_latest_block_id\":\"" << peerLatestBlockId << "\",";
     ss << "\"peer_latest_block_hash\":\"" << json_escape(hasBestPeer ? bestPeer.latestBlockHash : "") << "\",";

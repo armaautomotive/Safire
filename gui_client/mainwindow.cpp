@@ -543,6 +543,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_pendingRequests(),
       m_loadedDataPaths(),
       m_backendPort(4899),
+      m_accountRefreshTicks(0),
       m_backendStartBlocked(false),
       m_backendLockDetected(false),
       m_backendRestartPending(false),
@@ -3867,7 +3868,12 @@ void MainWindow::refreshWalletStatus()
     }
 
     requestJson("/api/wallet/status");
-    requestJson("/api/wallet/accounts");
+    if (m_accountRefreshTicks <= 0) {
+        requestJson("/api/wallet/accounts");
+        m_accountRefreshTicks = 10;
+    } else {
+        --m_accountRefreshTicks;
+    }
 
     if (!m_contentStack) {
         return;
