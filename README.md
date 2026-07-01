@@ -86,6 +86,16 @@ Build, start, stop, and restart the server from SSH with the helper scripts:
 Logs are written to <code>logs/safire-server.log</code> and the PID is written to <code>run/safire-server.pid</code>.<br>
 Pass custom runtime arguments to start or restart if needed, for example <code>scripts/server-start.sh --node-port 4888 --enable-nat</code>.<br>
 
+<b>Distribution packaging:</b><br>
+Build local release artifacts with the packaging helpers:
+<br>
+<code>scripts/package-mac.sh</code> builds the core, builds the Qt wallet, embeds <code>bin/Safire</code> and <code>safire.conf</code> inside <code>Safire.app</code>, runs <code>macdeployqt</code> when available, then creates <code>dist/mac/Safire-mac-&lt;version&gt;.zip</code> and <code>dist/mac/Safire-mac-&lt;version&gt;.dmg</code>.<br>
+<code>scripts/package-linux.sh</code> builds a Linux/server tarball under <code>dist/linux</code> with the core binary, config, README, license, and server helper scripts.<br>
+For Developer ID signing and notarization on macOS, use:
+<br>
+<code>APPLE_SIGN_IDENTITY="Developer ID Application: Subject Reality Software (XSDMH4B293)" APPLE_NOTARY_PROFILE="safire-notary" scripts/package-mac.sh --sign --notarize</code><br>
+To upload artifacts after packaging, pass <code>--upload-target root@example.com:/var/www/download</code> or set <code>SAFIRE_UPLOAD_TARGET</code>.<br>
+
 <b>Windows:</b><br>
 Instructions for building on windows will be comming later.<br> 
 

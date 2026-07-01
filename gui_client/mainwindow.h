@@ -137,6 +137,9 @@ private:
     void requestJson(const QString &path);
     QString receiveAddress() const;
     QString coreBinaryPath() const;
+    QString bundledCoreBinaryPath() const;
+    QString bundledConfigFilePath() const;
+    QString runtimeDataDirectory() const;
     QString configFilePath() const;
     QString passwordHashFilePath() const;
     QString passwordHashFor(const QString &password) const;

@@ -39,6 +39,7 @@
 #include <QSizePolicy>
 #include <QStackedLayout>
 #include <QStackedWidget>
+#include <QStandardPaths>
 #include <QStyle>
 #include <QTimer>
 #include <QUrl>
@@ -2145,6 +2146,7 @@ QString MainWindow::coreBinaryPath() const
 
     QDir appDir(QCoreApplication::applicationDirPath());
     candidates << appDir.absoluteFilePath("../../../../bin/Safire");
+    candidates << bundledCoreBinaryPath();
 
     for (int i = 0; i < candidates.size(); ++i) {
         QFileInfo file(candidates.at(i));
@@ -2155,20 +2157,52 @@ QString MainWindow::coreBinaryPath() const
     return QString();
 }
 
-QString MainWindow::configFilePath() const
+QString MainWindow::bundledCoreBinaryPath() const
 {
+    QDir appDir(QCoreApplication::applicationDirPath());
+    return appDir.absoluteFilePath("../Resources/bin/Safire");
+}
+
+QString MainWindow::bundledConfigFilePath() const
+{
+    QDir appDir(QCoreApplication::applicationDirPath());
+    return appDir.absoluteFilePath("../Resources/safire.conf");
+}
+
+QString MainWindow::runtimeDataDirectory() const
+{
+    QFileInfo bundledCore(bundledCoreBinaryPath());
+    if (bundledCore.exists() && bundledCore.isExecutable() && bundledCore.isFile()) {
+        QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        if (path.isEmpty()) {
+            path = QDir::home().absoluteFilePath(".safire");
+        }
+        QDir dir(path);
+        dir.mkpath(".");
+
+        QString runtimeConfig = dir.absoluteFilePath("safire.conf");
+        if (!QFileInfo(runtimeConfig).exists() && QFileInfo(bundledConfigFilePath()).exists()) {
+            QFile::copy(bundledConfigFilePath(), runtimeConfig);
+        }
+        return dir.absolutePath();
+    }
+
     QString corePath = coreBinaryPath();
     if (!corePath.isEmpty()) {
         QFileInfo coreInfo(corePath);
-        return QDir(coreInfo.absoluteDir().absolutePath()).absoluteFilePath("../safire.conf");
+        return QDir(coreInfo.absoluteDir().absolutePath()).absoluteFilePath("..");
     }
-    return QDir::current().absoluteFilePath("safire.conf");
+    return QDir::currentPath();
+}
+
+QString MainWindow::configFilePath() const
+{
+    return QDir(runtimeDataDirectory()).absoluteFilePath("safire.conf");
 }
 
 QString MainWindow::passwordHashFilePath() const
 {
-    QDir appDir(QCoreApplication::applicationDirPath());
-    return appDir.absoluteFilePath("safire-gui-password.sha256");
+    return QDir(runtimeDataDirectory()).absoluteFilePath("safire-gui-password.sha256");
 }
 
 QString MainWindow::passwordHashFor(const QString &password) const
@@ -2327,8 +2361,7 @@ bool MainWindow::ensureBackendRunning()
         connect(m_terminalProcess, SIGNAL(errorOccurred(QProcess::ProcessError)), this, SLOT(terminalError(QProcess::ProcessError)));
     }
 
-    QFileInfo coreInfo(corePath);
-    m_terminalProcess->setWorkingDirectory(coreInfo.absoluteDir().absolutePath() + "/..");
+    m_terminalProcess->setWorkingDirectory(runtimeDataDirectory());
     QStringList args;
     args << "--api-port" << QString::number(m_backendPort);
     if (publicPeerModeEnabled()) {

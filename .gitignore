@@ -7,6 +7,7 @@
 *.zip
 /bin/Safire
 /build/
+/dist/
 /relay/simple-example
 
 # qmake generated files
