@@ -580,6 +580,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_userCountLabel(0),
       m_blockCountLabel(0),
       m_latestBlockRecordCountLabel(0),
+      m_mempoolRecordCountLabel(0),
       m_historyTable(0),
       m_historyLoadingRow(0),
       m_historyLoadingSpinner(0),
@@ -920,7 +921,9 @@ QWidget *MainWindow::createBalancePage()
     m_supplyDifferenceLabel = makeLabel(tr("Difference: -"), "Muted");
     networkInfoLayout->addWidget(m_supplyDifferenceLabel, 2, 2);
     m_latestBlockRecordCountLabel = makeLabel(tr("Latest records: -"), "Muted");
-    networkInfoLayout->addWidget(m_latestBlockRecordCountLabel, 3, 0, 1, 3);
+    networkInfoLayout->addWidget(m_latestBlockRecordCountLabel, 3, 0);
+    m_mempoolRecordCountLabel = makeLabel(tr("Mempool records: -"), "Muted");
+    networkInfoLayout->addWidget(m_mempoolRecordCountLabel, 3, 1, 1, 2);
 
     connect(m_joinNetworkButton, SIGNAL(clicked()), this, SLOT(joinNetwork()));
     connect(m_mainSendButton, SIGNAL(clicked()), this, SLOT(showSend()));
@@ -2491,6 +2494,7 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString pendingDelta = object.value("pending_balance_delta").toString();
     QString estimatedBalance = object.value("estimated_balance").toString();
     QString pendingWalletRecords = object.value("pending_wallet_records").toString();
+    QString mempoolRecordCount = object.value("mempool_record_count").toString();
     QString publicKey = object.value("public_key").toString();
     QString publicName = object.value("public_name").toString();
     QString joined = object.value("joined").toString();
@@ -2704,6 +2708,10 @@ void MainWindow::applyWalletStatus(const QString &json)
     if (m_latestBlockRecordCountLabel) {
         QString displayedRecordCount = latestBlockRecordCount.isEmpty() ? tr("-") : latestBlockRecordCount;
         m_latestBlockRecordCountLabel->setText(tr("Latest records: %1").arg(displayedRecordCount));
+    }
+    if (m_mempoolRecordCountLabel) {
+        QString displayedMempoolCount = mempoolRecordCount.isEmpty() ? tr("-") : mempoolRecordCount;
+        m_mempoolRecordCountLabel->setText(tr("Mempool records: %1").arg(displayedMempoolCount));
     }
 
     if (m_receiveAddressLabel && !publicKey.isEmpty()) {

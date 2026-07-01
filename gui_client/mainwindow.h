@@ -197,6 +197,7 @@ private:
     QLabel *m_userCountLabel;
     QLabel *m_blockCountLabel;
     QLabel *m_latestBlockRecordCountLabel;
+    QLabel *m_mempoolRecordCountLabel;
     QTableWidget *m_historyTable;
     QWidget *m_historyLoadingRow;
     LoadingSpinnerWidget *m_historyLoadingSpinner;

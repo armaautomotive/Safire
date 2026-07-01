@@ -1149,13 +1149,13 @@ std::map<std::string, double> accepted_ledger_balances(CBlockDB& block_db)
   return CLedgerState::build(block_db).balances;
 }
 
-double pending_wallet_balance_delta(const std::string& public_key, int& pending_record_count)
+double pending_wallet_balance_delta(const std::string& public_key,
+                                    const std::vector<CFunctions::record_structure>& records,
+                                    int& pending_record_count)
 {
   pending_record_count = 0;
   double delta = 0.0;
 
-  CFunctions functions;
-  std::vector<CFunctions::record_structure> records = functions.peekQueueRecords();
   for (int i = 0; i < records.size(); ++i)
   {
     CFunctions::record_structure record = records.at(i);
@@ -2255,8 +2255,11 @@ void request_handler::handle_request(const request& req, reply& rep)
     CLedgerState::state chainState = CLedgerState::build(blockDB, publicKey);
     std::map<std::string, std::string> memberNames = chainState.names;
     double ledgerBalanceTotal = chainState.ledger_balance_total;
+    CFunctions pendingFunctions;
+    std::vector<CFunctions::record_structure> pendingRecords = pendingFunctions.peekQueueRecords();
+    int mempoolRecordCount = pendingRecords.size();
     int pendingWalletRecordCount = 0;
-    double pendingWalletDelta = pending_wallet_balance_delta(publicKey, pendingWalletRecordCount);
+    double pendingWalletDelta = pending_wallet_balance_delta(publicKey, pendingRecords, pendingWalletRecordCount);
     double estimatedWalletBalance = chainState.wallet_balance + pendingWalletDelta;
     double supplyDifference = ledgerBalanceTotal - chainState.issued_supply;
     if (std::fabs(supplyDifference) < 0.000001)
@@ -2322,6 +2325,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"pending_balance_delta\":\"" << pendingWalletDelta << "\",";
     ss << "\"estimated_balance\":\"" << estimatedWalletBalance << "\",";
     ss << "\"pending_wallet_records\":\"" << pendingWalletRecordCount << "\",";
+    ss << "\"mempool_record_count\":\"" << mempoolRecordCount << "\",";
     ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
     ss << "\"joined\":\"" << (chainState.joined ? "yes" : "no") << "\",";
     ss << "\"active_heartbeat\":\"" << (chainState.active_heartbeat ? "yes" : "no") << "\",";
