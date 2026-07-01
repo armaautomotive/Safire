@@ -849,6 +849,8 @@ QWidget *MainWindow::createBalancePage()
     accountRow->setSpacing(8);
     m_accountCombo = new QComboBox;
     m_accountCombo->setMinimumWidth(260);
+    m_accountCombo->addItem(tr("Loading accounts..."), QString());
+    m_accountCombo->setEnabled(false);
     m_addAccountButton = createSecondaryButton(tr("Add Account"));
     accountRow->addWidget(m_accountCombo);
     accountRow->addWidget(m_addAccountButton);
@@ -2772,6 +2774,16 @@ void MainWindow::applyWalletAccounts(const QString &json)
 
     QString activeWalletId = object.value("active_wallet_id").toString();
     QJsonArray accounts = object.value("accounts").toArray();
+    if (accounts.isEmpty()) {
+        if (m_accountCombo->count() == 0) {
+            m_accountCombo->blockSignals(true);
+            m_accountCombo->addItem(tr("Loading accounts..."), QString());
+            m_accountCombo->blockSignals(false);
+            m_accountCombo->setEnabled(false);
+        }
+        return;
+    }
+
     QString previousWalletId = m_accountCombo->currentData().toString();
 
     m_loadingAccounts = true;
@@ -2803,6 +2815,7 @@ void MainWindow::applyWalletAccounts(const QString &json)
         m_accountCombo->setCurrentIndex(previousIndex);
     }
     m_accountCombo->blockSignals(false);
+    m_accountCombo->setEnabled(true);
     m_loadingAccounts = false;
 }
 
