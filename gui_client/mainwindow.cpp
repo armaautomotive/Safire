@@ -944,17 +944,18 @@ QWidget *MainWindow::createBalancePage()
     membershipLayout->setSpacing(6);
     membershipLayout->setColumnStretch(0, 1);
     membershipLayout->setColumnStretch(1, 1);
-    membershipLayout->addWidget(makeLabel(tr("Membership"), "SmallTitle"), 0, 0, 1, 2);
+    membershipLayout->setColumnStretch(2, 1);
+    membershipLayout->addWidget(makeLabel(tr("Membership"), "SmallTitle"), 0, 0, 1, 3);
     m_membershipJoinedLabel = makeLabel(tr("Joined: -"), "Muted");
     membershipLayout->addWidget(m_membershipJoinedLabel, 1, 0);
     m_membershipHeartbeatLabel = makeLabel(tr("Heartbeat: -"), "Muted");
     membershipLayout->addWidget(m_membershipHeartbeatLabel, 1, 1);
     m_membershipCreatorEligibleLabel = makeLabel(tr("Creator eligible: -"), "Muted");
-    membershipLayout->addWidget(m_membershipCreatorEligibleLabel, 2, 0, 1, 2);
+    membershipLayout->addWidget(m_membershipCreatorEligibleLabel, 1, 2, Qt::AlignRight | Qt::AlignVCenter);
     m_currentCreatorLabel = makeLabel(tr("Current block: -"), "Muted");
-    membershipLayout->addWidget(m_currentCreatorLabel, 3, 0);
+    membershipLayout->addWidget(m_currentCreatorLabel, 2, 0);
     m_nextCreatorLabel = makeLabel(tr("Next block: -"), "Muted");
-    membershipLayout->addWidget(m_nextCreatorLabel, 3, 1, Qt::AlignRight | Qt::AlignVCenter);
+    membershipLayout->addWidget(m_nextCreatorLabel, 2, 1, 1, 2, Qt::AlignRight | Qt::AlignVCenter);
 
     layout->addWidget(summary);
     layout->addWidget(networkPanel);
