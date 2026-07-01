@@ -809,6 +809,14 @@ CFunctions::block_structure CBlockDB::getNextBlockByHash(CFunctions::block_struc
         return nextBlock;
     }
 
+    long nextId = getNextBlockId(block.number);
+    if(nextId > 0){
+        nextBlock = getBlock(nextId);
+        if(nextBlock.number > 0 && childConnectsToParent(nextBlock, block)){
+            return nextBlock;
+        }
+    }
+
     std::vector<CFunctions::block_structure> blocks = getStoredBlocks();
     for(int i = 0; i < blocks.size(); i++){
         CFunctions::block_structure candidate = blocks.at(i);

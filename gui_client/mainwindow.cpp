@@ -22,10 +22,12 @@
 #include <QLineEdit>
 #include <QLinearGradient>
 #include <QList>
+#include <QMap>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QTcpSocket>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPen>
@@ -244,6 +246,208 @@ protected:
 private:
     QTimer m_timer;
     int m_angle;
+};
+
+class BlockActivityWidget : public QWidget
+{
+public:
+    explicit BlockActivityWidget(QWidget *parent = 0)
+        : QWidget(parent),
+          m_expectedLatestBlock(-1),
+          m_firstBlock(-1),
+          m_epochSizeBlocks(0)
+    {
+        setMinimumHeight(42);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+
+    void setBlocks(const QJsonArray &blocks)
+    {
+        m_blocks = blocks;
+        setToolTip(summaryText());
+        update();
+    }
+
+    void setChainContext(qint64 expectedLatestBlock, qint64 firstBlock, int epochSizeBlocks)
+    {
+        m_expectedLatestBlock = expectedLatestBlock;
+        m_firstBlock = firstBlock;
+        m_epochSizeBlocks = epochSizeBlocks;
+        setToolTip(summaryText());
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event)
+    {
+        QWidget::paintEvent(event);
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        QRectF plot = rect().adjusted(0, 6, 0, -6);
+        painter.setPen(QPen(QColor("#c8d9dc"), 1));
+        painter.setBrush(QColor("#edf4f5"));
+        painter.drawRoundedRect(plot, 6, 6);
+
+        if (m_blocks.isEmpty()) {
+            painter.setPen(QColor("#6b7e84"));
+            painter.drawText(plot, Qt::AlignCenter, QObject::tr("No recent block data yet"));
+            return;
+        }
+
+        QMap<qint64, QJsonObject> blocksByNumber;
+        qint64 latest = collectBlocks(blocksByNumber);
+
+        if (latest < 0) {
+            painter.setPen(QColor("#6b7e84"));
+            painter.drawText(plot, Qt::AlignCenter, QObject::tr("No recent block data yet"));
+            return;
+        }
+
+        const int slotCount = 20;
+        const qreal gap = 3.0;
+        qreal width = (plot.width() - (gap * (slotCount - 1))) / slotCount;
+        if (width < 3.0) {
+            width = 3.0;
+        }
+        qint64 visibleLatest = visibleLatestBlock(latest);
+        qint64 firstSlot = visibleLatest - slotCount + 1;
+
+        for (int i = 0; i < slotCount; ++i) {
+            qint64 number = firstSlot + i;
+            QRectF bar(plot.left() + i * (width + gap), plot.top() + 4, width, plot.height() - 8);
+            QJsonObject block = blocksByNumber.value(number);
+            bool missing = block.isEmpty();
+            bool expectedMissing = missing && number > latest && m_expectedLatestBlock >= number;
+            int recordCount = block.value("record_count").toString().toInt();
+            QString networkStatus = block.value("network_status").toString();
+
+            QColor fill = colorForBlock(recordCount, networkStatus, missing, expectedMissing);
+            painter.setPen(QPen(fill.darker(112), 1));
+            painter.setBrush(fill);
+            painter.drawRoundedRect(bar, 3, 3);
+
+            if (expectedMissing) {
+                painter.setPen(QPen(QColor("#b7791f"), 1, Qt::DashLine));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawRoundedRect(bar.adjusted(2, 2, -2, -2), 2, 2);
+            }
+
+            if (isEpochBoundary(number)) {
+                qreal x = i == 0 ? bar.left() : bar.left() - (gap / 2.0);
+                painter.setPen(QPen(QColor("#0f5963"), 2));
+                painter.drawLine(QPointF(x, plot.top() + 1), QPointF(x, plot.bottom() - 1));
+            }
+
+            if (!missing && width >= 18.0) {
+                painter.setPen(recordCount >= 3 || networkStatus == "mismatch" ? QColor("#ffffff") : QColor("#17454d"));
+                QFont font = painter.font();
+                font.setBold(true);
+                font.setPointSize(8);
+                painter.setFont(font);
+                painter.drawText(bar, Qt::AlignCenter, QString::number(recordCount));
+            }
+        }
+    }
+
+private:
+    qint64 collectBlocks(QMap<qint64, QJsonObject> &blocksByNumber) const
+    {
+        qint64 latest = -1;
+        for (int i = 0; i < m_blocks.size(); ++i) {
+            QJsonObject block = m_blocks.at(i).toObject();
+            bool numberOk = false;
+            qint64 number = block.value("number").toString().toLongLong(&numberOk);
+            if (!numberOk) {
+                continue;
+            }
+            blocksByNumber.insert(number, block);
+            latest = qMax(latest, number);
+        }
+        return latest;
+    }
+
+    bool isEpochBoundary(qint64 blockNumber) const
+    {
+        if (m_firstBlock <= 0 || m_epochSizeBlocks <= 0 || blockNumber <= m_firstBlock) {
+            return false;
+        }
+        return ((blockNumber - m_firstBlock) % m_epochSizeBlocks) == 0;
+    }
+
+    qint64 visibleLatestBlock(qint64 latest) const
+    {
+        if (latest < 0) {
+            return m_expectedLatestBlock;
+        }
+        return qMax(latest, m_expectedLatestBlock);
+    }
+
+    QColor colorForBlock(int recordCount, const QString &networkStatus, bool missing, bool expectedMissing) const
+    {
+        if (expectedMissing) {
+            return QColor("#fff5dc");
+        }
+        if (missing) {
+            return QColor("#f3f7f8");
+        }
+        if (networkStatus == "mismatch") {
+            return QColor("#b3261e");
+        }
+        if (networkStatus == "ahead") {
+            return QColor("#b7791f");
+        }
+        if (recordCount <= 0) {
+            return QColor("#d6eef0");
+        }
+        if (recordCount == 1) {
+            return QColor("#8bc5ca");
+        }
+        if (recordCount <= 3) {
+            return QColor("#3f9aa3");
+        }
+        return QColor("#166b76");
+    }
+
+    QString summaryText() const
+    {
+        if (m_blocks.isEmpty()) {
+            return QObject::tr("Latest block activity: no recent block data yet.");
+        }
+
+        int missing = 0;
+        int totalRecords = 0;
+        QMap<qint64, QJsonObject> blocksByNumber;
+        qint64 latest = collectBlocks(blocksByNumber);
+        if (latest < 0) {
+            return QObject::tr("Latest block activity: no recent block data yet.");
+        }
+
+        const int slotCount = 20;
+        qint64 visibleLatest = visibleLatestBlock(latest);
+        qint64 firstSlot = visibleLatest - slotCount + 1;
+        for (int i = 0; i < slotCount; ++i) {
+            QJsonObject block = blocksByNumber.value(firstSlot + i);
+            if (block.isEmpty()) {
+                ++missing;
+            } else {
+                totalRecords += block.value("record_count").toString().toInt();
+            }
+        }
+
+        return QObject::tr("Latest block activity: last %1 slots ending at expected block %2, latest stored block %3, %4 records, %5 missing slots. Dark dividers mark epoch boundaries.")
+            .arg(slotCount)
+            .arg(visibleLatest)
+            .arg(latest)
+            .arg(totalRecords)
+            .arg(missing);
+    }
+
+    QJsonArray m_blocks;
+    qint64 m_expectedLatestBlock;
+    qint64 m_firstBlock;
+    int m_epochSizeBlocks;
 };
 
 class HistoryChartWidget : public QWidget
@@ -583,6 +787,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_blockCountLabel(0),
       m_latestBlockRecordCountLabel(0),
       m_mempoolRecordCountLabel(0),
+      m_blockActivity(0),
       m_historyTable(0),
       m_historyLoadingRow(0),
       m_historyLoadingSpinner(0),
@@ -644,7 +849,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_accountsTable(0),
       m_lastSyncProgress(-1.0),
       m_lastSyncLatestBlock(-1),
-      m_lastSyncSampleMs(0)
+      m_lastSyncSampleMs(0),
+      m_blockActivityLatestBlock(-1)
 {
     setWindowTitle(tr("Safire Wallet"));
     resize(1120, 720);
@@ -886,12 +1092,10 @@ QWidget *MainWindow::createBalancePage()
     m_mainSendButton = createPrimaryButton(tr("Send"));
     QPushButton *receiveNow = createSecondaryButton(tr("Receive"));
     QPushButton *historyNow = createSecondaryButton(tr("History"));
-    QPushButton *setNameNow = createSecondaryButton(tr("Set Name"));
     actions->addWidget(m_joinNetworkButton);
     actions->addWidget(m_mainSendButton);
     actions->addWidget(receiveNow);
     actions->addWidget(historyNow);
-    actions->addWidget(setNameNow);
     actions->addStretch();
     summaryLayout->addLayout(actions, 4, 0, 1, 2);
 
@@ -942,49 +1146,51 @@ QWidget *MainWindow::createBalancePage()
     networkInfoLayout->addWidget(m_latestBlockRecordCountLabel, 3, 0);
     m_mempoolRecordCountLabel = makeLabel(tr("Mempool records: -"), "Muted");
     networkInfoLayout->addWidget(m_mempoolRecordCountLabel, 3, 1, 1, 2);
+    networkInfoLayout->addWidget(makeLabel(tr("Latest block activity"), "Muted"), 4, 0, 1, 3);
+    m_blockActivity = new BlockActivityWidget;
+    networkInfoLayout->addWidget(m_blockActivity, 5, 0, 1, 3);
 
     connect(m_joinNetworkButton, SIGNAL(clicked()), this, SLOT(joinNetwork()));
     connect(m_mainSendButton, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(m_accountCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(switchWalletAccount(int)));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(historyNow, SIGNAL(clicked()), this, SLOT(showHistory()));
-    connect(setNameNow, SIGNAL(clicked()), this, SLOT(setWalletName()));
 
     QFrame *membershipPanel = makePanel("AccountCard");
     QVBoxLayout *membershipLayout = new QVBoxLayout(membershipPanel);
     membershipLayout->setContentsMargins(16, 14, 16, 14);
     membershipLayout->setSpacing(8);
-    membershipLayout->addWidget(makeLabel(tr("Membership"), "SmallTitle"));
+    membershipLayout->addWidget(createSectionTitle(tr("Membership")));
 
-    QHBoxLayout *membershipStatusRow = new QHBoxLayout;
-    membershipStatusRow->setContentsMargins(0, 0, 0, 0);
-    membershipStatusRow->setSpacing(28);
+    QGridLayout *membershipGrid = new QGridLayout;
+    membershipGrid->setContentsMargins(0, 0, 0, 0);
+    membershipGrid->setHorizontalSpacing(42);
+    membershipGrid->setVerticalSpacing(8);
+    membershipGrid->setColumnStretch(0, 1);
+    membershipGrid->setColumnStretch(1, 1);
+
+    QHBoxLayout *membershipStatusLeft = new QHBoxLayout;
+    membershipStatusLeft->setContentsMargins(0, 0, 0, 0);
+    membershipStatusLeft->setSpacing(36);
     m_membershipJoinedLabel = makeLabel(tr("Joined: -"), "Muted");
     m_membershipHeartbeatLabel = makeLabel(tr("Heartbeat: -"), "Muted");
     m_membershipCreatorEligibleLabel = makeLabel(tr("Creator eligible: -"), "Muted");
-    m_membershipJoinedLabel->setMinimumWidth(130);
+    m_membershipJoinedLabel->setMinimumWidth(120);
     m_membershipHeartbeatLabel->setMinimumWidth(150);
-    m_membershipCreatorEligibleLabel->setMinimumWidth(520);
     m_membershipCreatorEligibleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    membershipStatusRow->addWidget(m_membershipJoinedLabel);
-    membershipStatusRow->addWidget(m_membershipHeartbeatLabel);
-    membershipStatusRow->addWidget(m_membershipCreatorEligibleLabel, 1);
-    membershipStatusRow->addStretch();
-    membershipLayout->addLayout(membershipStatusRow);
+    membershipStatusLeft->addWidget(m_membershipJoinedLabel);
+    membershipStatusLeft->addWidget(m_membershipHeartbeatLabel);
+    membershipStatusLeft->addStretch();
+    membershipGrid->addLayout(membershipStatusLeft, 0, 0);
+    membershipGrid->addWidget(m_membershipCreatorEligibleLabel, 0, 1);
 
-    QHBoxLayout *membershipBlockRow = new QHBoxLayout;
-    membershipBlockRow->setContentsMargins(0, 0, 0, 0);
-    membershipBlockRow->setSpacing(34);
     m_currentCreatorLabel = makeLabel(tr("Current block: -"), "Muted");
     m_nextCreatorLabel = makeLabel(tr("Next block: -"), "Muted");
-    m_currentCreatorLabel->setMinimumWidth(330);
-    m_nextCreatorLabel->setMinimumWidth(430);
     m_currentCreatorLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_nextCreatorLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    membershipBlockRow->addWidget(m_currentCreatorLabel, 1);
-    membershipBlockRow->addWidget(m_nextCreatorLabel, 1);
-    membershipBlockRow->addStretch();
-    membershipLayout->addLayout(membershipBlockRow);
+    membershipGrid->addWidget(m_currentCreatorLabel, 1, 0);
+    membershipGrid->addWidget(m_nextCreatorLabel, 1, 1);
+    membershipLayout->addLayout(membershipGrid);
 
     layout->addWidget(summary);
     layout->addWidget(networkPanel);
@@ -2488,6 +2694,24 @@ bool MainWindow::saveBlockCreatorMode(bool enabled) const
 
 bool MainWindow::ensureBackendRunning()
 {
+    QTcpSocket probe;
+    probe.connectToHost("127.0.0.1", m_backendPort);
+    if (probe.waitForConnected(120)) {
+        probe.disconnectFromHost();
+        m_backendStartBlocked = false;
+        m_backendLockDetected = false;
+        if (m_terminalStatusLabel) {
+            m_terminalStatusLabel->setText(tr("External"));
+        }
+        if (m_terminalStartButton) {
+            m_terminalStartButton->setEnabled(false);
+        }
+        if (m_terminalStopButton) {
+            m_terminalStopButton->setEnabled(false);
+        }
+        return true;
+    }
+
     if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
         return true;
     }
@@ -2651,6 +2875,7 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString sync = object.value("network_up_to_date").toString();
     QString peerSync = object.value("peer_sync").toString();
     QString peerChainMatch = object.value("peer_chain_match").toString();
+    QString firstBlock = object.value("first_block_id").toString();
     QString latestBlock = object.value("latest_block_id").toString();
     QString latestBlockTime = object.value("latest_block_time").toString();
     QString latestBlockRecordCount = object.value("latest_block_record_count").toString();
@@ -2673,6 +2898,8 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString creatorEligibilityCheckpoint = object.value("creator_eligibility_checkpoint_block").toString();
     QString creatorEligibilityEtaBlock = object.value("creator_eligibility_eta_block").toString();
     QString creatorEligibilityEtaSeconds = object.value("creator_eligibility_eta_seconds").toString();
+    QString currentBlockId = object.value("current_block_id").toString();
+    QString epochSizeBlocks = object.value("epoch_size_blocks").toString();
     QString currentCreator = object.value("current_block_creator").toString();
     QString currentCreatorName = object.value("current_block_creator_name").toString();
     QString currentCreatorIsWallet = object.value("current_block_creator_is_wallet").toString();
@@ -2703,8 +2930,24 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
     bool latestBlockNumberOk = false;
     qint64 latestBlockNumber = latestBlock.toLongLong(&latestBlockNumberOk);
+    bool firstBlockNumberOk = false;
+    qint64 firstBlockNumber = firstBlock.toLongLong(&firstBlockNumberOk);
+    bool currentBlockNumberOk = false;
+    qint64 currentBlockNumber = currentBlockId.toLongLong(&currentBlockNumberOk);
+    bool epochSizeOk = false;
+    int epochSize = epochSizeBlocks.toInt(&epochSizeOk);
     bool peerLatestBlockNumberOk = false;
     qint64 peerLatestBlockNumber = peerLatestBlock.toLongLong(&peerLatestBlockNumberOk);
+    if (m_blockActivity) {
+        qint64 expectedLatestBlock = currentBlockNumberOk ? currentBlockNumber : latestBlockNumber;
+        m_blockActivity->setChainContext(expectedLatestBlock,
+                                         firstBlockNumberOk ? firstBlockNumber : -1,
+                                         epochSizeOk ? epochSize : 0);
+    }
+    if (latestBlockNumberOk && latestBlockNumber > 0 && latestBlockNumber != m_blockActivityLatestBlock) {
+        m_blockActivityLatestBlock = latestBlockNumber;
+        requestJson("/api/blockchain/recent");
+    }
 
     if (m_balanceLabel) {
         m_balanceLabel->setText(tr("%1 SFR").arg(formatSfrValue(balance)));
@@ -3331,14 +3574,15 @@ void MainWindow::renderBlockchainPage()
 
 void MainWindow::applyBlockchain(const QString &json)
 {
-    if (!m_blockchainTable) {
-        return;
-    }
-
     QJsonParseError parseError;
     QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        m_blockchainTable->setRowCount(0);
+        if (m_blockActivity) {
+            m_blockActivity->setBlocks(QJsonArray());
+        }
+        if (m_blockchainTable) {
+            m_blockchainTable->setRowCount(0);
+        }
         m_blockchainBlocks = QJsonArray();
         m_blockchainPage = 0;
         renderBlockchainPage();
@@ -3347,7 +3591,12 @@ void MainWindow::applyBlockchain(const QString &json)
 
     QJsonObject object = document.object();
     if (object.value("status").toString() != "ok") {
-        m_blockchainTable->setRowCount(0);
+        if (m_blockActivity) {
+            m_blockActivity->setBlocks(QJsonArray());
+        }
+        if (m_blockchainTable) {
+            m_blockchainTable->setRowCount(0);
+        }
         m_blockchainBlocks = QJsonArray();
         m_blockchainPage = 0;
         renderBlockchainPage();
@@ -3356,6 +3605,12 @@ void MainWindow::applyBlockchain(const QString &json)
 
     QString selectedKey = selectedBlockchainBlockKey();
     m_blockchainBlocks = object.value("blocks").toArray();
+    if (m_blockActivity) {
+        m_blockActivity->setBlocks(m_blockchainBlocks);
+    }
+    if (!m_blockchainTable) {
+        return;
+    }
     if (!selectedKey.isEmpty()) {
         const int pageSize = 10;
         for (int i = 0; i < m_blockchainBlocks.size(); ++i) {

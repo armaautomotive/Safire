@@ -7,6 +7,7 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <csignal>
 #include "utilstrencodings.h"
 #include "global.h"
 #include "network/relayclient.h"
@@ -56,6 +57,12 @@
 using namespace std;
 
 volatile bool buildingBlocks = true;
+static volatile std::sig_atomic_t g_shutdown_requested = 0;
+
+static void requestShutdown(int)
+{
+    g_shutdown_requested = 1;
+}
 
 static std::string getArgValue(int argc, char* argv[], const std::string& name){
     for(int i = 1; i + 1 < argc; i++){
@@ -380,9 +387,21 @@ int main(int argc, char* argv[])
     std::thread heartbeatThread(&CHeartbeat::heartbeatThread, heartbeat, argc, argv);
     std::thread carryforwardThread(&CCarryforward::carryforwardThread, carryforward, argc, argv);
     
-    CCLI cli;
-    std::cout << std::endl; // Line break
-    cli.processUserInput();    
+    bool headlessMode = hasArg(argc, argv, "--headless") ||
+        hasArg(argc, argv, "--no-cli") ||
+        hasArg(argc, argv, "headless");
+    if(headlessMode){
+        std::signal(SIGINT, requestShutdown);
+        std::signal(SIGTERM, requestShutdown);
+        std::cout << " Headless mode.          [on] " << std::endl;
+        while(g_shutdown_requested == 0){
+            usleep(500000);
+        }
+    } else {
+        CCLI cli;
+        std::cout << std::endl; // Line break
+        cli.processUserInput();
+    }
 
     std::cout << "Shutting down... " << std::endl;
     CLocalPeerClient::stop();

@@ -15,10 +15,12 @@
 #include <cstdlib>
 #include <deque>
 #include <fstream>
+#include <atomic>
 #include <map>
 #include <set>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 #include <boost/lexical_cast.hpp>
 #include <curl/curl.h>
@@ -45,6 +47,7 @@ namespace {
 
 const double API_DEFAULT_TRANSACTION_FEE = 0.0;
 const char* HANDOFF_FILE = "handoff.dat";
+std::atomic<bool> api_sync_in_progress(false);
 
 size_t request_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -992,7 +995,7 @@ std::string recent_blockchain_json(CBlockDB& block_db)
     ++guard;
   }
 
-  std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses(true);
+  std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
   CLocalPeerClient::peer_status best_peer;
   bool has_best_peer = best_peer_status(peers, best_peer);
   CFunctions::block_structure local_tip = block_db.getBlock(latest_block_id);
@@ -1559,6 +1562,28 @@ std::string sync_peers_json()
   return ss.str();
 }
 
+std::string start_sync_peers_json()
+{
+  bool expected = false;
+  if (api_sync_in_progress.compare_exchange_strong(expected, true) == false)
+  {
+    return "{\"status\":\"ok\",\"sync_running\":\"yes\",\"message\":\"Peer sync is already running.\"}";
+  }
+
+  std::thread([](){
+    try
+    {
+      sync_peers_json();
+    }
+    catch (...)
+    {
+    }
+    api_sync_in_progress.store(false);
+  }).detach();
+
+  return "{\"status\":\"ok\",\"sync_started\":\"yes\",\"sync_running\":\"yes\",\"message\":\"Peer sync started.\"}";
+}
+
 std::string wallet_history_json(CBlockDB& block_db, const std::string& public_key)
 {
   long first_block_id = block_db.getFirstBlockId();
@@ -1702,7 +1727,7 @@ std::string exchange_status_json(CBlockDB& block_db)
   CFunctions::block_structure latest_block = block_db.getBlock(latest_block_id);
   CNetworkConfig config = CNetworkConfig::load();
   CNetworkTime net_time;
-  std::vector<CLocalPeerClient::peer_status> local_peers = CLocalPeerClient::getPeerStatuses(true);
+  std::vector<CLocalPeerClient::peer_status> local_peers = CLocalPeerClient::getPeerStatuses();
   CLocalPeerClient::peer_status best_peer;
   bool has_best_peer = best_peer_status(local_peers, best_peer);
   bool peer_chain_match = has_best_peer ? local_chain_matches_peer(block_db, best_peer) : true;
@@ -2015,7 +2040,7 @@ std::string admin_command_json(CBlockDB& block_db, const std::string& command)
   }
   else if (normalized == "sync")
   {
-    payload = sync_peers_json();
+    payload = start_sync_peers_json();
   }
   else if (normalized == "mempool")
   {
@@ -2342,7 +2367,7 @@ void request_handler::handle_request(const request& req, reply& rep)
 
   if (request_path == "/api/sync" || (req.method == "POST" && request_path == "/api/sync"))
   {
-    text_reply(rep, reply::ok, sync_peers_json(), "application/json");
+    text_reply(rep, reply::ok, start_sync_peers_json(), "application/json");
     return;
   }
 
@@ -2456,7 +2481,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     CNetworkConfig config = CNetworkConfig::load();
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CNetworkTime netTime;
-    std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses(true);
+    std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
     CNatMapper::status natStatus = CNatMapper::currentStatus();
     long peerLatestBlockId = best_peer_latest_block_id(localPeers);
     CLocalPeerClient::peer_status bestPeer;

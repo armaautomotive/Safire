@@ -24,6 +24,7 @@ class QCloseEvent;
 class PeerMapWidget;
 class HistoryChartWidget;
 class LoadingSpinnerWidget;
+class BlockActivityWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -206,6 +207,7 @@ private:
     QLabel *m_blockCountLabel;
     QLabel *m_latestBlockRecordCountLabel;
     QLabel *m_mempoolRecordCountLabel;
+    BlockActivityWidget *m_blockActivity;
     QTableWidget *m_historyTable;
     QWidget *m_historyLoadingRow;
     LoadingSpinnerWidget *m_historyLoadingSpinner;
@@ -268,6 +270,7 @@ private:
     double m_lastSyncProgress;
     qint64 m_lastSyncLatestBlock;
     qint64 m_lastSyncSampleMs;
+    qint64 m_blockActivityLatestBlock;
 };
 
 #endif // MAINWINDOW_H
