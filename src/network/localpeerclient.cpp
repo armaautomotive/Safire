@@ -400,8 +400,11 @@ int storeParsedBlocks(const std::vector<CFunctions::block_structure>& blocks, bo
         if (blocks.at(i).number <= 0 || blocks.at(i).hash.empty()) {
             continue;
         }
-        changed = storeBlock(blocks.at(i)) || changed;
-        ++storedCount;
+        bool stored = storeBlock(blocks.at(i));
+        changed = stored || changed;
+        if (stored) {
+            ++storedCount;
+        }
     }
     return storedCount;
 }

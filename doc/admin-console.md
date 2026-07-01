@@ -27,6 +27,7 @@ Allowed commands are intentionally limited:
 ```text
 status
 network
+sync
 users
 mempool
 blockchain
@@ -36,6 +37,9 @@ accounts
 ```
 
 The endpoint does not execute arbitrary shell or console input.
+
+`sync` triggers one local peer sync pass and returns before/after block heights
+for each configured peer.
 
 ## Remote Server Use
 

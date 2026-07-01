@@ -1313,6 +1313,47 @@ std::string peers_json(CBlockDB& block_db)
   return ss.str();
 }
 
+std::string sync_peers_json()
+{
+  std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
+  CLocalPeerClient::syncNetworkTime();
+  CNetworkTime netTime;
+
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"network_time_offset\":\"" << netTime.getOffset() << "\",";
+  ss << "\"peers\":[";
+  for (int i = 0; i < localPeers.size(); ++i)
+  {
+    CBlockDB blockDB;
+    long before = blockDB.getLatestBlockId();
+    long peerBefore = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
+    bool pulled = CLocalPeerClient::syncFromPeer(localPeers.at(i));
+    CLocalPeerClient::push_result pushResult = CLocalPeerClient::pushToPeerDetailed(localPeers.at(i));
+    long after = blockDB.getLatestBlockId();
+    long peerAfter = CLocalPeerClient::getPeerLatestBlockId(localPeers.at(i));
+
+    if (i > 0)
+    {
+      ss << ",";
+    }
+    ss << "{";
+    ss << "\"url\":\"" << json_escape(localPeers.at(i)) << "\",";
+    ss << "\"local_latest_before\":\"" << before << "\",";
+    ss << "\"local_latest_after\":\"" << after << "\",";
+    ss << "\"peer_latest_before\":\"" << peerBefore << "\",";
+    ss << "\"peer_latest_after\":\"" << peerAfter << "\",";
+    ss << "\"pulled\":\"" << (pulled ? "yes" : "no") << "\",";
+    ss << "\"candidate_blocks\":\"" << pushResult.candidateBlocks << "\",";
+    ss << "\"pushed_blocks\":\"" << pushResult.pushedBlocks << "\",";
+    ss << "\"failed_block\":\"" << pushResult.failedBlockId << "\",";
+    ss << "\"response\":\"" << json_escape(pushResult.response) << "\"";
+    ss << "}";
+  }
+  ss << "]}";
+  return ss.str();
+}
+
 std::string wallet_history_json(CBlockDB& block_db, const std::string& public_key)
 {
   long first_block_id = block_db.getFirstBlockId();
@@ -1690,7 +1731,7 @@ std::string admin_page_html()
     </section>
   </main>
   <script>
-    const safeCommands = ["status","network","users","mempool","blockchain","peers","exchange","accounts"];
+    const safeCommands = ["status","network","sync","users","mempool","blockchain","peers","exchange","accounts"];
     const $ = id => document.getElementById(id);
     const short = v => !v ? "-" : (v.length > 22 ? v.slice(0,12) + "..." + v.slice(-6) : v);
     const fmt = v => (v === undefined || v === null || v === "") ? "-" : String(Number(v)).replace(/\.?0+$/,"");
@@ -1759,6 +1800,10 @@ std::string admin_command_json(CBlockDB& block_db, const std::string& command)
   {
     payload = network_users_json(block_db);
   }
+  else if (normalized == "sync")
+  {
+    payload = sync_peers_json();
+  }
   else if (normalized == "mempool")
   {
     payload = mempool_json();
@@ -1777,7 +1822,7 @@ std::string admin_command_json(CBlockDB& block_db, const std::string& command)
   }
   else
   {
-    return "{\"status\":\"error\",\"message\":\"Unsupported admin command. Allowed: status, network, users, mempool, blockchain, peers, exchange, accounts.\"}";
+    return "{\"status\":\"error\",\"message\":\"Unsupported admin command. Allowed: status, network, sync, users, mempool, blockchain, peers, exchange, accounts.\"}";
   }
 
   std::stringstream ss;
@@ -2022,6 +2067,12 @@ void request_handler::handle_request(const request& req, reply& rep)
   if (request_path == "/api/peers")
   {
     text_reply(rep, reply::ok, peers_json(blockDB), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/sync" || (req.method == "POST" && request_path == "/api/sync"))
+  {
+    text_reply(rep, reply::ok, sync_peers_json(), "application/json");
     return;
   }
 
