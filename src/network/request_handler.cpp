@@ -992,7 +992,7 @@ std::string recent_blockchain_json(CBlockDB& block_db)
     ++guard;
   }
 
-  std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
+  std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses(true);
   CLocalPeerClient::peer_status best_peer;
   bool has_best_peer = best_peer_status(peers, best_peer);
   CFunctions::block_structure local_tip = block_db.getBlock(latest_block_id);
@@ -1509,7 +1509,7 @@ std::string exchange_status_json(CBlockDB& block_db)
   CFunctions::block_structure latest_block = block_db.getBlock(latest_block_id);
   CNetworkConfig config = CNetworkConfig::load();
   CNetworkTime net_time;
-  std::vector<CLocalPeerClient::peer_status> local_peers = CLocalPeerClient::getPeerStatuses();
+  std::vector<CLocalPeerClient::peer_status> local_peers = CLocalPeerClient::getPeerStatuses(true);
   CLocalPeerClient::peer_status best_peer;
   bool has_best_peer = best_peer_status(local_peers, best_peer);
   bool peer_chain_match = has_best_peer ? local_chain_matches_peer(block_db, best_peer) : true;
@@ -2171,7 +2171,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     CNetworkConfig config = CNetworkConfig::load();
     CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
     CNetworkTime netTime;
-    std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses();
+    std::vector<CLocalPeerClient::peer_status> localPeers = CLocalPeerClient::getPeerStatuses(true);
     CNatMapper::status natStatus = CNatMapper::currentStatus();
     long peerLatestBlockId = best_peer_latest_block_id(localPeers);
     CLocalPeerClient::peer_status bestPeer;

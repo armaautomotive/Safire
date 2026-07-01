@@ -804,15 +804,24 @@ std::vector<std::string> CLocalPeerClient::getPeers()
     return peers;
 }
 
-std::vector<CLocalPeerClient::peer_status> CLocalPeerClient::getPeerStatuses()
+std::vector<CLocalPeerClient::peer_status> CLocalPeerClient::getPeerStatuses(bool refresh)
 {
     std::vector<peer_status> statuses;
+    bool changed = false;
     for (int i = 0; i < peers.size(); ++i) {
         std::string peer = peers.at(i);
         if (peerStatuses.find(peer) == peerStatuses.end()) {
             peerStatuses[peer] = emptyPeerStatus(peer);
         }
+        if (refresh) {
+            peer_status status = statusFromPeer(peer);
+            mergePeerStatus(peerStatuses[peer], status);
+            changed = true;
+        }
         statuses.push_back(peerStatuses[peer]);
+    }
+    if (changed) {
+        savePeerCache();
     }
     return statuses;
 }

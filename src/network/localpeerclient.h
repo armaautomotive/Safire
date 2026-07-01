@@ -43,7 +43,7 @@ public:
     static bool addPeer(const std::string& peerUrl, bool persist = true);
     static bool addVerifiedPeer(const std::string& peerUrl, bool persist = true);
     static std::vector<std::string> getPeers();
-    static std::vector<peer_status> getPeerStatuses();
+    static std::vector<peer_status> getPeerStatuses(bool refresh = false);
     static void discoverPeers();
     static void announceToPeers();
     static void stop();
