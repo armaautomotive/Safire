@@ -1221,7 +1221,11 @@ bool selected_wallet_keys(const request& req,
   }
   if (wallet_id.length() > 0)
   {
-    return wallet.readAccount(wallet_id, private_key, public_key);
+    if (wallet.readAccount(wallet_id, private_key, public_key))
+    {
+      return true;
+    }
+    return wallet.read(private_key, public_key);
   }
   return wallet.read(private_key, public_key);
 }

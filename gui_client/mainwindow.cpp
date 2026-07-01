@@ -3605,6 +3605,12 @@ void MainWindow::setWalletName()
 
     QUrlQuery form;
     form.addQueryItem("name", name);
+    if (m_accountCombo && m_accountCombo->currentIndex() >= 0) {
+        QString walletId = m_accountCombo->currentData().toString();
+        if (!walletId.isEmpty()) {
+            form.addQueryItem("wallet_id", walletId);
+        }
+    }
     m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
@@ -3637,6 +3643,12 @@ void MainWindow::joinNetwork()
 
     QUrlQuery form;
     form.addQueryItem("name", name);
+    if (m_accountCombo && m_accountCombo->currentIndex() >= 0) {
+        QString walletId = m_accountCombo->currentData().toString();
+        if (!walletId.isEmpty()) {
+            form.addQueryItem("wallet_id", walletId);
+        }
+    }
     m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
