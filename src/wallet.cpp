@@ -89,10 +89,11 @@ bool writeLegacyWallet(const std::string& privateKey, const std::string& publicK
     return true;
 }
 
-bool readWalletStore(std::vector<CWallet::account>& accounts, std::string& activeId)
+bool readWalletStore(std::vector<CWallet::account>& accounts, std::string& activeId, std::string& creatorId)
 {
     accounts.clear();
     activeId = "";
+    creatorId = "";
     std::ifstream infile(WALLET_STORE_FILE);
     if (!infile.good()) {
         return false;
@@ -102,6 +103,10 @@ bool readWalletStore(std::vector<CWallet::account>& accounts, std::string& activ
     while (std::getline(infile, line)) {
         if (line.find("active:") == 0) {
             activeId = trim(line.substr(7));
+            continue;
+        }
+        if (line.find("creator:") == 0) {
+            creatorId = trim(line.substr(8));
             continue;
         }
         if (line.find("wallet\t") != 0) {
@@ -126,16 +131,20 @@ bool readWalletStore(std::vector<CWallet::account>& accounts, std::string& activ
     if (activeId.length() == 0 && accounts.size() > 0) {
         activeId = accounts.at(0).id;
     }
+    if (creatorId.length() == 0 && accounts.size() > 0) {
+        creatorId = accounts.at(0).id;
+    }
     return true;
 }
 
-bool writeWalletStore(const std::vector<CWallet::account>& accounts, const std::string& activeId)
+bool writeWalletStore(const std::vector<CWallet::account>& accounts, const std::string& activeId, const std::string& creatorId)
 {
     std::ofstream out(WALLET_STORE_FILE);
     if (!out.good()) {
         return false;
     }
     out << "active:" << activeId << "\n";
+    out << "creator:" << creatorId << "\n";
     for (int i = 0; i < accounts.size(); ++i) {
         CWallet::account account = accounts.at(i);
         out << "wallet\t"
@@ -171,7 +180,8 @@ bool CWallet::write(std::string privateKey, std::string publicKey)
 
     std::vector<CWallet::account> accounts;
     std::string activeId;
-    readWalletStore(accounts, activeId);
+    std::string creatorId;
+    readWalletStore(accounts, activeId, creatorId);
 
     bool found = false;
     for (int i = 0; i < accounts.size(); ++i) {
@@ -192,7 +202,10 @@ bool CWallet::write(std::string privateKey, std::string publicKey)
     if (activeId.length() == 0) {
         activeId = publicKey;
     }
-    return writeWalletStore(accounts, activeId);
+    if (creatorId.length() == 0) {
+        creatorId = accounts.at(0).id;
+    }
+    return writeWalletStore(accounts, activeId, creatorId);
 }
 
 bool CWallet::read(std::string & privateKey, std::string & publicKey)
@@ -203,12 +216,21 @@ bool CWallet::read(std::string & privateKey, std::string & publicKey)
     return readAccount(activeAccountId(), privateKey, publicKey);
 }
 
+bool CWallet::readCreatorAccount(std::string & privateKey, std::string & publicKey)
+{
+    if (!ensureWalletStore()) {
+        return readLegacyWallet(privateKey, publicKey);
+    }
+    return readAccount(creatorAccountId(), privateKey, publicKey);
+}
+
 bool CWallet::readAccount(std::string id, std::string & privateKey, std::string & publicKey)
 {
     ensureWalletStore();
     std::vector<CWallet::account> accounts;
     std::string activeId;
-    readWalletStore(accounts, activeId);
+    std::string creatorId;
+    readWalletStore(accounts, activeId, creatorId);
     if (id.length() == 0) {
         id = activeId;
     }
@@ -236,7 +258,8 @@ bool CWallet::createAccount(std::string label, CWallet::account & created)
     ensureWalletStore();
     std::vector<CWallet::account> accounts;
     std::string activeId;
-    readWalletStore(accounts, activeId);
+    std::string creatorId;
+    readWalletStore(accounts, activeId, creatorId);
 
     created.id = publicKey;
     created.label = safeLabel(label);
@@ -246,7 +269,10 @@ bool CWallet::createAccount(std::string label, CWallet::account & created)
     if (activeId.length() == 0) {
         activeId = created.id;
     }
-    return writeWalletStore(accounts, activeId);
+    if (creatorId.length() == 0) {
+        creatorId = accounts.at(0).id;
+    }
+    return writeWalletStore(accounts, activeId, creatorId);
 }
 
 std::vector<CWallet::account> CWallet::listAccounts()
@@ -254,7 +280,8 @@ std::vector<CWallet::account> CWallet::listAccounts()
     ensureWalletStore();
     std::vector<CWallet::account> accounts;
     std::string activeId;
-    readWalletStore(accounts, activeId);
+    std::string creatorId;
+    readWalletStore(accounts, activeId, creatorId);
     return accounts;
 }
 
@@ -263,11 +290,30 @@ bool CWallet::setActiveAccount(std::string id)
     ensureWalletStore();
     std::vector<CWallet::account> accounts;
     std::string activeId;
-    readWalletStore(accounts, activeId);
+    std::string creatorId;
+    readWalletStore(accounts, activeId, creatorId);
     for (int i = 0; i < accounts.size(); ++i) {
         if (accounts.at(i).id.compare(id) == 0 || accounts.at(i).public_key.compare(id) == 0) {
             writeLegacyWallet(accounts.at(i).private_key, accounts.at(i).public_key);
-            return writeWalletStore(accounts, accounts.at(i).id);
+            if (creatorId.length() == 0) {
+                creatorId = accounts.at(0).id;
+            }
+            return writeWalletStore(accounts, accounts.at(i).id, creatorId);
+        }
+    }
+    return false;
+}
+
+bool CWallet::setCreatorAccount(std::string id)
+{
+    ensureWalletStore();
+    std::vector<CWallet::account> accounts;
+    std::string activeId;
+    std::string creatorId;
+    readWalletStore(accounts, activeId, creatorId);
+    for (int i = 0; i < accounts.size(); ++i) {
+        if (accounts.at(i).id.compare(id) == 0 || accounts.at(i).public_key.compare(id) == 0) {
+            return writeWalletStore(accounts, activeId, accounts.at(i).id);
         }
     }
     return false;
@@ -278,15 +324,27 @@ std::string CWallet::activeAccountId()
     ensureWalletStore();
     std::vector<CWallet::account> accounts;
     std::string activeId;
-    readWalletStore(accounts, activeId);
+    std::string creatorId;
+    readWalletStore(accounts, activeId, creatorId);
     return activeId;
+}
+
+std::string CWallet::creatorAccountId()
+{
+    ensureWalletStore();
+    std::vector<CWallet::account> accounts;
+    std::string activeId;
+    std::string creatorId;
+    readWalletStore(accounts, activeId, creatorId);
+    return creatorId;
 }
 
 bool CWallet::ensureWalletStore()
 {
     std::vector<CWallet::account> accounts;
     std::string activeId;
-    if (readWalletStore(accounts, activeId) && accounts.size() > 0) {
+    std::string creatorId;
+    if (readWalletStore(accounts, activeId, creatorId) && accounts.size() > 0) {
         return true;
     }
 
@@ -302,5 +360,5 @@ bool CWallet::ensureWalletStore()
     account.private_key = privateKey;
     account.public_key = publicKey;
     accounts.push_back(account);
-    return writeWalletStore(accounts, account.id);
+    return writeWalletStore(accounts, account.id, account.id);
 }

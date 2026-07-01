@@ -71,6 +71,7 @@ private slots:
     void saveOptions();
     void resetBlockchain();
     void addWalletAccount();
+    void setCreatorAccount();
     void switchWalletAccount(int index);
     void refreshWalletStatus();
     void handleWalletStatusReply(QNetworkReply *reply);
@@ -177,6 +178,7 @@ private:
     QLabel *m_walletTitleLabel;
     QComboBox *m_accountCombo;
     QPushButton *m_addAccountButton;
+    QPushButton *m_setCreatorAccountButton;
     QLabel *m_balanceLabel;
     QLabel *m_estimatedBalanceLabel;
     QLabel *m_pendingBalanceLabel;

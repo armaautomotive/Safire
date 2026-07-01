@@ -30,7 +30,7 @@ void CHeartbeat::heartbeatThread(int argc, char* argv[]){
         bool e = wallet.fileExists("wallet.dat");
         if(e != 0){
             // Load wallet
-            wallet.read(privateKey, publicKey);
+            wallet.readCreatorAccount(privateKey, publicKey);
         }
         
         // Start delay

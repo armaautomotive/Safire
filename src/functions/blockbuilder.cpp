@@ -233,7 +233,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         //printf("No wallet found. Creating a new one...\n");
     } else {
         // Load wallet
-        wallet.read(privateKey, publicKey);
+        wallet.readCreatorAccount(privateKey, publicKey);
         //std::cout << "  private  " << privateKey << "\n  public " << publicKey << "\n " << std::endl;
     }
     
@@ -420,6 +420,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     int blockNumber = functions.latest_block.number + 1;
     //long timeBlock = 0;
     while(isBuildingBlocks){
+        wallet.readCreatorAccount(privateKey, publicKey);
         //functions.parseBlockFile(publicKey, false); // depricate
         functions.scanChain(publicKey, false); // ??? check this
         queueHeartbeatIfDue(functions, relayClient, ecdsa, privateKey, publicKey);

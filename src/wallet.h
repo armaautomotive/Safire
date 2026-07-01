@@ -42,11 +42,14 @@ public:
     bool fileExists(std::string fileName);
     bool write(std::string privateKey, std::string publicKey);
     bool read(std::string & privateKey, std::string & publicKey);
+    bool readCreatorAccount(std::string & privateKey, std::string & publicKey);
     bool readAccount(std::string id, std::string & privateKey, std::string & publicKey);
     bool createAccount(std::string label, account & created);
     std::vector<account> listAccounts();
     bool setActiveAccount(std::string id);
+    bool setCreatorAccount(std::string id);
     std::string activeAccountId();
+    std::string creatorAccountId();
     bool ensureWalletStore();
 };
 
