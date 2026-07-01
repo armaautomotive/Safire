@@ -124,7 +124,8 @@ void rebroadcastPendingQueueRecords(CFunctions& functions, CRelayClient& relayCl
         if(record.hash.length() == 0 || recordExistsInAcceptedChain(blockDB, record.hash)){
             continue;
         }
-        relayClient.sendRecord(record);
+        // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+        // relayClient.sendRecord(record);
         CLocalPeerClient::broadcastRecord(record);
     }
 }
@@ -188,7 +189,8 @@ void queueHeartbeatIfDue(
     heartbeatRecord.signature = signature;
 
     if(functions.addToQueue(heartbeatRecord)){
-        relayClient.sendRecord(heartbeatRecord);
+        // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+        // relayClient.sendRecord(heartbeatRecord);
         CLocalPeerClient::broadcastRecord(heartbeatRecord);
     }
 }
@@ -238,7 +240,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     //functions.parseBlockFile(publicKey, false); // depricate
     functions.scanChain(publicKey, false);
     
-    relayClient.getNewNetworkPeer(publicKey);
+    // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+    // relayClient.getNewNetworkPeer(publicKey);
     
     bool networkGenesis = false;
     std::string networkName = "main";
@@ -327,7 +330,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         blockDB.AddBlock(block);
         blockDB.setFirstBlockId(block.number);
         
-        relayClient.sendBlock(block);
+        // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+        // relayClient.sendBlock(block);
         CLocalPeerClient::broadcastBlock(block);
         CLocalPeerClient::broadcastHandoff(block, privateKey);
         
@@ -359,7 +363,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             std::cout << " Latest local block: " << blockDB.getLatestBlockId() << " peer latest block: " << CLocalPeerClient::getBestPeerLatestBlockId() << std::endl;
         } else {
             std::cout << " Latest local block: " << blockDB.getLatestBlockId() << std::endl;
-            relayClient.sendRequestBlocks(-1); // Request the beginning of the blockchain from our peer nodes.
+            // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+            // relayClient.sendRequestBlocks(-1);
         }
         //log.log("Request the beginning of the blockchain from our peer nodes. \n");
         
@@ -402,7 +407,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                     CLocalPeerClient::syncFromPeer(localPeers.at(i));
                 }
             } else {
-                relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+                // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+                // relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
             }
         }
         //std::cout << "Chain is up to date. " << std::endl;
@@ -536,7 +542,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             
             if(block.number != lastLocalBuiltBlockId){
                 blockDB.AddBlock(block);
-                relayClient.sendBlock(block);
+                // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+                // relayClient.sendBlock(block);
                 CLocalPeerClient::broadcastBlock(block);
                 CLocalPeerClient::broadcastHandoff(block, privateKey);
             }
@@ -563,7 +570,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             
                 firstBlockId = blockDB.getFirstBlockId();
                 if(firstBlockId == -1 && CLocalPeerClient::getPeers().size() == 0){
-                    relayClient.sendRequestBlocks(-1);
+                    // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+                    // relayClient.sendRequestBlocks(-1);
                 }
                 
                 // Download recent blocks to keep the local chain up to date.
@@ -578,7 +586,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                             CLocalPeerClient::syncFromPeer(localPeers.at(i));
                         }
                     } else {
-                        relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
+                        // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+                        // relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
                     }
                 //}
                 

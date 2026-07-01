@@ -240,7 +240,8 @@ bool queueCarryForwardIfDue(
     carryForwardRecord.signature = signature;
 
     if(functions.addToQueue(carryForwardRecord)){
-        relayClient.sendRecord(carryForwardRecord);
+        // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+        // relayClient.sendRecord(carryForwardRecord);
         CLocalPeerClient::broadcastRecord(carryForwardRecord);
         return true;
     }

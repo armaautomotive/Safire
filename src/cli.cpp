@@ -491,7 +491,8 @@ bool queueAndBroadcastRecord(CFunctions& functions, CRelayClient& relayClient, C
         std::cout << " Record not sent: unable to queue record." << std::endl;
         return false;
     }
-    relayClient.sendRecord(record);
+    // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+    // relayClient.sendRecord(record);
     CLocalPeerClient::broadcastRecord(record);
     return true;
 }
@@ -1786,7 +1787,8 @@ void CCLI::processUserInput(){
             
             // Get connected nodes.
             CRelayClient relayClient;
-            relayClient.sendRequestBlocks(latestBlockId);
+            // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+            // relayClient.sendRequestBlocks(latestBlockId);
             std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
             for(int i = 0; i < localPeers.size(); i++){
                 CLocalPeerClient::syncFromPeer(localPeers.at(i));

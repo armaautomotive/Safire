@@ -277,7 +277,8 @@ int main(int argc, char* argv[])
     //CP2P p2p;
     //p2p.getNewNetworkPeer("123"); //TEMP
     CRelayClient relayClient;
-    relayClient.getNewNetworkPeer(publicKey);
+    // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+    // relayClient.getNewNetworkPeer(publicKey);
 
     boost::shared_ptr<http::server3::server> localNodeServer;
     boost::shared_ptr<std::thread> localNodeThread;
@@ -368,7 +369,8 @@ int main(int argc, char* argv[])
     std::thread blockThread(&CBlockBuilder::blockBuilderThread, blockBuilder, argc, argv);
     
     //std::thread p2pNetworkThread(&CP2P::p2pNetworkThread, p2p, argc, argv); // TODO: implement a main class to pass into threads instead of 'p2p' instance. For communication.
-    std::thread relayNetworkThread(&CRelayClient::relayNetworkThread, relayClient, argc, argv); 
+    // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
+    // std::thread relayNetworkThread(&CRelayClient::relayNetworkThread, relayClient, argc, argv);
 
     std::thread heartbeatThread(&CHeartbeat::heartbeatThread, heartbeat, argc, argv);
     std::thread carryforwardThread(&CCarryforward::carryforwardThread, carryforward, argc, argv);
@@ -397,9 +399,9 @@ int main(int argc, char* argv[])
         localNodeThread->join();
     }
     //p2p.exit();
-    relayClient.exit();
+    // relayClient.exit();
     //p2pNetworkThread.join();
-    relayNetworkThread.join();
+    // relayNetworkThread.join();
  
     usleep(100000);
     std::cout << "Done " << std::endl;

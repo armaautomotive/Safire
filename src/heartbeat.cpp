@@ -51,7 +51,8 @@ void CHeartbeat::heartbeatThread(int argc, char* argv[]){
             
             std::string message_siganture = "";
             heartbeatRecord.hash = functions.getRecordHash(heartbeatRecord);
-            relayClient.sendRecord(heartbeatRecord);
+            // Legacy PHP relay disabled. Heartbeats are queued/broadcast by the block builder.
+            // relayClient.sendRecord(heartbeatRecord);
         }
         
         // frequency delay, 24 hours - start delay.
@@ -66,4 +67,3 @@ void CHeartbeat::stop() {
     isRunning = false;
     // Join thread
 }
-
