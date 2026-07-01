@@ -2520,6 +2520,8 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString heartbeat = object.value("active_heartbeat").toString();
     QString creatorEligible = object.value("creator_eligible").toString();
     QString creatorEligibilityCheckpoint = object.value("creator_eligibility_checkpoint_block").toString();
+    QString creatorEligibilityEtaBlock = object.value("creator_eligibility_eta_block").toString();
+    QString creatorEligibilityEtaSeconds = object.value("creator_eligibility_eta_seconds").toString();
     QString currentCreator = object.value("current_block_creator").toString();
     QString currentCreatorName = object.value("current_block_creator_name").toString();
     QString currentCreatorIsWallet = object.value("current_block_creator_is_wallet").toString();
@@ -2612,8 +2614,18 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
     if (m_membershipCreatorEligibleLabel) {
         QString eligibleText = creatorEligible.isEmpty() ? tr("-") : creatorEligible;
-        if (!creatorEligibilityCheckpoint.isEmpty() && creatorEligibilityCheckpoint != "0") {
-            m_membershipCreatorEligibleLabel->setText(tr("Creator eligible: %1 (checkpoint %2)").arg(eligibleText).arg(creatorEligibilityCheckpoint));
+        QString detail;
+        bool etaOk = false;
+        qint64 etaSeconds = creatorEligibilityEtaSeconds.toLongLong(&etaOk);
+        bool etaBlockOk = false;
+        qint64 etaBlock = creatorEligibilityEtaBlock.toLongLong(&etaBlockOk);
+        if (creatorEligible == "no" && etaOk && etaSeconds >= 0 && etaBlockOk && etaBlock > 0) {
+            detail = tr("about %1, block %2").arg(formatSyncDuration(etaSeconds)).arg(etaBlock);
+        } else if (!creatorEligibilityCheckpoint.isEmpty() && creatorEligibilityCheckpoint != "0") {
+            detail = tr("checkpoint %1").arg(creatorEligibilityCheckpoint);
+        }
+        if (!detail.isEmpty()) {
+            m_membershipCreatorEligibleLabel->setText(tr("Creator eligible: %1 (%2)").arg(eligibleText).arg(detail));
         } else {
             m_membershipCreatorEligibleLabel->setText(tr("Creator eligible: %1").arg(eligibleText));
         }

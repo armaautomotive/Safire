@@ -2294,6 +2294,22 @@ void request_handler::handle_request(const request& req, reply& rep)
         break;
       }
     }
+    long creatorEligibilityBlock = -1;
+    long creatorEligibilityEtaSeconds = -1;
+    if (walletCreatorEligible == false &&
+        chainState.joined &&
+        chainState.last_heartbeat_block > -1 &&
+        firstBlockId > 0)
+    {
+      long heartbeatEpoch = CSelector::getEpochForBlock(chainState.last_heartbeat_block, firstBlockId);
+      long eligibleEpoch = heartbeatEpoch + CSelector::getSelectionLagEpochs();
+      creatorEligibilityBlock = firstBlockId + (eligibleEpoch * CSelector::getEpochSizeBlocks());
+      creatorEligibilityEtaSeconds = (creatorEligibilityBlock * 15) - netTime.getEpoch();
+      if (creatorEligibilityEtaSeconds < 0)
+      {
+        creatorEligibilityEtaSeconds = 0;
+      }
+    }
     long secondsUntilNextBlock = (nextTimeBlock * 15) - netTime.getEpoch();
     if (secondsUntilNextBlock < 0)
     {
@@ -2332,6 +2348,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"creator_eligible\":\"" << (walletCreatorEligible ? "yes" : "no") << "\",";
     ss << "\"creator_eligibility_boundary_block\":\"" << currentSelectionBoundary << "\",";
     ss << "\"creator_eligibility_checkpoint_block\":\"" << currentSelectionState.latest_block.number << "\",";
+    ss << "\"creator_eligibility_eta_block\":\"" << creatorEligibilityBlock << "\",";
+    ss << "\"creator_eligibility_eta_seconds\":\"" << creatorEligibilityEtaSeconds << "\",";
     ss << "\"heartbeat_renewal_due\":\"" << (chainState.heartbeat_renewal_due ? "yes" : "no") << "\",";
     ss << "\"last_heartbeat_block\":\"" << chainState.last_heartbeat_block << "\",";
     ss << "\"currency_supply\":\"" << chainState.issued_supply << "\",";
