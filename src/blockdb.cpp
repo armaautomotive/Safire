@@ -23,8 +23,93 @@
 using namespace std;
 
 leveldb::DB * CBlockDB::db;
+bool CBlockDB::schemaMigrated = false;
+const int CBlockDB::CURRENT_SCHEMA_VERSION;
 
 namespace {
+
+std::string blockHashKey(const std::string& hash);
+std::string canonicalHashKey(long number);
+
+std::string chainMetaKey(const std::string& name){
+    return "chain:" + name;
+}
+
+std::string nextHashKey(const std::string& parentHash){
+    return "next:" + parentHash;
+}
+
+bool parseLongValue(const std::string& text, long& value){
+    if(text.length() == 0){
+        return false;
+    }
+    char* end = 0;
+    long parsed = std::strtol(text.c_str(), &end, 10);
+    if(end == text.c_str() || *end != '\0'){
+        return false;
+    }
+    value = parsed;
+    return true;
+}
+
+bool readKey(leveldb::DB* db, const std::string& key, std::string& value){
+    value = "";
+    if(!db){
+        return false;
+    }
+    leveldb::Status status = db->Get(leveldb::ReadOptions(), key, &value);
+    return status.ok() && value.length() > 0;
+}
+
+bool readLongKey(leveldb::DB* db, const std::string& key, long& value){
+    std::string text;
+    if(readKey(db, key, text) == false){
+        return false;
+    }
+    return parseLongValue(text, value);
+}
+
+CFunctions::block_structure parseSingleBlockJson(const std::string& json){
+    CFunctions::block_structure block;
+    block.number = -1;
+    if(json.length() == 0){
+        return block;
+    }
+    CFunctions functions;
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(json);
+    if(blocks.size() > 0){
+        block = blocks.at(0);
+    }
+    return block;
+}
+
+CFunctions::block_structure rawBlockByHash(leveldb::DB* db, const std::string& hash){
+    std::string blockJson;
+    if(readKey(db, blockHashKey(hash), blockJson) == false){
+        CFunctions::block_structure block;
+        block.number = -1;
+        return block;
+    }
+    return parseSingleBlockJson(blockJson);
+}
+
+std::string rawCanonicalHash(leveldb::DB* db, long number){
+    std::string hash;
+    if(readKey(db, canonicalHashKey(number), hash)){
+        return hash;
+    }
+
+    std::string blockJson;
+    std::stringstream legacyKey;
+    legacyKey << "b_" << number;
+    if(readKey(db, legacyKey.str(), blockJson)){
+        CFunctions::block_structure block = parseSingleBlockJson(blockJson);
+        if(block.hash.length() > 0){
+            return block.hash;
+        }
+    }
+    return "";
+}
 
 bool preferBlockVariant(const CFunctions::block_structure& candidate, const CFunctions::block_structure& current){
     if(current.number <= 0){
@@ -219,6 +304,75 @@ CBlockDB::~CBlockDB(){
     //}
 }
 
+void CBlockDB::migrateSchema(leveldb::DB* ldb){
+    if(!ldb || CBlockDB::schemaMigrated){
+        return;
+    }
+
+    std::string schemaVersion;
+    readKey(ldb, chainMetaKey("schema_version"), schemaVersion);
+    if(schemaVersion.compare(boost::lexical_cast<std::string>(CBlockDB::CURRENT_SCHEMA_VERSION)) == 0){
+        CBlockDB::schemaMigrated = true;
+        return;
+    }
+
+    leveldb::WriteOptions writeOptions;
+
+    long firstBlockId = -1;
+    if(readLongKey(ldb, chainMetaKey("first_block"), firstBlockId) == false &&
+       readLongKey(ldb, "first_block_id", firstBlockId)){
+        ldb->Put(writeOptions, chainMetaKey("first_block"), boost::lexical_cast<std::string>(firstBlockId));
+    }
+
+    long latestBlockId = -1;
+    if(readLongKey(ldb, chainMetaKey("latest_block"), latestBlockId) == false &&
+       readLongKey(ldb, "latest_block_id", latestBlockId)){
+        ldb->Put(writeOptions, chainMetaKey("latest_block"), boost::lexical_cast<std::string>(latestBlockId));
+    }
+
+    if(latestBlockId > 0){
+        std::string latestHash;
+        if(readKey(ldb, chainMetaKey("latest_hash"), latestHash) == false){
+            latestHash = rawCanonicalHash(ldb, latestBlockId);
+            if(latestHash.length() > 0){
+                ldb->Put(writeOptions, chainMetaKey("latest_hash"), latestHash);
+            }
+        }
+    }
+
+    std::vector<std::string> legacyNextKeys;
+    leveldb::Iterator* it = ldb->NewIterator(leveldb::ReadOptions());
+    for(it->SeekToFirst(); it->Valid(); it->Next()){
+        std::string key = it->key().ToString();
+        if(boost::algorithm::starts_with(key, "next_block_")){
+            legacyNextKeys.push_back(key);
+        }
+    }
+    delete it;
+
+    for(int i = 0; i < legacyNextKeys.size(); ++i){
+        std::string key = legacyNextKeys.at(i);
+        std::string parentText = key.substr(std::string("next_block_").length());
+        long parentId = -1;
+        long childId = -1;
+        std::string childText;
+        if(parseLongValue(parentText, parentId) == false ||
+           readKey(ldb, key, childText) == false ||
+           parseLongValue(childText, childId) == false){
+            continue;
+        }
+
+        CFunctions::block_structure parent = rawBlockByHash(ldb, rawCanonicalHash(ldb, parentId));
+        CFunctions::block_structure child = rawBlockByHash(ldb, rawCanonicalHash(ldb, childId));
+        if(parent.hash.length() > 0 && childConnectsToParent(child, parent)){
+            ldb->Put(writeOptions, nextHashKey(parent.hash), child.hash);
+        }
+    }
+
+    ldb->Put(writeOptions, chainMetaKey("schema_version"), boost::lexical_cast<std::string>(CBlockDB::CURRENT_SCHEMA_VERSION));
+    CBlockDB::schemaMigrated = true;
+}
+
 /**
  * getDatabase
  *
@@ -251,6 +405,7 @@ leveldb::DB * CBlockDB::getDatabase(){
     }
     
     CBlockDB::db = ldb;
+    migrateSchema(ldb);
     
     return ldb;
 }
@@ -393,6 +548,22 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         if(shouldWriteNextIndex){
             db->Put(writeOptions, keyStream.str(), valueStream.str());
         }
+
+        if(block.previous_block_hash.length() > 0){
+            std::string existingNextHash;
+            db->Get(leveldb::ReadOptions(), nextHashKey(block.previous_block_hash), &existingNextHash);
+            bool shouldWriteHashNextIndex = existingNextHash.length() == 0 || existingNextHash.compare(block.hash) == 0;
+            if(shouldWriteHashNextIndex == false){
+                CFunctions::block_structure existingNextBlock = getBlockByHash(existingNextHash);
+                if(childConnectsToParent(existingNextBlock, getBlockByHash(block.previous_block_hash)) == false){
+                    shouldWriteHashNextIndex = true;
+                    log.log("Repair stale next-hash index.\n");
+                }
+            }
+            if(shouldWriteHashNextIndex){
+                db->Put(writeOptions, nextHashKey(block.previous_block_hash), block.hash);
+            }
+        }
     }
 
     long latestBlockId = getLatestBlockId();
@@ -457,6 +628,7 @@ void CBlockDB::setFirstBlockId(long number){
     ostringstream valueStream;
     valueStream << boost::lexical_cast<std::string>(number);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
+    db->Put(writeOptions, chainMetaKey("first_block"), valueStream.str());
     //delete db;
     
     //std::cout << " set first " << number << "\n";
@@ -478,13 +650,15 @@ long CBlockDB::getFirstBlockId(){
         std::cout << "Error: CBlockDB::getFirstBlockId \n";
         return -1;
     }
-    std::string key = "first_block_id";
     std::string firstBlockIdString;
-    db->Get(leveldb::ReadOptions(), key, &firstBlockIdString);
+    db->Get(leveldb::ReadOptions(), chainMetaKey("first_block"), &firstBlockIdString);
+    if(firstBlockIdString.length() == 0){
+        db->Get(leveldb::ReadOptions(), "first_block_id", &firstBlockIdString);
+    }
     long result = -1;
-    if(firstBlockIdString.length() > 0){
+    if(firstBlockIdString.length() > 0 && parseLongValue(firstBlockIdString, result) == false){
         //result = std::stol(firstBlockIdString);
-        result = boost::lexical_cast<long>(firstBlockIdString);
+        result = -1;
         //std::cout << "   --- " << firstBlockIdString << "\n";
     }
     //delete db;
@@ -513,6 +687,11 @@ void CBlockDB::setLatestBlockId(long number){
     ostringstream valueStream;
     valueStream << boost::lexical_cast<std::string>(number);
     db->Put(writeOptions, keyStream.str(), valueStream.str());
+    db->Put(writeOptions, chainMetaKey("latest_block"), valueStream.str());
+    CFunctions::block_structure latestBlock = getBlock(number);
+    if(latestBlock.hash.length() > 0){
+        db->Put(writeOptions, chainMetaKey("latest_hash"), latestBlock.hash);
+    }
     //delete db;
 }
 
@@ -531,20 +710,52 @@ long CBlockDB::getLatestBlockId(){
         std::cout << "Error: CBlockDB::getLatestBlockId \n";
         return -1;
     }
-    std::string key = "latest_block_id"; // boost::lexical_cast<std::string>(number);
     std::string latestBlockIdString;
-    db->Get(leveldb::ReadOptions(), key, &latestBlockIdString);
+    db->Get(leveldb::ReadOptions(), chainMetaKey("latest_block"), &latestBlockIdString);
+    if(latestBlockIdString.length() == 0){
+        db->Get(leveldb::ReadOptions(), "latest_block_id", &latestBlockIdString);
+    }
     
     //delete db;
     
     long result = -1;
     //std::stol(firstBlockId);
-    if(latestBlockIdString.length() > 0){
-        result = boost::lexical_cast<long>(latestBlockIdString);
+    if(latestBlockIdString.length() > 0 && parseLongValue(latestBlockIdString, result) == false){
+        result = -1;
     }
     
     //std::cout << " z \n ";
     return result;
+}
+
+std::string CBlockDB::getLatestBlockHash(){
+    leveldb::DB* db = getDatabase();
+    if(!db){
+        return "";
+    }
+    std::string latestHash;
+    db->Get(leveldb::ReadOptions(), chainMetaKey("latest_hash"), &latestHash);
+    if(latestHash.length() > 0){
+        return latestHash;
+    }
+    long latestBlockId = getLatestBlockId();
+    if(latestBlockId > 0){
+        CFunctions::block_structure latestBlock = getBlock(latestBlockId);
+        return latestBlock.hash;
+    }
+    return "";
+}
+
+int CBlockDB::getSchemaVersion(){
+    leveldb::DB* db = getDatabase();
+    if(!db){
+        return 0;
+    }
+    long version = 0;
+    if(readLongKey(db, chainMetaKey("schema_version"), version)){
+        return (int)version;
+    }
+    return 0;
 }
 
 /**
@@ -571,6 +782,11 @@ long CBlockDB::getConnectedLatestBlockId(){
         }
         block = nextBlock;
         guard++;
+    }
+
+    leveldb::DB* db = getDatabase();
+    if(db){
+        db->Put(leveldb::WriteOptions(), chainMetaKey("connected_latest"), boost::lexical_cast<std::string>(latestConnectedBlockId));
     }
 
     return latestConnectedBlockId;
@@ -683,7 +899,8 @@ long CBlockDB::rebuildBestChainIndex(){
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
     for(it->SeekToFirst(); it->Valid(); it->Next()){
         std::string key = it->key().ToString();
-        if(boost::algorithm::starts_with(key, "next_block_")){
+        if(boost::algorithm::starts_with(key, "next_block_") ||
+           boost::algorithm::starts_with(key, "next:")){
             nextIndexKeys.push_back(key);
         }
     }
@@ -709,10 +926,12 @@ long CBlockDB::rebuildBestChainIndex(){
             ostringstream valueStream;
             valueStream << childBlock.number;
             db->Put(writeOptions, keyStream.str(), valueStream.str());
+            db->Put(writeOptions, nextHashKey(canonicalBlock.hash), childBlock.hash);
         }
     }
 
     setLatestBlockId(latestBestBlockId);
+    db->Put(writeOptions, chainMetaKey("connected_latest"), boost::lexical_cast<std::string>(latestBestBlockId));
     if(previousTip.number > 0 &&
        previousTip.hash.length() > 0 &&
        newTip.number > 0 &&
@@ -849,7 +1068,20 @@ long CBlockDB::getNextBlockId(long previousBlockId){
     //delete db;
     long result = -1; //std::stol(nextBlockIdString);
     if(nextBlockIdString.length() > 0){
-        result = boost::lexical_cast<long>(nextBlockIdString);
+        parseLongValue(nextBlockIdString, result);
+    }
+    if(result <= 0){
+        CFunctions::block_structure previousBlock = getBlock(previousBlockId);
+        if(previousBlock.hash.length() > 0){
+            std::string nextHash;
+            db->Get(leveldb::ReadOptions(), nextHashKey(previousBlock.hash), &nextHash);
+            if(nextHash.length() > 0){
+                CFunctions::block_structure nextBlock = getBlockByHash(nextHash);
+                if(childConnectsToParent(nextBlock, previousBlock)){
+                    result = nextBlock.number;
+                }
+            }
+        }
     }
     //std::cout << " next " << result << "\n";
     
@@ -1001,9 +1233,28 @@ CFunctions::block_structure CBlockDB::getNextBlockByHash(CFunctions::block_struc
         return nextBlock;
     }
 
-    long nextId = getNextBlockId(block.number);
-    if(nextId > 0){
-        nextBlock = getBlock(nextId);
+    leveldb::DB* db = getDatabase();
+    if(db){
+        std::string nextHash;
+        db->Get(leveldb::ReadOptions(), nextHashKey(block.hash), &nextHash);
+        if(nextHash.length() > 0){
+            nextBlock = getBlockByHash(nextHash);
+            if(childConnectsToParent(nextBlock, block)){
+                return nextBlock;
+            }
+        }
+    }
+
+    long legacyNextId = -1;
+    std::string legacyNextIdString;
+    if(db){
+        std::stringstream keyStream;
+        keyStream << "next_block_" << block.number;
+        db->Get(leveldb::ReadOptions(), keyStream.str(), &legacyNextIdString);
+        parseLongValue(legacyNextIdString, legacyNextId);
+    }
+    if(legacyNextId > 0){
+        nextBlock = getBlock(legacyNextId);
         if(nextBlock.number > 0 && childConnectsToParent(nextBlock, block)){
             return nextBlock;
         }
@@ -1020,12 +1271,16 @@ CFunctions::block_structure CBlockDB::getNextBlockByHash(CFunctions::block_struc
 }
 
 CFunctions::block_structure CBlockDB::getNextBlock(CFunctions::block_structure block){
+    CFunctions::block_structure nextBlock = getNextBlockByHash(block);
+    if(nextBlock.number > 0){
+        return nextBlock;
+    }
     long nextId = getNextBlockId(block.number);
-    CFunctions::block_structure nextBlock = getBlock(nextId);
+    nextBlock = getBlock(nextId);
     if(nextBlock.number > 0 && childConnectsToParent(nextBlock, block)){
         return nextBlock;
     }
-    nextBlock = getNextBlockByHash(block);
+    nextBlock.number = -1;
     return nextBlock;
 }
 

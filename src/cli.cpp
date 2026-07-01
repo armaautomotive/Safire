@@ -1121,6 +1121,7 @@ void printChainDiagnostics(){
         });
 
     std::cout << " Chain diagnostics:" << std::endl;
+    std::cout << "  schema version: " << blockDB.getSchemaVersion() << std::endl;
     std::cout << "  first block: " << firstBlockId << std::endl;
     std::cout << "  latest indexed block: " << latestBlockId << std::endl;
     std::cout << "  latest connected block: " << connectedLatestBlockId << std::endl;

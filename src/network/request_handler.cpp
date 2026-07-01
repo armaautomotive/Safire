@@ -2408,6 +2408,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "{\"status\":\"ok\",";
     ss << "\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
     ss << "\"consensus_rules_version\":\"" << CLocalPeerClient::CONSENSUS_RULES_VERSION << "\",";
+    ss << "\"schema_version\":\"" << blockDB.getSchemaVersion() << "\",";
     ss << "\"epoch_size_blocks\":\"" << CSelector::getEpochSizeBlocks() << "\",";
     ss << "\"selection_lag_epochs\":\"" << CSelector::getSelectionLagEpochs() << "\",";
     ss << "\"network\":\"" << config.network << "\",";
@@ -2768,6 +2769,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
     ss << "\"active_wallet_id\":\"" << json_escape(wallet.activeAccountId()) << "\",";
+    ss << "\"schema_version\":\"" << blockDB.getSchemaVersion() << "\",";
     ss << "\"creator_wallet_id\":\"" << json_escape(wallet.creatorAccountId()) << "\",";
     ss << "\"creator_public_key\":\"" << json_escape(creatorPublicKey) << "\",";
     ss << "\"creator_public_name\":\"" << json_escape(name_for_key(memberNames, creatorPublicKey)) << "\",";

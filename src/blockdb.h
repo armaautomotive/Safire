@@ -21,8 +21,12 @@ class CBlockDB
 {
 private:
     static leveldb::DB * db;
+    static bool schemaMigrated;
+    void migrateSchema(leveldb::DB* ldb);
 
 public:
+    static const int CURRENT_SCHEMA_VERSION = 2;
+
     struct fork_variant {
         long block_number;
         std::string hash;
@@ -55,6 +59,8 @@ public:
     long getFirstBlockId();
     void setLatestBlockId(long number);
     long getLatestBlockId();
+    std::string getLatestBlockHash();
+    int getSchemaVersion();
     long getConnectedLatestBlockId();
     long rebuildBestChainIndex();
     long getForkVariantCount();
