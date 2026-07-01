@@ -370,15 +370,6 @@ bool storeBlock(const CFunctions::block_structure& block)
     if (added && blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0) {
         blockDB.setFirstBlockId(block.number);
     }
-    if (added) {
-        long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
-        if (repairedLatestBlockId < 0) {
-            long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
-            if (connectedLatestBlockId > -1) {
-                blockDB.setLatestBlockId(connectedLatestBlockId);
-            }
-        }
-    }
     return added;
 }
 

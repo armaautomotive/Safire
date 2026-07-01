@@ -347,6 +347,18 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
         }
     }
 
+    long latestBlockId = getLatestBlockId();
+    if(block.previous_block_id <= 0 && latestBlockId < 0){
+        setLatestBlockId(block.number);
+    } else if(block.previous_block_id == latestBlockId){
+        CFunctions::block_structure latestBlock = getBlock(latestBlockId);
+        if(latestBlock.number == latestBlockId &&
+           latestBlock.hash.length() > 0 &&
+           latestBlock.hash.compare(block.previous_block_hash) == 0){
+            setLatestBlockId(block.number);
+        }
+    }
+
     //std::cout << " key: " << keyStream.str() << " \n";
     //std::cout << " val: " << valueStream.str() << " \n";
     log.log("AddBlock to levelDB: \n");
@@ -372,12 +384,8 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
     // Close the database
     //delete db;
     
-    // Update latest block id record.
-    // DON'T DO THIS! latest block should be latest validated block. not any random block.
-    //long latestBlockId = getLatestBlockId();
-    //if(block.number > latestBlockId){
-        //setLatestBlockId(block.number);
-    //}
+    // The chain tip is advanced above only when this block directly extends the
+    // current canonical tip. Fork/repair cases still use rebuildBestChainIndex().
     
     return true;
 }

@@ -276,6 +276,8 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
 
     CFunctions::block_structure parent;
     bool isGenesis = block.previous_block_id <= 0;
+    bool enforceStateRules = false;
+    CLedgerState::state parentState;
     if (isGenesis) {
         CNetworkConfig config = CNetworkConfig::load();
         if (config.genesisMatches(block.number, block.hash) == false) {
@@ -303,8 +305,9 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
 
         CFunctions::block_structure canonicalParent = blockDB.getBlock(parent.number);
         bool parentIsCanonical = canonicalParent.number == parent.number && canonicalParent.hash.compare(parent.hash) == 0;
+        enforceStateRules = parentIsCanonical;
         if (parentIsCanonical) {
-            CLedgerState::state parentState = CLedgerState::build(blockDB, "", parent.number);
+            parentState = CLedgerState::build(blockDB, "", parent.number);
             std::vector<std::string> activeMemberKeys = activeMemberKeysForBlock(parentState.members, parentState.chain_has_heartbeat_records, block.number);
             if (activeMemberKeys.empty()) {
                 reason = "no active members can create blocks";
@@ -318,9 +321,7 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
         }
     }
 
-    CFunctions::block_structure canonicalParent = isGenesis ? CFunctions::block_structure() : blockDB.getBlock(parent.number);
-    bool enforceStateRules = isGenesis || (canonicalParent.number == parent.number && canonicalParent.hash.compare(parent.hash) == 0);
-    CLedgerState::state parentState = (!isGenesis && enforceStateRules) ? CLedgerState::build(blockDB, "", parent.number) : CLedgerState::state();
+    enforceStateRules = isGenesis || enforceStateRules;
     std::map<std::string, double> temporaryBalances = parentState.balances;
     std::map<std::string, long> temporaryNonces = parentState.nonces;
     std::set<std::string> blockRecordHashes;

@@ -2814,6 +2814,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     bool canonical = false;
     bool added = false;
     bool rebroadcast = false;
+    bool needsRepair = false;
     std::string message = "invalid block";
     long lastSubmittedBlockId = -1;
     std::string lastSubmittedHash = "";
@@ -2830,20 +2831,15 @@ void request_handler::handle_request(const request& req, reply& rep)
         {
           blockDB.setFirstBlockId(block.number);
         }
-        if (alreadyStored == false && blockAdded)
-        {
-          long connectedLatestBlockId = blockDB.getConnectedLatestBlockId();
-          if (connectedLatestBlockId > -1)
-          {
-            blockDB.setLatestBlockId(connectedLatestBlockId);
-          }
-          blockDB.rebuildBestChainIndex();
-        }
         long latestAfter = blockDB.getLatestBlockId();
+        if (alreadyStored == false && blockAdded && latestAfter < block.number)
+        {
+          needsRepair = true;
+        }
         CFunctions::block_structure canonicalBlock = blockDB.getBlock(block.number);
         bool blockCanonical = canonicalBlock.number == block.number &&
           canonicalBlock.hash.compare(block.hash) == 0 &&
-          blockDB.getConnectedLatestBlockId() >= block.number;
+          latestAfter >= block.number;
 
         if (blockStored)
         {
@@ -2870,7 +2866,7 @@ void request_handler::handle_request(const request& req, reply& rep)
       }
     }
 
-    if (added)
+    if (needsRepair)
     {
       blockDB.rebuildBestChainIndex();
     }
