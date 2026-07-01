@@ -858,10 +858,15 @@ QWidget *MainWindow::createBalancePage()
     summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 1, 0, 1, 2);
     m_balanceLabel = makeLabel(tr("-"), "Balance");
     summaryLayout->addWidget(m_balanceLabel, 2, 0, 1, 2);
+    QHBoxLayout *pendingRow = new QHBoxLayout;
+    pendingRow->setContentsMargins(0, 0, 0, 0);
+    pendingRow->setSpacing(14);
     m_estimatedBalanceLabel = makeLabel(tr("Estimated: -"), "PendingBalance");
-    summaryLayout->addWidget(m_estimatedBalanceLabel, 3, 0, 1, 2);
     m_pendingBalanceLabel = makeLabel(tr("Pending: none"), "PendingBalance");
-    summaryLayout->addWidget(m_pendingBalanceLabel, 4, 0, 1, 2);
+    pendingRow->addWidget(m_estimatedBalanceLabel);
+    pendingRow->addWidget(m_pendingBalanceLabel);
+    pendingRow->addStretch();
+    summaryLayout->addLayout(pendingRow, 3, 0, 1, 2);
 
     QHBoxLayout *actions = new QHBoxLayout;
     m_joinNetworkButton = createPrimaryButton(tr("Join Network"));
@@ -875,7 +880,7 @@ QWidget *MainWindow::createBalancePage()
     actions->addWidget(historyNow);
     actions->addWidget(setNameNow);
     actions->addStretch();
-    summaryLayout->addLayout(actions, 5, 0, 1, 2);
+    summaryLayout->addLayout(actions, 4, 0, 1, 2);
 
     QFrame *networkPanel = makePanel("Panel");
     QGridLayout *networkLayout = new QGridLayout(networkPanel);
