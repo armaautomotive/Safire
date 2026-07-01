@@ -88,6 +88,8 @@ CLocalPeerClient::peer_status emptyPeerStatus(const std::string& peer)
     status.latestBlockId = -1;
     status.latestBlockHash = "";
     status.protocolVersion = 0;
+    status.consensusRulesVersion = 0;
+    status.rulesCompatible = false;
     status.score = 0;
     status.successes = 0;
     status.failures = 0;
@@ -126,6 +128,15 @@ int protocolVersionFromStatus(const std::string& statusJson)
     }
     CFunctions functions;
     return functions.parseSectionLong(statusJson, "\"protocol_version\":\"", "\"");
+}
+
+int consensusRulesVersionFromStatus(const std::string& statusJson)
+{
+    if (statusJson.find("\"consensus_rules_version\":\"") == std::string::npos) {
+        return 0;
+    }
+    CFunctions functions;
+    return functions.parseSectionLong(statusJson, "\"consensus_rules_version\":\"", "\"");
 }
 
 bool genesisMatchFromStatus(const std::string& statusJson)
@@ -523,6 +534,9 @@ CLocalPeerClient::peer_status statusFromPeer(const std::string& peer)
     status.publicKey = publicKeyFromStatus(peerStatus);
     status.publicName = publicNameFromStatus(peerStatus);
     status.protocolVersion = protocolVersionFromStatus(peerStatus);
+    status.consensusRulesVersion = consensusRulesVersionFromStatus(peerStatus);
+    status.rulesCompatible = status.protocolVersion == CLocalPeerClient::PROTOCOL_VERSION &&
+        status.consensusRulesVersion == CLocalPeerClient::CONSENSUS_RULES_VERSION;
     CNetworkConfig config = CNetworkConfig::load();
     status.genesisMatch = config.genesisMatches(status.firstBlockId, status.firstBlockHash) &&
         genesisMatchFromStatus(peerStatus);
@@ -537,6 +551,10 @@ CLocalPeerClient::peer_status statusFromPeer(const std::string& peer)
         status.score = -20;
         status.firstFailureEpoch = now;
         status.lastError = "genesis mismatch";
+    } else if (!status.rulesCompatible) {
+        status.score = -100;
+        status.firstFailureEpoch = now;
+        status.lastError = "consensus rules mismatch";
     } else {
         status.score = 10;
         status.lastSuccessEpoch = now;
@@ -560,7 +578,7 @@ void mergePeerStatus(CLocalPeerClient::peer_status& current, const CLocalPeerCli
         current.lastSuccessEpoch = previousLastSuccessEpoch;
     }
 
-    if (update.reachable && update.genesisMatch) {
+    if (update.reachable && update.genesisMatch && update.rulesCompatible) {
         current.successes += 1;
         current.score = std::min(100, previousScore + 10);
         current.firstFailureEpoch = 0;
@@ -791,7 +809,7 @@ bool CLocalPeerClient::addVerifiedPeer(const std::string& peerUrl, bool persist)
     }
 
     peer_status status = statusFromPeer(peer);
-    if (status.reachable == false || status.genesisMatch == false) {
+    if (status.reachable == false || status.genesisMatch == false || status.rulesCompatible == false) {
         return false;
     }
 
@@ -1030,6 +1048,11 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     mergePeerStatus(peerStatuses[peer], status);
     savePeerCache();
 
+    if(status.rulesCompatible == false){
+        peerStatuses[peer].lastError = "consensus rules mismatch";
+        savePeerCache();
+        return false;
+    }
     if (peerLatestBlockId < 0) {
         peerStatuses[peer].lastError = "missing latest block";
         savePeerCache();
@@ -1183,6 +1206,10 @@ CLocalPeerClient::push_result CLocalPeerClient::pushToPeerDetailed(const std::st
     mergePeerStatus(peerStatuses[peer], status);
     savePeerCache();
 
+    if(status.rulesCompatible == false){
+        result.response = "consensus rules mismatch";
+        return result;
+    }
     long peerLatestBlockId = status.genesisMatch && status.reachable ? status.latestBlockId : -1;
     long pushStartBlock = peerLatestBlockId - forkRepairLookbackBlocks;
     if (peerLatestBlockId < 0) {
@@ -1259,6 +1286,11 @@ CLocalPeerClient::push_result CLocalPeerClient::pushFullChainToPeerDetailed(cons
     CBlockDB blockDB;
     long firstBlockId = blockDB.getFirstBlockId();
     long localLatestBlockId = blockDB.getLatestBlockId();
+    peer_status status = statusFromPeer(peer);
+    if (status.rulesCompatible == false) {
+        result.response = "consensus rules mismatch";
+        return result;
+    }
     if (localLatestBlockId < 0 || firstBlockId < 0) {
         return result;
     }
@@ -1298,7 +1330,7 @@ long CLocalPeerClient::getPeerLatestBlockId(const std::string& peerUrl)
     mergePeerStatus(peerStatuses[peer], status);
     savePeerCache();
     purgeUnavailablePeers();
-    if(status.genesisMatch == false || status.reachable == false){
+    if(status.genesisMatch == false || status.reachable == false || status.rulesCompatible == false){
         return -1;
     }
     return status.latestBlockId;
@@ -1320,7 +1352,8 @@ CLocalPeerClient::peer_status CLocalPeerClient::getBestPeerStatus()
     bool found = false;
     std::vector<peer_status> statuses = getPeerStatuses();
     for (int i = 0; i < statuses.size(); ++i) {
-        if (statuses.at(i).reachable == false || statuses.at(i).genesisMatch == false || shouldSkipPeerForScore(statuses.at(i))) {
+        if (statuses.at(i).reachable == false || statuses.at(i).genesisMatch == false ||
+            statuses.at(i).rulesCompatible == false || shouldSkipPeerForScore(statuses.at(i))) {
             continue;
         }
         if (found == false ||

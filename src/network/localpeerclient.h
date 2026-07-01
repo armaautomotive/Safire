@@ -11,6 +11,7 @@ class CLocalPeerClient
 {
 public:
     static const int PROTOCOL_VERSION = 1;
+    static const int CONSENSUS_RULES_VERSION = 2;
 
     struct push_result {
         int candidateBlocks;
@@ -28,6 +29,8 @@ public:
         long latestBlockId;
         std::string latestBlockHash;
         int protocolVersion;
+        int consensusRulesVersion;
+        bool rulesCompatible;
         int score;
         int successes;
         int failures;

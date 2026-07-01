@@ -911,7 +911,7 @@ bool best_peer_status(const std::vector<CLocalPeerClient::peer_status>& local_pe
   for (int i = 0; i < local_peers.size(); ++i)
   {
     CLocalPeerClient::peer_status peer = local_peers.at(i);
-    if (peer.reachable == false || peer.genesisMatch == false)
+    if (peer.reachable == false || peer.genesisMatch == false || peer.rulesCompatible == false)
     {
       continue;
     }
@@ -928,7 +928,8 @@ std::map<long, std::string> peer_hashes_for_blocks(const std::deque<CFunctions::
                                                    const CLocalPeerClient::peer_status& peer)
 {
   std::map<long, std::string> hashes;
-  if (peer.url.length() == 0 || peer.reachable == false || peer.genesisMatch == false)
+  if (peer.url.length() == 0 || peer.reachable == false ||
+      peer.genesisMatch == false || peer.rulesCompatible == false)
   {
     return hashes;
   }
@@ -1483,6 +1484,9 @@ std::string peers_json(CBlockDB& block_db)
   }
   std::stringstream ss;
   ss << "{\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
+  ss << "\"consensus_rules_version\":\"" << CLocalPeerClient::CONSENSUS_RULES_VERSION << "\",";
+  ss << "\"epoch_size_blocks\":\"" << CSelector::getEpochSizeBlocks() << "\",";
+  ss << "\"selection_lag_epochs\":\"" << CSelector::getSelectionLagEpochs() << "\",";
   ss << "\"self_url\":\"" << json_escape(advertisedPeer) << "\",";
   ss << "\"peers\":[";
   bool wrotePeer = false;
@@ -1494,6 +1498,9 @@ std::string peers_json(CBlockDB& block_db)
     ss << "\"public_name\":\"" << json_escape(publicName) << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << json_escape(latestBlock.hash) << "\",";
+    ss << "\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
+    ss << "\"consensus_rules_version\":\"" << CLocalPeerClient::CONSENSUS_RULES_VERSION << "\",";
+    ss << "\"rules_compatible\":\"yes\",";
     ss << "\"genesis_match\":\"" << (selfGenesisMatch ? "yes" : "no") << "\",";
     ss << "\"reachable\":\"" << (latestBlockId >= 0 ? "yes" : "no") << "\",";
     ss << "\"last_success_epoch\":\"0\",";
@@ -1518,6 +1525,9 @@ std::string peers_json(CBlockDB& block_db)
     ss << "\"public_name\":\"" << json_escape(peers.at(i).publicName) << "\",";
     ss << "\"latest_block_id\":\"" << peers.at(i).latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << peers.at(i).latestBlockHash << "\",";
+    ss << "\"protocol_version\":\"" << peers.at(i).protocolVersion << "\",";
+    ss << "\"consensus_rules_version\":\"" << peers.at(i).consensusRulesVersion << "\",";
+    ss << "\"rules_compatible\":\"" << (peers.at(i).rulesCompatible ? "yes" : "no") << "\",";
     ss << "\"genesis_match\":\"" << (peers.at(i).genesisMatch ? "yes" : "no") << "\",";
     ss << "\"reachable\":\"" << (peers.at(i).reachable ? "yes" : "no") << "\",";
     ss << "\"last_success_epoch\":\"" << peers.at(i).lastSuccessEpoch << "\",";
@@ -2264,6 +2274,9 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
     ss << "\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
+    ss << "\"consensus_rules_version\":\"" << CLocalPeerClient::CONSENSUS_RULES_VERSION << "\",";
+    ss << "\"epoch_size_blocks\":\"" << CSelector::getEpochSizeBlocks() << "\",";
+    ss << "\"selection_lag_epochs\":\"" << CSelector::getSelectionLagEpochs() << "\",";
     ss << "\"network\":\"" << config.network << "\",";
     ss << "\"public_key\":\"" << json_escape(publicKey) << "\",";
     ss << "\"public_name\":\"" << json_escape(publicName) << "\",";
