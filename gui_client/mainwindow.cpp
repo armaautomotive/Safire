@@ -619,6 +619,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_terminalStartButton(0),
       m_terminalStopButton(0),
       m_publicPeerCheckBox(0),
+      m_storageProfileComboBox(0),
       m_mainSendButton(0),
       m_joinNetworkButton(0),
       m_balanceButton(0),
@@ -1317,12 +1318,28 @@ QWidget *MainWindow::createOptionsPage()
     QCheckBox *confirmBeforeSend = new QCheckBox(tr("Require confirmation before sending"));
     m_publicPeerCheckBox = new QCheckBox(tr("Help the network by accepting peer connections"));
     m_publicPeerCheckBox->setChecked(settings.value("publicPeerMode", false).toBool());
+    m_storageProfileComboBox = new QComboBox;
+    m_storageProfileComboBox->addItem(tr("Server - full history"), "server");
+    m_storageProfileComboBox->addItem(tr("Desktop - 1 year"), "desktop");
+    m_storageProfileComboBox->addItem(tr("Mobile - 3 months"), "mobile");
+    int storageIndex = m_storageProfileComboBox->findData(storageProfile());
+    if (storageIndex < 0) {
+        storageIndex = m_storageProfileComboBox->findData("desktop");
+    }
+    m_storageProfileComboBox->setCurrentIndex(storageIndex);
     confirmBeforeSend->setChecked(true);
 
     layout->addWidget(startNetwork);
     layout->addWidget(showAdvanced);
     layout->addWidget(confirmBeforeSend);
     layout->addWidget(m_publicPeerCheckBox);
+    QHBoxLayout *storageLayout = new QHBoxLayout;
+    storageLayout->setContentsMargins(0, 0, 0, 0);
+    storageLayout->setSpacing(10);
+    storageLayout->addWidget(makeLabel(tr("Storage profile"), "Muted"));
+    storageLayout->addWidget(m_storageProfileComboBox, 0, Qt::AlignLeft);
+    storageLayout->addStretch();
+    layout->addLayout(storageLayout);
     layout->addSpacing(12);
     layout->addWidget(createSectionTitle(tr("Reset Local Blockchain")));
     layout->addWidget(makeLabel(tr("Keeps this wallet but clears local chain, queue, and peer cache data."), "Muted"));
@@ -1330,6 +1347,7 @@ QWidget *MainWindow::createOptionsPage()
     layout->addWidget(resetChainButton, 0, Qt::AlignLeft);
     layout->addStretch();
     connect(m_publicPeerCheckBox, SIGNAL(stateChanged(int)), this, SLOT(saveOptions()));
+    connect(m_storageProfileComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(saveOptions()));
     connect(resetChainButton, SIGNAL(clicked()), this, SLOT(resetBlockchain()));
     return page;
 }
@@ -2137,6 +2155,16 @@ QString MainWindow::coreBinaryPath() const
     return QString();
 }
 
+QString MainWindow::configFilePath() const
+{
+    QString corePath = coreBinaryPath();
+    if (!corePath.isEmpty()) {
+        QFileInfo coreInfo(corePath);
+        return QDir(coreInfo.absoluteDir().absolutePath()).absoluteFilePath("../safire.conf");
+    }
+    return QDir::current().absoluteFilePath("safire.conf");
+}
+
 QString MainWindow::passwordHashFilePath() const
 {
     QDir appDir(QCoreApplication::applicationDirPath());
@@ -2182,6 +2210,82 @@ bool MainWindow::publicPeerModeEnabled() const
 {
     QSettings settings("Safire", "SafireWallet");
     return settings.value("publicPeerMode", false).toBool();
+}
+
+QString MainWindow::storageProfile() const
+{
+    QFile file(configFilePath());
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return QString("desktop");
+    }
+
+    while (!file.atEnd()) {
+        QString line = QString::fromUtf8(file.readLine()).trimmed();
+        int separator = line.indexOf('=');
+        if (separator < 0) {
+            separator = line.indexOf(':');
+        }
+        if (separator < 0) {
+            continue;
+        }
+        QString key = line.left(separator).trimmed();
+        QString value = line.mid(separator + 1).trimmed().toLower();
+        if (key == "storage_profile" || key == "storage") {
+            if (value == "server" || value == "full") {
+                return QString("server");
+            }
+            if (value == "mobile" || value == "phone") {
+                return QString("mobile");
+            }
+            return QString("desktop");
+        }
+    }
+    return QString("desktop");
+}
+
+bool MainWindow::saveStorageProfile(const QString &profile) const
+{
+    QString normalized = profile.trimmed().toLower();
+    if (normalized != "server" && normalized != "mobile") {
+        normalized = "desktop";
+    }
+
+    QFile file(configFilePath());
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+    QStringList lines = QString::fromUtf8(file.readAll()).split('\n');
+    file.close();
+
+    bool replaced = false;
+    for (int i = 0; i < lines.size(); ++i) {
+        QString trimmed = lines.at(i).trimmed();
+        int separator = trimmed.indexOf('=');
+        if (separator < 0) {
+            separator = trimmed.indexOf(':');
+        }
+        if (separator < 0) {
+            continue;
+        }
+        QString key = trimmed.left(separator).trimmed();
+        if (key == "storage_profile" || key == "storage") {
+            lines[i] = QString("storage_profile=%1").arg(normalized);
+            replaced = true;
+        }
+    }
+    if (!replaced) {
+        lines << QString("storage_profile=%1").arg(normalized);
+    }
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        return false;
+    }
+    file.write(lines.join('\n').toUtf8());
+    if (!lines.isEmpty() && !lines.last().isEmpty()) {
+        file.write("\n");
+    }
+    file.close();
+    return true;
 }
 
 bool MainWindow::ensureBackendRunning()
@@ -2263,8 +2367,14 @@ void MainWindow::saveOptions()
     if (m_publicPeerCheckBox) {
         settings.setValue("publicPeerMode", m_publicPeerCheckBox->isChecked());
     }
+    if (m_storageProfileComboBox) {
+        QString profile = m_storageProfileComboBox->itemData(m_storageProfileComboBox->currentIndex()).toString();
+        if (!saveStorageProfile(profile)) {
+            appendTerminalText(tr("\nUnable to save storage profile to safire.conf.\n"));
+        }
+    }
     if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
-        appendTerminalText(tr("\nOptions saved. Restart the console backend to apply public peer mode changes.\n"));
+        appendTerminalText(tr("\nOptions saved. Restart the console backend to apply public peer mode changes immediately.\n"));
     }
 }
 

@@ -17,6 +17,7 @@ public:
     std::string genesisHash;
     std::string defaultPeer;
     std::string publicPeerUrl;
+    std::string storageProfile;
     bool strictGenesis;
     bool enableNatTraversal;
 
@@ -27,6 +28,7 @@ public:
         genesisHash = "";
         defaultPeer = "";
         publicPeerUrl = "";
+        storageProfile = "desktop";
         strictGenesis = true;
         enableNatTraversal = false;
     }
@@ -55,10 +57,64 @@ public:
         outfile << "genesis_hash=" << genesisHash << "\n";
         outfile << "default_peer=" << defaultPeer << "\n";
         outfile << "public_peer_url=" << publicPeerUrl << "\n";
+        outfile << "storage_profile=" << normalizeStorageProfile(storageProfile) << "\n";
         outfile << "strict_genesis=" << (strictGenesis ? "1" : "0") << "\n";
         outfile << "enable_nat=" << (enableNatTraversal ? "1" : "0") << "\n";
         outfile.close();
         return true;
+    }
+
+    static std::string normalizeStorageProfile(const std::string& value)
+    {
+        std::string normalized = trim(value);
+        for(std::size_t i = 0; i < normalized.length(); ++i){
+            if(normalized.at(i) >= 'A' && normalized.at(i) <= 'Z'){
+                normalized.at(i) = static_cast<char>(normalized.at(i) - 'A' + 'a');
+            }
+        }
+        if(normalized.compare("server") == 0 || normalized.compare("full") == 0){
+            return "server";
+        }
+        if(normalized.compare("mobile") == 0 || normalized.compare("phone") == 0){
+            return "mobile";
+        }
+        return "desktop";
+    }
+
+    std::string normalizedStorageProfile() const
+    {
+        return normalizeStorageProfile(storageProfile);
+    }
+
+    long carryForwardPeriodBlocks() const
+    {
+        return 30L * 24L * 60L * 4L; // About 30 days at 15 seconds per block.
+    }
+
+    long carryForwardCheckpointAgeBlocks() const
+    {
+        std::string profile = normalizedStorageProfile();
+        if(profile.compare("server") == 0){
+            return carryForwardPeriodBlocks();
+        }
+        if(profile.compare("mobile") == 0){
+            return 90L * 24L * 60L * 4L; // About 3 months.
+        }
+        return 365L * 24L * 60L * 4L; // About 1 year.
+    }
+
+    long pruneHorizonBlocks() const
+    {
+        std::string profile = normalizedStorageProfile();
+        if(profile.compare("server") == 0){
+            return 0;
+        }
+        return carryForwardCheckpointAgeBlocks();
+    }
+
+    bool prunesOldBlocks() const
+    {
+        return pruneHorizonBlocks() > 0;
     }
 
     static CNetworkConfig load(const std::string& path = "safire.conf")
@@ -87,6 +143,8 @@ public:
                 config.defaultPeer = value;
             } else if(key.compare("public_peer_url") == 0 || key.compare("advertised_peer") == 0){
                 config.publicPeerUrl = value;
+            } else if(key.compare("storage_profile") == 0 || key.compare("storage") == 0){
+                config.storageProfile = normalizeStorageProfile(value);
             } else if(key.compare("strict_genesis") == 0){
                 config.strictGenesis = value.compare("0") != 0 &&
                     value.compare("false") != 0 &&

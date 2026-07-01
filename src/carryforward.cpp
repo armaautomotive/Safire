@@ -8,6 +8,7 @@
 #include "wallet.h"
 #include "network/relayclient.h"
 #include "network/localpeerclient.h"
+#include "networkconfig.h"
 #include "networktime.h"
 #include "blockdb.h"
 
@@ -197,17 +198,20 @@ bool queueCarryForwardIfDue(
     const std::string& publicKey
 ){
     CBlockDB blockDB;
+    CNetworkConfig storagePolicy = CNetworkConfig::load();
+    long checkpointAgeBlocks = storagePolicy.carryForwardCheckpointAgeBlocks();
+    long periodBlocks = storagePolicy.carryForwardPeriodBlocks();
     long firstBlockId = blockDB.getFirstBlockId();
     long latestConnectedBlockId = blockDB.getConnectedLatestBlockId();
     if(privateKey.length() == 0 || publicKey.length() == 0 || firstBlockId < 0 || latestConnectedBlockId < 0){
         return false;
     }
-    if(latestConnectedBlockId - firstBlockId < CFunctions::CARRY_FORWARD_PRUNE_BLOCKS){
+    if(checkpointAgeBlocks <= 0 || periodBlocks <= 0 || latestConnectedBlockId - firstBlockId < checkpointAgeBlocks){
         return false;
     }
 
-    long checkpointBlock = latestConnectedBlockId - CFunctions::CARRY_FORWARD_PRUNE_BLOCKS;
-    long period = checkpointBlock / CFunctions::CARRY_FORWARD_PERIOD_BLOCKS;
+    long checkpointBlock = latestConnectedBlockId - checkpointAgeBlocks;
+    long period = checkpointBlock / periodBlocks;
     if(acceptedCarryForwardExists(publicKey, period) || pendingCarryForwardExists(functions, publicKey, period)){
         return false;
     }

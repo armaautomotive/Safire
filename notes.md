@@ -119,3 +119,11 @@ Older blocks without `records_merkle_root` remain readable with the legacy rules
 First-stage Merkle support adds a `records_merkle_root` to new blocks. This root is calculated from the hashes of records in the block and lets nodes verify that the block hash commits to the record set without folding every record hash directly into the block hash.
 
 Older blocks without `records_merkle_root` remain valid through the legacy block hash calculation. Later production work should add deterministic account state roots, checkpoint roots, and proof APIs for transactions and account state.
+
+## Storage Profiles and Pruning
+
+Wallets can expose storage profiles for server, desktop, and mobile devices. The profiles should control how aggressively the wallet creates carry-forward checkpoints and, later, how much raw block history it keeps locally.
+
+Carry-forward records can now be created on a monthly period. Server nodes should still keep full history, but monthly carry-forwards help smaller devices converge on a smaller working set. Desktop and mobile profiles can target shorter retained histories, such as one year and three months.
+
+Physical pruning should not delete old raw blocks until the client can rebuild balances and validation state from genesis plus accepted carry-forward/checkpoint records. The safe pruning milestone is a state-checkpoint reader that proves the post-prune state root matches the unpruned chain before deleting older records.

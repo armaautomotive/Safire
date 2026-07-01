@@ -1108,8 +1108,15 @@ void printCarryForwardRecords(){
     std::cout << " Carry-forward count: " << carryForwardCount << std::endl;
     std::cout << " Accepted carry-forwards: " << validCarryForwardCount << std::endl;
     std::cout << " Carry-forward reward: " << CFunctions::CARRY_FORWARD_REWARD << " sfr" << std::endl;
-    std::cout << " Carry-forward period: " << CFunctions::CARRY_FORWARD_PERIOD_BLOCKS << " blocks" << std::endl;
-    std::cout << " Prune horizon: " << CFunctions::CARRY_FORWARD_PRUNE_BLOCKS << " blocks" << std::endl;
+    CNetworkConfig storagePolicy = CNetworkConfig::load();
+    std::cout << " Storage profile: " << storagePolicy.normalizedStorageProfile() << std::endl;
+    std::cout << " Carry-forward period: " << storagePolicy.carryForwardPeriodBlocks() << " blocks" << std::endl;
+    std::cout << " Carry-forward checkpoint age: " << storagePolicy.carryForwardCheckpointAgeBlocks() << " blocks" << std::endl;
+    if(storagePolicy.prunesOldBlocks()){
+        std::cout << " Prune horizon: " << storagePolicy.pruneHorizonBlocks() << " blocks" << std::endl;
+    } else {
+        std::cout << " Prune horizon: full history" << std::endl;
+    }
 }
 
 void printVoteRecords(){
@@ -1500,6 +1507,13 @@ void CCLI::processUserInput(){
             std::cout << " First block: " << localGenesisBlockId << std::endl;
             std::cout << " Latest block: " << networkBlockDB.getLatestBlockId() << std::endl;
             std::cout << " Genesis match: " << (networkConfig.genesisMatches(localGenesisBlockId, localGenesisBlock.hash) ? "yes" : "no") << std::endl;
+            std::cout << " Storage profile: " << networkConfig.normalizedStorageProfile() << std::endl;
+            std::cout << " Carry-forward period: " << networkConfig.carryForwardPeriodBlocks() << " blocks" << std::endl;
+            if(networkConfig.prunesOldBlocks()){
+                std::cout << " Retention target: " << networkConfig.pruneHorizonBlocks() << " blocks" << std::endl;
+            } else {
+                std::cout << " Retention target: full history" << std::endl;
+            }
             CNetworkTime networkTime;
             std::cout << " Network time offset: " << networkTime.getOffset() << "s" << std::endl;
             std::cout << " Clock status: " << (networkTime.isClockHealthy() ? "ok" : "check local clock") << std::endl;
@@ -1629,19 +1643,23 @@ void CCLI::processUserInput(){
         } else if ( command.compare("carryforward") == 0 ){
 
             CBlockDB carryBlockDB;
+            CNetworkConfig storagePolicy = CNetworkConfig::load();
+            long checkpointAgeBlocks = storagePolicy.carryForwardCheckpointAgeBlocks();
+            long periodBlocks = storagePolicy.carryForwardPeriodBlocks();
             long firstBlockId = carryBlockDB.getFirstBlockId();
             long latestConnectedBlockId = carryBlockDB.getConnectedLatestBlockId();
             if(publicKey.length() == 0){
                 std::cout << " Wallet public key is not available." << std::endl;
             } else if(firstBlockId < 0 || latestConnectedBlockId < 0){
                 std::cout << " No accepted chain available for carry-forward." << std::endl;
-            } else if(latestConnectedBlockId - firstBlockId < CFunctions::CARRY_FORWARD_PRUNE_BLOCKS){
+            } else if(checkpointAgeBlocks <= 0 || periodBlocks <= 0 || latestConnectedBlockId - firstBlockId < checkpointAgeBlocks){
                 std::cout << " Chain is not old enough for carry-forward yet." << std::endl;
-                std::cout << " Required span: " << CFunctions::CARRY_FORWARD_PRUNE_BLOCKS << " blocks" << std::endl;
+                std::cout << " Storage profile: " << storagePolicy.normalizedStorageProfile() << std::endl;
+                std::cout << " Required span: " << checkpointAgeBlocks << " blocks" << std::endl;
                 std::cout << " Current span: " << (latestConnectedBlockId - firstBlockId) << " blocks" << std::endl;
             } else {
-                long checkpointBlock = latestConnectedBlockId - CFunctions::CARRY_FORWARD_PRUNE_BLOCKS;
-                long period = checkpointBlock / CFunctions::CARRY_FORWARD_PERIOD_BLOCKS;
+                long checkpointBlock = latestConnectedBlockId - checkpointAgeBlocks;
+                long period = checkpointBlock / periodBlocks;
                 if(acceptedCarryForwardExists(publicKey, period)){
                     std::cout << " Carry-forward already accepted for this wallet and period." << std::endl;
                     std::cout << " Period: " << period << std::endl;

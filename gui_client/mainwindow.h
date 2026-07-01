@@ -137,6 +137,7 @@ private:
     void requestJson(const QString &path);
     QString receiveAddress() const;
     QString coreBinaryPath() const;
+    QString configFilePath() const;
     QString passwordHashFilePath() const;
     QString passwordHashFor(const QString &password) const;
     bool passwordHashExists() const;
@@ -144,6 +145,8 @@ private:
     bool savePasswordHash(const QString &hash) const;
     void openWalletShell(const QString &statusText);
     bool publicPeerModeEnabled() const;
+    QString storageProfile() const;
+    bool saveStorageProfile(const QString &profile) const;
     bool ensureBackendRunning();
 
     QStackedWidget *m_rootStack;
@@ -231,6 +234,7 @@ private:
     QPushButton *m_terminalStartButton;
     QPushButton *m_terminalStopButton;
     QCheckBox *m_publicPeerCheckBox;
+    QComboBox *m_storageProfileComboBox;
     QPushButton *m_mainSendButton;
     QPushButton *m_joinNetworkButton;
     QPushButton *m_balanceButton;
