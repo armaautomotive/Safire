@@ -93,14 +93,7 @@ public:
 
     long carryForwardCheckpointAgeBlocks() const
     {
-        std::string profile = normalizedStorageProfile();
-        if(profile.compare("server") == 0){
-            return carryForwardPeriodBlocks();
-        }
-        if(profile.compare("mobile") == 0){
-            return 90L * 24L * 60L * 4L; // About 3 months.
-        }
-        return 365L * 24L * 60L * 4L; // About 1 year.
+        return carryForwardPeriodBlocks();
     }
 
     long pruneHorizonBlocks() const
@@ -109,7 +102,10 @@ public:
         if(profile.compare("server") == 0){
             return 0;
         }
-        return carryForwardCheckpointAgeBlocks();
+        if(profile.compare("mobile") == 0){
+            return 90L * 24L * 60L * 4L; // About 3 months.
+        }
+        return 365L * 24L * 60L * 4L; // About 1 year.
     }
 
     bool prunesOldBlocks() const

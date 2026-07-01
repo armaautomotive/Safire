@@ -122,8 +122,8 @@ Older blocks without `records_merkle_root` remain valid through the legacy block
 
 ## Storage Profiles and Pruning
 
-Wallets can expose storage profiles for server, desktop, and mobile devices. The profiles should control how aggressively the wallet creates carry-forward checkpoints and, later, how much raw block history it keeps locally.
+Wallets can expose storage profiles for server, desktop, and mobile devices. The carry-forward cadence is a network-level policy and must be the same for all nodes. The profiles should only control how much raw block history a node keeps locally after the shared carry-forward policy has produced enough accepted checkpoints.
 
-Carry-forward records can now be created on a monthly period. Server nodes should still keep full history, but monthly carry-forwards help smaller devices converge on a smaller working set. Desktop and mobile profiles can target shorter retained histories, such as one year and three months.
+Carry-forward records can now be created on a monthly period by every profile. Server nodes should still keep full history, but monthly carry-forwards help smaller devices converge on a smaller working set. Desktop and mobile profiles can target shorter retained histories, such as one year and three months, without changing what carry-forward records are valid.
 
 Physical pruning should not delete old raw blocks until the client can rebuild balances and validation state from genesis plus accepted carry-forward/checkpoint records. The safe pruning milestone is a state-checkpoint reader that proves the post-prune state root matches the unpruned chain before deleting older records.
