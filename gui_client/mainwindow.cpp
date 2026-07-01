@@ -950,9 +950,13 @@ QWidget *MainWindow::createBalancePage()
     m_membershipJoinedLabel = makeLabel(tr("Joined: -"), "Muted");
     m_membershipHeartbeatLabel = makeLabel(tr("Heartbeat: -"), "Muted");
     m_membershipCreatorEligibleLabel = makeLabel(tr("Creator eligible: -"), "Muted");
+    m_membershipJoinedLabel->setMinimumWidth(130);
+    m_membershipHeartbeatLabel->setMinimumWidth(150);
+    m_membershipCreatorEligibleLabel->setMinimumWidth(520);
+    m_membershipCreatorEligibleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     membershipStatusRow->addWidget(m_membershipJoinedLabel);
     membershipStatusRow->addWidget(m_membershipHeartbeatLabel);
-    membershipStatusRow->addWidget(m_membershipCreatorEligibleLabel);
+    membershipStatusRow->addWidget(m_membershipCreatorEligibleLabel, 1);
     membershipStatusRow->addStretch();
     membershipLayout->addLayout(membershipStatusRow);
 
@@ -961,8 +965,12 @@ QWidget *MainWindow::createBalancePage()
     membershipBlockRow->setSpacing(34);
     m_currentCreatorLabel = makeLabel(tr("Current block: -"), "Muted");
     m_nextCreatorLabel = makeLabel(tr("Next block: -"), "Muted");
-    membershipBlockRow->addWidget(m_currentCreatorLabel);
-    membershipBlockRow->addWidget(m_nextCreatorLabel);
+    m_currentCreatorLabel->setMinimumWidth(330);
+    m_nextCreatorLabel->setMinimumWidth(430);
+    m_currentCreatorLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    m_nextCreatorLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    membershipBlockRow->addWidget(m_currentCreatorLabel, 1);
+    membershipBlockRow->addWidget(m_nextCreatorLabel, 1);
     membershipBlockRow->addStretch();
     membershipLayout->addLayout(membershipBlockRow);
 
