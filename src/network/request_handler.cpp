@@ -17,6 +17,7 @@
 #include <fstream>
 #include <atomic>
 #include <map>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <string>
@@ -48,6 +49,9 @@ namespace {
 const double API_DEFAULT_TRANSACTION_FEE = 0.0;
 const char* HANDOFF_FILE = "handoff.dat";
 std::atomic<bool> api_sync_in_progress(false);
+std::atomic<bool> api_chain_recovery_in_progress(false);
+std::mutex api_chain_recovery_status_mutex;
+std::string api_chain_recovery_last_status = "{\"status\":\"ok\",\"recovery_running\":\"no\",\"message\":\"No chain recovery has run yet.\"}";
 
 size_t request_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -1657,6 +1661,87 @@ std::string start_sync_peers_json()
   return "{\"status\":\"ok\",\"sync_started\":\"yes\",\"sync_running\":\"yes\",\"message\":\"Peer sync started.\"}";
 }
 
+void set_chain_recovery_status(const std::string& status)
+{
+  std::lock_guard<std::mutex> lock(api_chain_recovery_status_mutex);
+  api_chain_recovery_last_status = status;
+}
+
+std::string chain_recovery_status_json()
+{
+  std::lock_guard<std::mutex> lock(api_chain_recovery_status_mutex);
+  return api_chain_recovery_last_status;
+}
+
+std::string run_chain_recovery_json()
+{
+  CBlockDB blockDB;
+  long latestBefore = blockDB.getLatestBlockId();
+  long connectedBefore = blockDB.getConnectedLatestBlockId();
+  long forkCountBefore = blockDB.getForkVariantCount();
+
+  sync_peers_json();
+  long repairBefore = blockDB.getLatestBlockId();
+  long repairedLatest = blockDB.rebuildBestChainIndex();
+  sync_peers_json();
+
+  long latestAfter = blockDB.getLatestBlockId();
+  long connectedAfter = blockDB.getConnectedLatestBlockId();
+  long forkCountAfter = blockDB.getForkVariantCount();
+  CBlockDB::reorg_info reorgInfo = blockDB.getLastReorgInfo();
+
+  bool changed = latestBefore != latestAfter || connectedBefore != connectedAfter || forkCountBefore != forkCountAfter || repairBefore != repairedLatest;
+
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"recovery_running\":\"no\",";
+  ss << "\"changed\":\"" << (changed ? "yes" : "no") << "\",";
+  ss << "\"latest_before\":\"" << latestBefore << "\",";
+  ss << "\"latest_after\":\"" << latestAfter << "\",";
+  ss << "\"connected_before\":\"" << connectedBefore << "\",";
+  ss << "\"connected_after\":\"" << connectedAfter << "\",";
+  ss << "\"repair_before\":\"" << repairBefore << "\",";
+  ss << "\"repair_after\":\"" << repairedLatest << "\",";
+  ss << "\"fork_count_before\":\"" << forkCountBefore << "\",";
+  ss << "\"fork_count_after\":\"" << forkCountAfter << "\",";
+  ss << "\"last_reorg_previous_block\":\"" << reorgInfo.previous_block << "\",";
+  ss << "\"last_reorg_new_block\":\"" << reorgInfo.new_block << "\",";
+  ss << "\"message\":\"" << (changed ? "Chain recovery completed with local changes." : "Chain recovery completed; no local changes were needed.") << "\"}";
+  return ss.str();
+}
+
+std::string start_chain_recovery_json()
+{
+  bool expected = false;
+  if (api_chain_recovery_in_progress.compare_exchange_strong(expected, true) == false)
+  {
+    return "{\"status\":\"ok\",\"recovery_started\":\"no\",\"recovery_running\":\"yes\",\"message\":\"Chain recovery is already running.\"}";
+  }
+  bool syncExpected = false;
+  if (api_sync_in_progress.compare_exchange_strong(syncExpected, true) == false)
+  {
+    api_chain_recovery_in_progress.store(false);
+    return "{\"status\":\"ok\",\"recovery_started\":\"no\",\"recovery_running\":\"yes\",\"message\":\"Peer sync is already running; try recovery again after it finishes.\"}";
+  }
+
+  set_chain_recovery_status("{\"status\":\"ok\",\"recovery_running\":\"yes\",\"message\":\"Chain recovery is running.\"}");
+  std::thread([](){
+    try
+    {
+      std::string result = run_chain_recovery_json();
+      set_chain_recovery_status(result);
+    }
+    catch (...)
+    {
+      set_chain_recovery_status("{\"status\":\"error\",\"recovery_running\":\"no\",\"message\":\"Chain recovery failed.\"}");
+    }
+    api_sync_in_progress.store(false);
+    api_chain_recovery_in_progress.store(false);
+  }).detach();
+
+  return "{\"status\":\"ok\",\"recovery_started\":\"yes\",\"recovery_running\":\"yes\",\"message\":\"Chain recovery started.\"}";
+}
+
 std::string wallet_history_json(CBlockDB& block_db, const std::string& public_key)
 {
   long first_block_id = block_db.getFirstBlockId();
@@ -2042,7 +2127,7 @@ std::string admin_page_html()
     </section>
   </main>
   <script>
-    const safeCommands = ["status","network","sync","users","mempool","blockchain","peers","exchange","accounts"];
+    const safeCommands = ["status","network","sync","recover","users","mempool","blockchain","peers","exchange","accounts"];
     const $ = id => document.getElementById(id);
     const short = v => !v ? "-" : (v.length > 22 ? v.slice(0,12) + "..." + v.slice(-6) : v);
     const fmt = v => (v === undefined || v === null || v === "") ? "-" : String(Number(v)).replace(/\.?0+$/,"");
@@ -2115,6 +2200,10 @@ std::string admin_command_json(CBlockDB& block_db, const std::string& command)
   {
     payload = start_sync_peers_json();
   }
+  else if (normalized == "recover" || normalized == "repair")
+  {
+    payload = start_chain_recovery_json();
+  }
   else if (normalized == "mempool")
   {
     payload = mempool_json();
@@ -2133,7 +2222,7 @@ std::string admin_command_json(CBlockDB& block_db, const std::string& command)
   }
   else
   {
-    return "{\"status\":\"error\",\"message\":\"Unsupported admin command. Allowed: status, network, sync, users, mempool, blockchain, peers, exchange, accounts.\"}";
+    return "{\"status\":\"error\",\"message\":\"Unsupported admin command. Allowed: status, network, sync, recover, users, mempool, blockchain, peers, exchange, accounts.\"}";
   }
 
   std::stringstream ss;
@@ -2351,6 +2440,18 @@ void request_handler::handle_request(const request& req, reply& rep)
   if (request_path == "/api/forks")
   {
     text_reply(rep, reply::ok, forks_json(blockDB), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/chain/recover" || (req.method == "POST" && request_path == "/api/chain/recover"))
+  {
+    text_reply(rep, reply::ok, start_chain_recovery_json(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/chain/recover/status")
+  {
+    text_reply(rep, reply::ok, chain_recovery_status_json(), "application/json");
     return;
   }
 

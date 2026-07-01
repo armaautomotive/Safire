@@ -777,6 +777,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_peerLabel(0),
       m_natLabel(0),
       m_chainHealthLabel(0),
+      m_recoverChainButton(0),
       m_membershipJoinedLabel(0),
       m_membershipHeartbeatLabel(0),
       m_membershipCreatorEligibleLabel(0),
@@ -1134,9 +1135,16 @@ QWidget *MainWindow::createBalancePage()
     m_natLabel->setWordWrap(false);
     m_natLabel->setMinimumWidth(360);
     networkLayout->addWidget(m_natLabel, 5, 1);
+    QHBoxLayout *chainHealthRow = new QHBoxLayout;
+    chainHealthRow->setContentsMargins(0, 0, 0, 0);
+    chainHealthRow->setSpacing(10);
     m_chainHealthLabel = makeLabel(tr("Chain health: ok"), "Warning");
     m_chainHealthLabel->setVisible(false);
-    networkLayout->addWidget(m_chainHealthLabel, 6, 0, 1, 2);
+    m_recoverChainButton = createSecondaryButton(tr("Repair Chain"));
+    m_recoverChainButton->setVisible(false);
+    chainHealthRow->addWidget(m_chainHealthLabel, 1);
+    chainHealthRow->addWidget(m_recoverChainButton);
+    networkLayout->addLayout(chainHealthRow, 6, 0, 1, 2);
 
     QFrame *networkInfoPanel = makePanel("Panel");
     QGridLayout *networkInfoLayout = new QGridLayout(networkInfoPanel);
@@ -1171,6 +1179,7 @@ QWidget *MainWindow::createBalancePage()
 
     connect(m_joinNetworkButton, SIGNAL(clicked()), this, SLOT(joinNetwork()));
     connect(m_mainSendButton, SIGNAL(clicked()), this, SLOT(showSend()));
+    connect(m_recoverChainButton, SIGNAL(clicked()), this, SLOT(recoverChain()));
     connect(m_accountCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(switchWalletAccount(int)));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(historyNow, SIGNAL(clicked()), this, SLOT(showHistory()));
@@ -2350,6 +2359,46 @@ void MainWindow::applyBlockchainResetResult(const QString &json, bool transportE
     QMessageBox::warning(this, tr("Reset Failed"), message);
 }
 
+void MainWindow::applyChainRecoveryResult(const QString &json, bool transportError)
+{
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    QString status;
+    QString message;
+    QString started;
+    QString running;
+    if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+        QJsonObject object = document.object();
+        status = object.value("status").toString();
+        message = object.value("message").toString();
+        started = object.value("recovery_started").toString();
+        running = object.value("recovery_running").toString();
+    }
+
+    if (message.isEmpty()) {
+        message = transportError ? tr("Unable to start chain recovery.") : tr("Chain recovery response was not understood.");
+    }
+
+    if (!transportError && status == "ok") {
+        if (m_chainHealthLabel) {
+            if (started == "yes" || running == "yes") {
+                m_chainHealthLabel->setText(tr("Chain health: recovery running"));
+                m_chainHealthLabel->setVisible(true);
+            } else {
+                m_chainHealthLabel->setText(tr("Chain health: %1").arg(message));
+                m_chainHealthLabel->setVisible(true);
+            }
+        }
+        QTimer::singleShot(2000, this, SLOT(refreshWalletStatus()));
+        return;
+    }
+
+    if (m_recoverChainButton) {
+        m_recoverChainButton->setEnabled(true);
+    }
+    QMessageBox::warning(this, tr("Chain Recovery"), message);
+}
+
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
@@ -2847,6 +2896,23 @@ void MainWindow::resetBlockchain()
     m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
+void MainWindow::recoverChain()
+{
+    if (!ensureBackendRunning()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Backend is unavailable."));
+        return;
+    }
+
+    if (m_recoverChainButton) {
+        m_recoverChainButton->setEnabled(false);
+    }
+    if (m_chainHealthLabel) {
+        m_chainHealthLabel->setText(tr("Chain health: recovery starting"));
+        m_chainHealthLabel->setVisible(true);
+    }
+    requestJson("/api/chain/recover");
+}
+
 void MainWindow::appendTerminalText(const QString &text)
 {
     if (!m_terminalOutput || text.isEmpty()) {
@@ -3036,9 +3102,17 @@ void MainWindow::applyWalletStatus(const QString &json)
         if (healthWarnings.isEmpty()) {
             m_chainHealthLabel->setText(tr("Chain health: ok"));
             m_chainHealthLabel->setVisible(false);
+            if (m_recoverChainButton) {
+                m_recoverChainButton->setVisible(false);
+                m_recoverChainButton->setEnabled(true);
+            }
         } else {
             m_chainHealthLabel->setText(tr("Chain health: %1").arg(healthWarnings.join(tr(", "))));
             m_chainHealthLabel->setVisible(true);
+            if (m_recoverChainButton) {
+                m_recoverChainButton->setVisible(true);
+                m_recoverChainButton->setEnabled(true);
+            }
         }
     }
     if (m_membershipJoinedLabel) {
@@ -4689,6 +4763,11 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
             reply->deleteLater();
             return;
         }
+        if (path == "/api/chain/recover") {
+            applyChainRecoveryResult(QString::fromUtf8(body), true);
+            reply->deleteLater();
+            return;
+        }
         if (m_syncLabel) {
             m_syncLabel->setText(tr("Sync: waiting for backend API"));
         }
@@ -4731,6 +4810,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         requestJson("/api/wallet/status");
     } else if (path == "/api/blockchain/reset") {
         applyBlockchainResetResult(QString::fromUtf8(body), false);
+    } else if (path == "/api/chain/recover") {
+        applyChainRecoveryResult(QString::fromUtf8(body), false);
     } else {
         applyWalletStatus(QString::fromUtf8(body));
     }

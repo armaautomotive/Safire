@@ -1452,6 +1452,7 @@ void CCLI::printAdvancedCommands(){
     " resetall               - Delete node data.\n" <<
     " requestblock           - Send network request for block data. \n" <<
     " sync                   - Pull blocks from configured local peers. \n" <<
+    " recover                - Sync peers, rebuild best chain, then sync peers again. \n" <<
     " syncfull               - Push the full connected chain to local peers. \n" <<
     std::endl;
 }
@@ -2077,6 +2078,42 @@ void CCLI::processUserInput(){
                 }
             }
             
+        } else if(command.compare("recover") == 0){
+            CBlockDB blockDB;
+            long latestBefore = blockDB.getLatestBlockId();
+            long connectedBefore = blockDB.getConnectedLatestBlockId();
+            long forkCountBefore = blockDB.getForkVariantCount();
+
+            std::cout << " Chain recovery:" << std::endl;
+            std::cout << "  latest before: " << latestBefore << std::endl;
+            std::cout << "  connected before: " << connectedBefore << std::endl;
+            std::cout << "  fork variants before: " << forkCountBefore << std::endl;
+
+            std::vector<std::string> localPeers = CLocalPeerClient::getPeers();
+            if(localPeers.size() == 0){
+                std::cout << "  No local peers configured. Start with --peer http://host:port" << std::endl;
+            }
+            CLocalPeerClient::syncNetworkTime();
+            for(int pass = 0; pass < 2; pass++){
+                std::cout << "  sync pass " << (pass + 1) << std::endl;
+                for(int i = 0; i < localPeers.size(); i++){
+                    CLocalPeerClient::syncFromPeer(localPeers.at(i));
+                    CLocalPeerClient::pushToPeerDetailed(localPeers.at(i));
+                }
+                if(pass == 0){
+                    long repairBefore = blockDB.getLatestBlockId();
+                    long repairAfter = blockDB.rebuildBestChainIndex();
+                    std::cout << "  repair: " << repairBefore << " -> " << repairAfter << std::endl;
+                }
+            }
+
+            long latestAfter = blockDB.getLatestBlockId();
+            long connectedAfter = blockDB.getConnectedLatestBlockId();
+            long forkCountAfter = blockDB.getForkVariantCount();
+            std::cout << "  latest after: " << latestAfter << std::endl;
+            std::cout << "  connected after: " << connectedAfter << std::endl;
+            std::cout << "  fork variants after: " << forkCountAfter << std::endl;
+
         } else if(command.compare("syncfull") == 0){
             std::cout << " Full syncing local peers... " << std::endl;
             std::vector<std::string> localPeers = CLocalPeerClient::getPeers();

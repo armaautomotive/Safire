@@ -72,6 +72,7 @@ private slots:
     void terminalError(QProcess::ProcessError error);
     void saveOptions();
     void resetBlockchain();
+    void recoverChain();
     void addWalletAccount();
     void setSelectedAccountName();
     void setCreatorAccount();
@@ -118,6 +119,7 @@ private:
     void applyJoinNetworkResult(const QString &json, bool transportError);
     void applySetNameResult(const QString &json, bool transportError);
     void applyBlockchainResetResult(const QString &json, bool transportError);
+    void applyChainRecoveryResult(const QString &json, bool transportError);
     void applyWalletAccounts(const QString &json);
     void applyWalletAccountCreateResult(const QString &json, bool transportError);
     QString syncEtaText(double syncProgress,
@@ -197,6 +199,7 @@ private:
     QLabel *m_peerLabel;
     QLabel *m_natLabel;
     QLabel *m_chainHealthLabel;
+    QPushButton *m_recoverChainButton;
     QLabel *m_membershipJoinedLabel;
     QLabel *m_membershipHeartbeatLabel;
     QLabel *m_membershipCreatorEligibleLabel;
