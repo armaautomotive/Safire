@@ -6,6 +6,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BINARY="$PROJECT_ROOT/bin/Safire"
 RUN_DIR="$PROJECT_ROOT/run"
 LOG_DIR="$PROJECT_ROOT/logs"
+DEFAULT_NODE_PORT="${SAFIRE_NODE_PORT:-4888}"
+SAFIRE_LIBRARY_PATH="$PROJECT_ROOT/src/leveldb:/usr/local/lib:/usr/lib/x86_64-linux-gnu"
 PID_FILE="${SAFIRE_PID_FILE:-$RUN_DIR/safire-server.pid}"
 LOG_FILE="${SAFIRE_LOG_FILE:-$LOG_DIR/safire-server.log}"
 
@@ -28,16 +30,17 @@ fi
 
 args=("$@")
 if [[ ${#args[@]} -eq 0 ]]; then
-  args=(--node-port "${SAFIRE_NODE_PORT:-4888}")
+  args=(--node-port "$DEFAULT_NODE_PORT")
   if [[ -n "${SAFIRE_PUBLIC_URL:-}" ]]; then
     args+=(--public-url "$SAFIRE_PUBLIC_URL")
   fi
 fi
 
-export LD_LIBRARY_PATH="$PROJECT_ROOT/src/leveldb:/usr/local/lib:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$SAFIRE_LIBRARY_PATH:${LD_LIBRARY_PATH:-}"
 
 cd "$PROJECT_ROOT"
 echo "Starting Safire server: $BINARY ${args[*]}"
+echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
 echo "Log file: $LOG_FILE"
 nohup "$BINARY" "${args[@]}" >> "$LOG_FILE" 2>&1 &
 pid="$!"
