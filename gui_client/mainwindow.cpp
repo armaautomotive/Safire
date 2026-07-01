@@ -629,6 +629,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_mainSendButton(0),
       m_joinNetworkButton(0),
       m_balanceButton(0),
+      m_accountsButton(0),
       m_sendButton(0),
       m_receiveButton(0),
       m_contactsButton(0),
@@ -638,6 +639,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_peersButton(0),
       m_terminalButton(0),
       m_optionsButton(0),
+      m_accountsTable(0),
       m_lastSyncProgress(-1.0),
       m_lastSyncLatestBlock(-1),
       m_lastSyncSampleMs(0)
@@ -775,6 +777,7 @@ QWidget *MainWindow::createShellPage()
     nav->addSpacing(10);
 
     m_balanceButton = createNavButton(tr("Main"));
+    m_accountsButton = createNavButton(tr("Accounts"));
     m_sendButton = createNavButton(tr("Send"));
     m_receiveButton = createNavButton(tr("Receive"));
     m_contactsButton = createNavButton(tr("Contacts"));
@@ -786,6 +789,7 @@ QWidget *MainWindow::createShellPage()
     m_optionsButton = createNavButton(tr("Options"));
 
     nav->addWidget(m_balanceButton);
+    nav->addWidget(m_accountsButton);
     nav->addWidget(m_sendButton);
     nav->addWidget(m_receiveButton);
     nav->addWidget(m_contactsButton);
@@ -802,6 +806,7 @@ QWidget *MainWindow::createShellPage()
 
     m_contentStack = new QStackedWidget;
     m_contentStack->addWidget(createBalancePage());
+    m_contentStack->addWidget(createAccountsPage());
     m_contentStack->addWidget(createSendPage());
     m_contentStack->addWidget(createReceivePage());
     m_contentStack->addWidget(createContactsPage());
@@ -813,6 +818,7 @@ QWidget *MainWindow::createShellPage()
     m_contentStack->addWidget(createOptionsPage());
 
     connect(m_balanceButton, SIGNAL(clicked()), this, SLOT(showBalance()));
+    connect(m_accountsButton, SIGNAL(clicked()), this, SLOT(showAccounts()));
     connect(m_sendButton, SIGNAL(clicked()), this, SLOT(showSend()));
     connect(m_receiveButton, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(m_contactsButton, SIGNAL(clicked()), this, SLOT(showContacts()));
@@ -852,12 +858,7 @@ QWidget *MainWindow::createBalancePage()
     m_accountCombo->setMinimumWidth(260);
     m_accountCombo->addItem(tr("Loading accounts..."), QString());
     m_accountCombo->setEnabled(false);
-    m_addAccountButton = createSecondaryButton(tr("Add Account"));
-    m_setCreatorAccountButton = createSecondaryButton(tr("Use for Rewards"));
-    m_setCreatorAccountButton->setEnabled(false);
     accountRow->addWidget(m_accountCombo);
-    accountRow->addWidget(m_setCreatorAccountButton);
-    accountRow->addWidget(m_addAccountButton);
     summaryLayout->addLayout(accountRow, 0, 1, Qt::AlignRight | Qt::AlignVCenter);
     summaryLayout->setColumnStretch(0, 1);
     summaryLayout->setColumnStretch(1, 0);
@@ -938,8 +939,6 @@ QWidget *MainWindow::createBalancePage()
 
     connect(m_joinNetworkButton, SIGNAL(clicked()), this, SLOT(joinNetwork()));
     connect(m_mainSendButton, SIGNAL(clicked()), this, SLOT(showSend()));
-    connect(m_addAccountButton, SIGNAL(clicked()), this, SLOT(addWalletAccount()));
-    connect(m_setCreatorAccountButton, SIGNAL(clicked()), this, SLOT(setCreatorAccount()));
     connect(m_accountCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(switchWalletAccount(int)));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(historyNow, SIGNAL(clicked()), this, SLOT(showHistory()));
@@ -986,6 +985,44 @@ QWidget *MainWindow::createBalancePage()
     layout->addWidget(membershipPanel);
     layout->addWidget(networkInfoPanel);
     layout->addStretch();
+    return page;
+}
+
+QWidget *MainWindow::createAccountsPage()
+{
+    QFrame *page = makePanel("Panel");
+    QVBoxLayout *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(26, 24, 26, 24);
+    layout->setSpacing(14);
+
+    QHBoxLayout *header = new QHBoxLayout;
+    header->addWidget(createSectionTitle(tr("Accounts")));
+    header->addStretch();
+    m_setCreatorAccountButton = createSecondaryButton(tr("Use for Rewards"));
+    m_setCreatorAccountButton->setEnabled(false);
+    m_addAccountButton = createPrimaryButton(tr("Add Account"));
+    header->addWidget(m_setCreatorAccountButton);
+    header->addWidget(m_addAccountButton);
+    layout->addLayout(header);
+
+    m_accountsTable = new QTableWidget(0, 6);
+    QStringList headers;
+    headers << tr("Account") << tr("Address") << tr("Balance") << tr("Joined") << tr("Heartbeat") << tr("Role");
+    m_accountsTable->setHorizontalHeaderLabels(headers);
+    m_accountsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_accountsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_accountsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_accountsTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    m_accountsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    m_accountsTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    m_accountsTable->verticalHeader()->setVisible(false);
+    m_accountsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_accountsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_accountsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(m_accountsTable, 1);
+
+    connect(m_addAccountButton, SIGNAL(clicked()), this, SLOT(addWalletAccount()));
+    connect(m_setCreatorAccountButton, SIGNAL(clicked()), this, SLOT(setCreatorAccount()));
     return page;
 }
 
@@ -2076,7 +2113,7 @@ void MainWindow::applyBlockchainResetResult(const QString &json, bool transportE
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
-    buttons << m_balanceButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_blockchainButton << m_peersButton << m_terminalButton << m_optionsButton;
+    buttons << m_balanceButton << m_accountsButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_blockchainButton << m_peersButton << m_terminalButton << m_optionsButton;
     for (int i = 0; i < buttons.size(); ++i) {
         QPushButton *button = buttons.at(i);
         if (!button) {
@@ -2790,16 +2827,31 @@ void MainWindow::applyWalletAccounts(const QString &json)
         if (m_setCreatorAccountButton) {
             m_setCreatorAccountButton->setEnabled(false);
         }
+        if (m_accountsTable) {
+            m_accountsTable->setRowCount(0);
+        }
         return;
     }
 
     QString previousWalletId = m_accountCombo->currentData().toString();
+    QString selectedAccountId;
+    if (m_accountsTable && m_accountsTable->currentRow() >= 0) {
+        QTableWidgetItem *selectedItem = m_accountsTable->item(m_accountsTable->currentRow(), 0);
+        if (selectedItem) {
+            selectedAccountId = selectedItem->data(Qt::UserRole).toString();
+        }
+    }
 
     m_loadingAccounts = true;
     m_accountCombo->blockSignals(true);
     m_accountCombo->clear();
+    if (m_accountsTable) {
+        m_accountsTable->setUpdatesEnabled(false);
+        m_accountsTable->setRowCount(0);
+    }
     int activeIndex = -1;
     int previousIndex = -1;
+    int selectedAccountRow = -1;
     for (int i = 0; i < accounts.size(); ++i) {
         QJsonObject account = accounts.at(i).toObject();
         QString walletId = account.value("wallet_id").toString();
@@ -2807,13 +2859,37 @@ void MainWindow::applyWalletAccounts(const QString &json)
         QString publicName = account.value("public_name").toString();
         QString label = account.value("label").toString();
         QString balance = account.value("balance").toString();
+        bool isActive = walletId == activeWalletId || account.value("active").toString() == "yes";
+        bool isCreator = walletId == creatorWalletId || account.value("creator").toString() == "yes";
         QString displayName = publicName.isEmpty() ? (label.isEmpty() ? tr("Account") : label) : publicName;
-        if (walletId == creatorWalletId || account.value("creator").toString() == "yes") {
+        if (isCreator) {
             displayName = tr("%1 [rewards]").arg(displayName);
         }
         QString display = tr("%1 (%2) - %3 SFR").arg(displayName).arg(shortAddress(publicKey)).arg(formatSfrValue(balance));
         m_accountCombo->addItem(display, walletId);
-        if (walletId == activeWalletId || account.value("active").toString() == "yes") {
+        if (m_accountsTable) {
+            int row = m_accountsTable->rowCount();
+            m_accountsTable->insertRow(row);
+            QString role;
+            if (isActive) {
+                role = tr("Active");
+            }
+            if (isCreator) {
+                role = role.isEmpty() ? tr("Rewards") : tr("%1, Rewards").arg(role);
+            }
+            QTableWidgetItem *nameItem = new QTableWidgetItem(displayName);
+            nameItem->setData(Qt::UserRole, walletId);
+            m_accountsTable->setItem(row, 0, nameItem);
+            m_accountsTable->setItem(row, 1, new QTableWidgetItem(publicKey));
+            m_accountsTable->setItem(row, 2, new QTableWidgetItem(tr("%1 SFR").arg(formatSfrValue(balance))));
+            m_accountsTable->setItem(row, 3, new QTableWidgetItem(account.value("joined").toString()));
+            m_accountsTable->setItem(row, 4, new QTableWidgetItem(account.value("active_heartbeat").toString()));
+            m_accountsTable->setItem(row, 5, new QTableWidgetItem(role.isEmpty() ? tr("-") : role));
+            if (walletId == selectedAccountId) {
+                selectedAccountRow = row;
+            }
+        }
+        if (isActive) {
             activeIndex = i;
         }
         if (walletId == previousWalletId) {
@@ -2828,6 +2904,14 @@ void MainWindow::applyWalletAccounts(const QString &json)
     }
     m_accountCombo->blockSignals(false);
     m_accountCombo->setEnabled(true);
+    if (m_accountsTable) {
+        m_accountsTable->setUpdatesEnabled(true);
+        if (selectedAccountRow >= 0) {
+            m_accountsTable->selectRow(selectedAccountRow);
+        } else if (activeIndex >= 0) {
+            m_accountsTable->selectRow(activeIndex);
+        }
+    }
     if (m_setCreatorAccountButton) {
         m_setCreatorAccountButton->setEnabled(true);
     }
@@ -3326,28 +3410,35 @@ void MainWindow::showBalance()
     refreshWalletStatus();
 }
 
-void MainWindow::showSend()
+void MainWindow::showAccounts()
 {
     m_contentStack->setCurrentIndex(1);
+    setActiveNav(m_accountsButton);
+    refreshWalletStatus();
+}
+
+void MainWindow::showSend()
+{
+    m_contentStack->setCurrentIndex(2);
     setActiveNav(m_sendButton);
 }
 
 void MainWindow::showReceive()
 {
-    m_contentStack->setCurrentIndex(2);
+    m_contentStack->setCurrentIndex(3);
     setActiveNav(m_receiveButton);
 }
 
 void MainWindow::showContacts()
 {
-    m_contentStack->setCurrentIndex(3);
+    m_contentStack->setCurrentIndex(4);
     setActiveNav(m_contactsButton);
     refreshWalletStatus();
 }
 
 void MainWindow::showHistory()
 {
-    m_contentStack->setCurrentIndex(4);
+    m_contentStack->setCurrentIndex(5);
     setActiveNav(m_historyButton);
     refreshWalletStatus();
 }
@@ -3372,14 +3463,14 @@ void MainWindow::nextHistoryPage()
 
 void MainWindow::showMempool()
 {
-    m_contentStack->setCurrentIndex(5);
+    m_contentStack->setCurrentIndex(6);
     setActiveNav(m_mempoolButton);
     refreshWalletStatus();
 }
 
 void MainWindow::showBlockchain()
 {
-    m_contentStack->setCurrentIndex(6);
+    m_contentStack->setCurrentIndex(7);
     setActiveNav(m_blockchainButton);
     refreshWalletStatus();
 }
@@ -3404,20 +3495,20 @@ void MainWindow::nextBlockchainPage()
 
 void MainWindow::showPeers()
 {
-    m_contentStack->setCurrentIndex(7);
+    m_contentStack->setCurrentIndex(8);
     setActiveNav(m_peersButton);
     refreshWalletStatus();
 }
 
 void MainWindow::showTerminal()
 {
-    m_contentStack->setCurrentIndex(8);
+    m_contentStack->setCurrentIndex(9);
     setActiveNav(m_terminalButton);
 }
 
 void MainWindow::showOptions()
 {
-    m_contentStack->setCurrentIndex(9);
+    m_contentStack->setCurrentIndex(10);
     setActiveNav(m_optionsButton);
 }
 
@@ -3776,10 +3867,16 @@ void MainWindow::addWalletAccount()
 
 void MainWindow::setCreatorAccount()
 {
-    if (!m_accountCombo || m_accountCombo->currentIndex() < 0) {
-        return;
+    QString walletId;
+    if (m_accountsTable && m_accountsTable->currentRow() >= 0) {
+        QTableWidgetItem *selectedItem = m_accountsTable->item(m_accountsTable->currentRow(), 0);
+        if (selectedItem) {
+            walletId = selectedItem->data(Qt::UserRole).toString();
+        }
     }
-    QString walletId = m_accountCombo->currentData().toString();
+    if (walletId.isEmpty() && m_accountCombo && m_accountCombo->currentIndex() >= 0) {
+        walletId = m_accountCombo->currentData().toString();
+    }
     if (walletId.isEmpty()) {
         return;
     }
@@ -4014,15 +4111,15 @@ void MainWindow::refreshWalletStatus()
     }
 
     int page = m_contentStack->currentIndex();
-    if (page == 3) {
+    if (page == 4) {
         requestJson("/api/network/users");
-    } else if (page == 4) {
-        requestJson("/api/wallet/history");
     } else if (page == 5) {
-        requestJson("/api/mempool");
+        requestJson("/api/wallet/history");
     } else if (page == 6) {
-        requestJson("/api/blockchain/recent");
+        requestJson("/api/mempool");
     } else if (page == 7) {
+        requestJson("/api/blockchain/recent");
+    } else if (page == 8) {
         requestJson("/api/peers");
     }
 }

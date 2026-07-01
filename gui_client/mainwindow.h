@@ -38,6 +38,7 @@ private slots:
     void skipSignIn();
     void signOut();
     void showBalance();
+    void showAccounts();
     void showSend();
     void showReceive();
     void showContacts();
@@ -81,6 +82,7 @@ private:
     QWidget *createLoginPage();
     QWidget *createShellPage();
     QWidget *createBalancePage();
+    QWidget *createAccountsPage();
     QWidget *createSendPage();
     QWidget *createReceivePage();
     QWidget *createContactsPage();
@@ -247,6 +249,7 @@ private:
     QPushButton *m_mainSendButton;
     QPushButton *m_joinNetworkButton;
     QPushButton *m_balanceButton;
+    QPushButton *m_accountsButton;
     QPushButton *m_sendButton;
     QPushButton *m_receiveButton;
     QPushButton *m_contactsButton;
@@ -256,6 +259,7 @@ private:
     QPushButton *m_peersButton;
     QPushButton *m_terminalButton;
     QPushButton *m_optionsButton;
+    QTableWidget *m_accountsTable;
     double m_lastSyncProgress;
     qint64 m_lastSyncLatestBlock;
     qint64 m_lastSyncSampleMs;
