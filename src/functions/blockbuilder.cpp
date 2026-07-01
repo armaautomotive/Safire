@@ -78,14 +78,12 @@ bool recordExistsInAcceptedChain(CBlockDB& blockDB, const std::string& recordHas
     return false;
 }
 
-void rewriteQueueRecords(CFunctions& functions, const std::vector<CFunctions::record_structure>& records)
+void replacePendingQueueRecords(CFunctions& functions, const std::vector<CFunctions::record_structure>& records)
 {
-    std::ofstream outfile;
-    outfile.open("queue.dat", std::ofstream::out | std::ofstream::trunc);
+    functions.parseQueueRecords();
     for(int i = 0; i < records.size(); i++){
-        outfile << functions.recordJSON(records.at(i));
+        functions.addToQueue(records.at(i));
     }
-    outfile.close();
 }
 
 void pruneAcceptedQueueRecords(CFunctions& functions, CBlockDB& blockDB)
@@ -112,7 +110,7 @@ void pruneAcceptedQueueRecords(CFunctions& functions, CBlockDB& blockDB)
     }
 
     if(changed){
-        rewriteQueueRecords(functions, keptRecords);
+        replacePendingQueueRecords(functions, keptRecords);
     }
 }
 

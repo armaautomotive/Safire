@@ -135,3 +135,9 @@ A local simulation harness can run many Safire processes in isolated directories
 The first harness is script-driven with `scripts/sim-network.sh`. It supports line, star, ring, mesh, and partition topologies, starts a fresh genesis node, copies the generated chain identity to the other nodes, joins wallets, monitors convergence, submits random payments, and deletes the temporary simulation directory for `run` mode.
 
 This style tests the real process, HTTP API, LevelDB locking, peer sync, block production, and wallet behavior. Later production-grade tests should add deterministic seeds, repeatable traffic scripts, latency/drop simulation, partition healing, and machine-readable pass/fail assertions.
+
+## Database-Backed Mempool
+
+Pending records should live in the block database instead of only in `queue.dat`. The first implementation stores records in LevelDB with ordered `mempool:record:<sequence>:<hash>` keys and a `mempool:hash:<hash>` index for duplicate suppression.
+
+`queue.dat` is now a legacy import/fallback path. Nodes still read it so older pending records are not lost after an upgrade, and block building clears it after consuming pending records. When LevelDB opens normally, new pending records should be written to the database-backed mempool.

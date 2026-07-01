@@ -15,10 +15,13 @@
 #include <boost/filesystem.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <cmath>
+#include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <set>
 #include "log.h"
 #include "functions/ledgerstate.h"
+#include "leveldb/write_batch.h"
 
 namespace {
 
@@ -138,6 +141,137 @@ bool carryForwardSnapshotMatches(const CFunctions::record_structure& record){
     return std::fabs(expectedBalance - record.amount) < 0.000001;
 }
 
+const std::string MEMPOOL_RECORD_PREFIX = "mempool:record:";
+const std::string MEMPOOL_HASH_PREFIX = "mempool:hash:";
+const std::string MEMPOOL_SEQUENCE_KEY = "mempool:next_sequence";
+
+bool hasPrefix(const std::string& value, const std::string& prefix)
+{
+    return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
+}
+
+std::string mempoolRecordKey(long sequence, const std::string& hash)
+{
+    std::stringstream ss;
+    ss << MEMPOOL_RECORD_PREFIX << std::setw(20) << std::setfill('0') << sequence << ":";
+    if(hash.length() > 0){
+        ss << hash;
+    } else {
+        ss << "nohash";
+    }
+    return ss.str();
+}
+
+long nextMempoolSequence(leveldb::DB* db)
+{
+    std::string value;
+    long sequence = 1;
+    if(db->Get(leveldb::ReadOptions(), MEMPOOL_SEQUENCE_KEY, &value).ok()){
+        sequence = std::atol(value.c_str());
+        if(sequence < 1){
+            sequence = 1;
+        }
+    }
+    return sequence;
+}
+
+bool pendingRecordLooksUsable(CFunctions& functions, CFunctions::record_structure record)
+{
+    return (record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0) &&
+        functions.isRecordSizeValid(record);
+}
+
+std::vector<std::string> mempoolKeysWithPrefix(leveldb::DB* db, const std::string& prefix)
+{
+    std::vector<std::string> keys;
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for(it->Seek(prefix); it->Valid(); it->Next()){
+        std::string key = it->key().ToString();
+        if(hasPrefix(key, prefix) == false){
+            break;
+        }
+        keys.push_back(key);
+    }
+    delete it;
+    return keys;
+}
+
+std::vector<CFunctions::record_structure> legacyQueueRecords(CFunctions& functions)
+{
+    std::vector<CFunctions::record_structure> records;
+    std::ifstream infile("queue.dat");
+    std::string line;
+    while(std::getline(infile, line)){
+        CFunctions::record_structure record = functions.parseRecordJson(line);
+        if(pendingRecordLooksUsable(functions, record)){
+            records.push_back(record);
+        }
+    }
+    return records;
+}
+
+void clearLegacyQueueFile()
+{
+    std::ofstream ofs;
+    ofs.open("queue.dat", std::ofstream::out | std::ofstream::trunc);
+    ofs.close();
+}
+
+std::vector<CFunctions::record_structure> databaseMempoolRecords(CFunctions& functions, leveldb::DB* db)
+{
+    std::vector<CFunctions::record_structure> records;
+    if(!db){
+        return records;
+    }
+
+    std::vector<std::string> keys = mempoolKeysWithPrefix(db, MEMPOOL_RECORD_PREFIX);
+    for(int i = 0; i < keys.size(); ++i){
+        std::string json;
+        if(db->Get(leveldb::ReadOptions(), keys.at(i), &json).ok()){
+            CFunctions::record_structure record = functions.parseRecordJson(json);
+            if(pendingRecordLooksUsable(functions, record)){
+                records.push_back(record);
+            }
+        }
+    }
+    return records;
+}
+
+void clearDatabaseMempool(leveldb::DB* db)
+{
+    if(!db){
+        return;
+    }
+
+    leveldb::WriteBatch batch;
+    std::vector<std::string> recordKeys = mempoolKeysWithPrefix(db, MEMPOOL_RECORD_PREFIX);
+    for(int i = 0; i < recordKeys.size(); ++i){
+        batch.Delete(recordKeys.at(i));
+    }
+    std::vector<std::string> hashKeys = mempoolKeysWithPrefix(db, MEMPOOL_HASH_PREFIX);
+    for(int i = 0; i < hashKeys.size(); ++i){
+        batch.Delete(hashKeys.at(i));
+    }
+    db->Write(leveldb::WriteOptions(), &batch);
+}
+
+std::vector<CFunctions::record_structure> dedupePendingRecords(const std::vector<CFunctions::record_structure>& input)
+{
+    std::vector<CFunctions::record_structure> records;
+    std::set<std::string> seenHashes;
+    for(int i = 0; i < input.size(); ++i){
+        CFunctions::record_structure record = input.at(i);
+        bool duplicateHash = record.hash.length() > 0 && seenHashes.find(record.hash) != seenHashes.end();
+        if(duplicateHash == false){
+            records.push_back(record);
+            if(record.hash.length() > 0){
+                seenHashes.insert(record.hash);
+            }
+        }
+    }
+    return records;
+}
+
 }
 
 /**
@@ -224,15 +358,45 @@ int CFunctions::addToQueue(record_structure record){
     if(isRecordSizeValid(record) == false){
         return 0;
     }
+
+    CBlockDB blockDB;
+    leveldb::DB* db = blockDB.getDatabase();
+    if(db){
+        if(record.hash.length() > 0){
+            std::string existingRecordKey;
+            if(db->Get(leveldb::ReadOptions(), MEMPOOL_HASH_PREFIX + record.hash, &existingRecordKey).ok()){
+                return 1;
+            }
+            std::vector<record_structure> legacyRecords = legacyQueueRecords(*this);
+            for(int i = 0; i < legacyRecords.size(); i++){
+                if(legacyRecords.at(i).hash.compare(record.hash) == 0){
+                    return 1;
+                }
+            }
+        }
+
+        long sequence = nextMempoolSequence(db);
+        std::string recordKey = mempoolRecordKey(sequence, record.hash);
+        leveldb::WriteBatch batch;
+        batch.Put(recordKey, recordJSON(record));
+        if(record.hash.length() > 0){
+            batch.Put(MEMPOOL_HASH_PREFIX + record.hash, recordKey);
+        }
+        std::stringstream nextSequence;
+        nextSequence << (sequence + 1);
+        batch.Put(MEMPOOL_SEQUENCE_KEY, nextSequence.str());
+        leveldb::Status status = db->Write(leveldb::WriteOptions(), &batch);
+        return status.ok() ? 1 : 0;
+    }
+
     if(record.hash.length() > 0){
-        std::vector<record_structure> existingRecords = peekQueueRecords();
+        std::vector<record_structure> existingRecords = legacyQueueRecords(*this);
         for(int i = 0; i < existingRecords.size(); i++){
             if(existingRecords.at(i).hash.compare(record.hash) == 0){
                 return 1;
             }
         }
     }
-
     std::ofstream outfile;
     outfile.open("queue.dat", std::fstream::out | std::fstream::app | std::ios_base::app);
     outfile << recordJSON(record);
@@ -256,18 +420,17 @@ void CFunctions::printQueue(){
  */
 std::vector<CFunctions::record_structure> CFunctions::peekQueueRecords(){
     std::vector<record_structure> records;
-    std::ifstream infile("queue.dat");
-    std::string line;
-    while (std::getline(infile, line))
-    {
-        CFunctions::record_structure record;
-        record = parseRecordJson(line);
-        if((record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0) &&
-           isRecordSizeValid(record)){
-            records.push_back(record);
-        }
+    CBlockDB blockDB;
+    leveldb::DB* db = blockDB.getDatabase();
+    std::vector<record_structure> dbRecords = databaseMempoolRecords(*this, db);
+    for(int i = 0; i < dbRecords.size(); ++i){
+        records.push_back(dbRecords.at(i));
     }
-    return records;
+    std::vector<record_structure> legacyRecords = legacyQueueRecords(*this);
+    for(int i = 0; i < legacyRecords.size(); ++i){
+        records.push_back(legacyRecords.at(i));
+    }
+    return dedupePendingRecords(records);
 }
 
 /**
@@ -279,32 +442,19 @@ std::vector<CFunctions::record_structure> CFunctions::peekQueueRecords(){
  */
 std::vector<CFunctions::record_structure> CFunctions::parseQueueRecords(){
     std::vector<record_structure> records;
-    std::set<std::string> seenHashes;
-    std::ifstream infile("queue.dat");
-    std::string line;
-    while (std::getline(infile, line))
-    {
-        std::istringstream iss(line);
-        CFunctions::record_structure record;
-        record = parseRecordJson(line);
-   
-        // TODO: delete record if it allready exists in the queue???? ***
-
-        bool duplicateHash = record.hash.length() > 0 && seenHashes.find(record.hash) != seenHashes.end();
-        if(isRecordSizeValid(record) && duplicateHash == false){
-            records.push_back (record);
-            if(record.hash.length() > 0){
-                seenHashes.insert(record.hash);
-            }
-        }
+    CBlockDB blockDB;
+    leveldb::DB* db = blockDB.getDatabase();
+    std::vector<record_structure> dbRecords = databaseMempoolRecords(*this, db);
+    for(int i = 0; i < dbRecords.size(); ++i){
+        records.push_back(dbRecords.at(i));
     }
-
-    // TEMP: delete queue file.
-    std::ofstream ofs;
-    ofs.open("queue.dat", std::ofstream::out | std::ofstream::trunc);
-    ofs.close();
-
-    return records;
+    std::vector<record_structure> legacyRecords = legacyQueueRecords(*this);
+    for(int i = 0; i < legacyRecords.size(); ++i){
+        records.push_back(legacyRecords.at(i));
+    }
+    clearDatabaseMempool(db);
+    clearLegacyQueueFile();
+    return dedupePendingRecords(records);
 }
 
 /**
