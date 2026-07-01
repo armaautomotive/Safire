@@ -1515,6 +1515,9 @@ void MainWindow::renderHistoryPage()
             QString fromAccount = namedAccount(record.value("from_name").toString(), record.value("from_key").toString());
             QString toAccount = namedAccount(record.value("to_name").toString(), record.value("to_key").toString());
             QString account = tr("From: %1\nTo: %2").arg(fromAccount).arg(toAccount);
+            if (direction == "RECEIVED") {
+                account = tr("From: %1").arg(fromAccount);
+            }
 
             bool netOk = false;
             double netAmount = record.value("net").toString().toDouble(&netOk);
