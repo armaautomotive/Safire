@@ -256,6 +256,7 @@ CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& wa
             }
             if (record.hash.length() > 0) {
                 acceptedRecordHashes.insert(record.hash);
+                result.accepted_record_hashes.insert(record.hash);
             }
 
             if (record.transaction_type == CFunctions::JOIN_NETWORK && record.sender_public_key.length() > 0) {
@@ -289,6 +290,7 @@ CLedgerState::state CLedgerState::build(CBlockDB& blockDB, const std::string& wa
                 std::string key = carryForwardKey(record);
                 if (key.length() > 0 && acceptedCarryForwardKeys.find(key) == acceptedCarryForwardKeys.end()) {
                     acceptedCarryForwardKeys.insert(key);
+                    result.accepted_carry_forward_keys.insert(key);
                     addBalanceDelta(result.balances, record.sender_public_key, CFunctions::CARRY_FORWARD_REWARD);
                     result.issued_supply += CFunctions::CARRY_FORWARD_REWARD;
                 }

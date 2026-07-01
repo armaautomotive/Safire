@@ -15,8 +15,132 @@
 #include <map>
 #include <set>
 #include <sstream>
+#include <vector>
 
 namespace {
+
+std::map<std::string, CLedgerState::state> validationStateByBlockHash;
+
+bool carryForwardSnapshotMatches(CBlockDB& blockDB, const CFunctions::record_structure& record);
+std::string carryForwardKey(const CFunctions::record_structure& record);
+bool isBasicCarryForwardRecord(const CFunctions::record_structure& record, long blockNumber);
+
+int memberIndexByKey(std::vector<CLedgerState::member_state>& members, const std::string& publicKey)
+{
+    for (int i = 0; i < members.size(); ++i) {
+        if (members.at(i).public_key.compare(publicKey) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool cachedLedgerStateForBlock(const CFunctions::block_structure& block, CLedgerState::state& state)
+{
+    std::map<std::string, CLedgerState::state>::iterator it = validationStateByBlockHash.find(block.hash);
+    if (it == validationStateByBlockHash.end()) {
+        return false;
+    }
+    if (it->second.latest_block_id != block.number ||
+        it->second.latest_block.hash.compare(block.hash) != 0) {
+        return false;
+    }
+    state = it->second;
+    return true;
+}
+
+void cacheLedgerStateForBlock(const CFunctions::block_structure& block, const CLedgerState::state& state)
+{
+    if (block.hash.length() == 0 || block.number <= 0) {
+        return;
+    }
+    validationStateByBlockHash[block.hash] = state;
+    if (validationStateByBlockHash.size() > 2048) {
+        validationStateByBlockHash.erase(validationStateByBlockHash.begin());
+    }
+}
+
+void applyRecordToCachedState(
+    CBlockDB& blockDB,
+    CLedgerState::state& state,
+    const CFunctions::block_structure& block,
+    const CFunctions::record_structure& record)
+{
+    if (record.hash.length() > 0) {
+        state.accepted_record_hashes.insert(record.hash);
+    }
+
+    if (record.transaction_type == CFunctions::ISSUE_CURRENCY) {
+        state.balances[record.recipient_public_key] += record.amount;
+        state.issued_supply += record.amount;
+    } else if (record.transaction_type == CFunctions::TRANSFER_CURRENCY) {
+        state.balances[record.recipient_public_key] += record.amount;
+        state.balances[record.sender_public_key] -= record.amount + record.fee;
+        state.balances[block.creator_key] += record.fee;
+        if (record.nonce > state.nonces[record.sender_public_key]) {
+            state.nonces[record.sender_public_key] = record.nonce;
+        }
+    } else if (record.transaction_type == CFunctions::VOTE) {
+        state.balances[record.sender_public_key] -= record.fee;
+        state.balances[block.creator_key] += record.fee;
+    } else if (record.transaction_type == CFunctions::JOIN_NETWORK) {
+        if (memberIndexByKey(state.members, record.sender_public_key) < 0) {
+            CLedgerState::member_state member;
+            member.public_key = record.sender_public_key;
+            member.name = "";
+            member.join_block = block.number;
+            member.last_heartbeat_block = -1;
+            member.active = false;
+            state.members.push_back(member);
+        }
+        if (record.name.length() > 0) {
+            int memberIndex = memberIndexByKey(state.members, record.sender_public_key);
+            if (memberIndex >= 0) {
+                state.members[memberIndex].name = record.name;
+                state.names[record.sender_public_key] = record.name;
+            }
+        }
+    } else if (record.transaction_type == CFunctions::UPDATE_NAME) {
+        int memberIndex = memberIndexByKey(state.members, record.sender_public_key);
+        if (memberIndex >= 0) {
+            state.members[memberIndex].name = record.name;
+            state.names[record.sender_public_key] = record.name;
+        }
+    } else if (record.transaction_type == CFunctions::HEART_BEAT) {
+        int memberIndex = memberIndexByKey(state.members, record.sender_public_key);
+        if (memberIndex >= 0) {
+            state.members[memberIndex].last_heartbeat_block = block.number;
+            state.chain_has_heartbeat_records = true;
+        }
+    } else if (record.transaction_type == CFunctions::CARRY_FORWARD &&
+               isBasicCarryForwardRecord(record, block.number) &&
+               carryForwardSnapshotMatches(blockDB, record)) {
+        std::string key = carryForwardKey(record);
+        if (key.length() > 0 && state.accepted_carry_forward_keys.find(key) == state.accepted_carry_forward_keys.end()) {
+            state.accepted_carry_forward_keys.insert(key);
+            state.balances[record.sender_public_key] += CFunctions::CARRY_FORWARD_REWARD;
+            state.issued_supply += CFunctions::CARRY_FORWARD_REWARD;
+        }
+    }
+}
+
+CLedgerState::state applyBlockToCachedState(
+    CBlockDB& blockDB,
+    const CLedgerState::state& parentState,
+    const CFunctions::block_structure& block)
+{
+    CLedgerState::state state = parentState;
+    if (state.first_block_id < 0) {
+        state.first_block_id = block.number;
+    }
+    state.latest_block_id = block.number;
+    state.latest_block = block;
+    state.connected_block_count += 1;
+    for (int i = 0; i < block.records.size(); ++i) {
+        applyRecordToCachedState(blockDB, state, block, block.records.at(i));
+    }
+    return state;
+}
 
 std::string normalizedPublicName(const std::string& name)
 {
@@ -231,6 +355,33 @@ std::string carryForwardKey(const CFunctions::record_structure& record)
     return ss.str();
 }
 
+bool isBasicCarryForwardRecord(const CFunctions::record_structure& record, long blockNumber)
+{
+    if (record.transaction_type != CFunctions::CARRY_FORWARD) {
+        return false;
+    }
+    if (record.sender_public_key.length() == 0 || record.recipient_public_key.length() == 0) {
+        return false;
+    }
+    long checkpoint = parseCarryForwardValueLong(record.value, "checkpoint");
+    long period = parseCarryForwardValueLong(record.value, "period");
+    if (checkpoint < 0 || period < 0 || checkpoint >= blockNumber) {
+        return false;
+    }
+    return record.amount >= 0;
+}
+
+bool carryForwardSnapshotMatches(CBlockDB& blockDB, const CFunctions::record_structure& record)
+{
+    long checkpoint = parseCarryForwardValueLong(record.value, "checkpoint");
+    if (checkpoint < 0) {
+        return false;
+    }
+
+    double expectedBalance = CLedgerState::balanceAtBlock(blockDB, record.recipient_public_key, checkpoint);
+    return std::fabs(expectedBalance - record.amount) < 0.000001;
+}
+
 } // namespace
 
 bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunctions::block_structure& block, std::string& reason)
@@ -307,7 +458,10 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
         bool parentIsCanonical = canonicalParent.number == parent.number && canonicalParent.hash.compare(parent.hash) == 0;
         enforceStateRules = parentIsCanonical;
         if (parentIsCanonical) {
-            parentState = CLedgerState::build(blockDB, "", parent.number);
+            if (cachedLedgerStateForBlock(parent, parentState) == false) {
+                parentState = CLedgerState::build(blockDB, "", parent.number);
+                cacheLedgerStateForBlock(parent, parentState);
+            }
             std::vector<std::string> activeMemberKeys = activeMemberKeysForBlock(parentState.members, parentState.chain_has_heartbeat_records, block.number);
             if (activeMemberKeys.empty()) {
                 reason = "no active members can create blocks";
@@ -343,7 +497,10 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
             return false;
         }
         blockRecordHashes.insert(record.hash);
-        if (!isGenesis && recordExistsInChain(blockDB, record.hash, parent.number)) {
+        bool duplicateRecordInParent = enforceStateRules ?
+            parentState.accepted_record_hashes.find(record.hash) != parentState.accepted_record_hashes.end() :
+            (!isGenesis && recordExistsInChain(blockDB, record.hash, parent.number));
+        if (duplicateRecordInParent) {
             reason = "duplicate record hash already exists in chain";
             return false;
         }
@@ -433,6 +590,11 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
                 return false;
             }
         }
+    }
+
+    if (enforceStateRules) {
+        CLedgerState::state blockState = applyBlockToCachedState(blockDB, parentState, block);
+        cacheLedgerStateForBlock(block, blockState);
     }
 
     return true;

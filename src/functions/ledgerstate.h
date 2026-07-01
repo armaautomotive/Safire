@@ -7,6 +7,7 @@
 
 #include "functions/functions.h"
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,8 @@ public:
         std::map<std::string, double> balances;
         std::map<std::string, long> nonces;
         std::map<std::string, std::string> names;
+        std::set<std::string> accepted_record_hashes;
+        std::set<std::string> accepted_carry_forward_keys;
         std::vector<member_state> members;
         std::vector<std::string> active_member_keys;
         double issued_supply;
