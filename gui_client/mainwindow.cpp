@@ -1133,7 +1133,11 @@ QWidget *MainWindow::createHistoryPage()
     QStringList headers;
     headers << tr("Date") << tr("Type") << tr("Account") << tr("Amount") << tr("Status");
     m_historyTable->setHorizontalHeaderLabels(headers);
-    m_historyTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_historyTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_historyTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_historyTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_historyTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    m_historyTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     m_historyTable->verticalHeader()->setVisible(false);
     m_historyTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_historyTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -1515,7 +1519,7 @@ void MainWindow::renderHistoryPage()
             QString fromAccount = namedAccount(record.value("from_name").toString(), record.value("from_key").toString());
             QString toAccount = namedAccount(record.value("to_name").toString(), record.value("to_key").toString());
             QString account = tr("From: %1\nTo: %2").arg(fromAccount).arg(toAccount);
-            if (direction == "RECEIVED") {
+            if (direction == "RECEIVED" || direction == "REWARD") {
                 account = tr("From: %1").arg(fromAccount);
             }
 
