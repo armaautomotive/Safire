@@ -127,3 +127,11 @@ Wallets can expose storage profiles for server, desktop, and mobile devices. The
 Carry-forward records can now be created on a monthly period by every profile. Server nodes should still keep full history, but monthly carry-forwards help smaller devices converge on a smaller working set. Desktop and mobile profiles can target shorter retained histories, such as one year and three months, without changing what carry-forward records are valid.
 
 Physical pruning should not delete old raw blocks until the client can rebuild balances and validation state from genesis plus accepted carry-forward/checkpoint records. The safe pruning milestone is a state-checkpoint reader that proves the post-prune state root matches the unpruned chain before deleting older records.
+
+## Local Simulation Harness
+
+A local simulation harness can run many Safire processes in isolated directories under `sim/<name>/`. Each virtual node has its own wallet, queue, peer cache, config, and block database while sharing the same compiled binary.
+
+The first harness is script-driven with `scripts/sim-network.sh`. It supports line, star, ring, mesh, and partition topologies, starts a fresh genesis node, copies the generated chain identity to the other nodes, joins wallets, monitors convergence, submits random payments, and deletes the temporary simulation directory for `run` mode.
+
+This style tests the real process, HTTP API, LevelDB locking, peer sync, block production, and wallet behavior. Later production-grade tests should add deterministic seeds, repeatable traffic scripts, latency/drop simulation, partition healing, and machine-readable pass/fail assertions.
