@@ -839,20 +839,23 @@ QWidget *MainWindow::createBalancePage()
     m_walletTitleLabel = createSectionTitle(tr("Wallet"));
     summaryLayout->addWidget(m_walletTitleLabel, 0, 0);
     QHBoxLayout *accountRow = new QHBoxLayout;
+    accountRow->setContentsMargins(0, 0, 0, 0);
+    accountRow->setSpacing(8);
     m_accountCombo = new QComboBox;
     m_accountCombo->setMinimumWidth(260);
     m_addAccountButton = createSecondaryButton(tr("Add Account"));
     accountRow->addWidget(m_accountCombo);
     accountRow->addWidget(m_addAccountButton);
-    accountRow->addStretch();
-    summaryLayout->addLayout(accountRow, 1, 0);
-    summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 2, 0);
+    summaryLayout->addLayout(accountRow, 0, 1, Qt::AlignRight | Qt::AlignVCenter);
+    summaryLayout->setColumnStretch(0, 1);
+    summaryLayout->setColumnStretch(1, 0);
+    summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 1, 0, 1, 2);
     m_balanceLabel = makeLabel(tr("-"), "Balance");
-    summaryLayout->addWidget(m_balanceLabel, 3, 0);
+    summaryLayout->addWidget(m_balanceLabel, 2, 0, 1, 2);
     m_estimatedBalanceLabel = makeLabel(tr("Estimated: -"), "PendingBalance");
-    summaryLayout->addWidget(m_estimatedBalanceLabel, 4, 0);
+    summaryLayout->addWidget(m_estimatedBalanceLabel, 3, 0, 1, 2);
     m_pendingBalanceLabel = makeLabel(tr("Pending: none"), "PendingBalance");
-    summaryLayout->addWidget(m_pendingBalanceLabel, 5, 0);
+    summaryLayout->addWidget(m_pendingBalanceLabel, 4, 0, 1, 2);
 
     QHBoxLayout *actions = new QHBoxLayout;
     m_joinNetworkButton = createPrimaryButton(tr("Join Network"));
@@ -866,7 +869,7 @@ QWidget *MainWindow::createBalancePage()
     actions->addWidget(historyNow);
     actions->addWidget(setNameNow);
     actions->addStretch();
-    summaryLayout->addLayout(actions, 6, 0);
+    summaryLayout->addLayout(actions, 5, 0, 1, 2);
 
     QFrame *networkPanel = makePanel("Panel");
     QGridLayout *networkLayout = new QGridLayout(networkPanel);
