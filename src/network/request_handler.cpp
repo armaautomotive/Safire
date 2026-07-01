@@ -2282,6 +2282,15 @@ void request_handler::handle_request(const request& req, reply& rep)
     {
       nextCreator = CSelector::getSelectedUserForBlock(nextTimeBlock, nextSelectionState.latest_block.hash, nextActiveMemberKeys);
     }
+    bool walletCreatorEligible = false;
+    for (int i = 0; i < currentActiveMemberKeys.size(); ++i)
+    {
+      if (currentActiveMemberKeys.at(i).compare(publicKey) == 0)
+      {
+        walletCreatorEligible = true;
+        break;
+      }
+    }
     long secondsUntilNextBlock = (nextTimeBlock * 15) - netTime.getEpoch();
     if (secondsUntilNextBlock < 0)
     {
@@ -2316,6 +2325,9 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
     ss << "\"joined\":\"" << (chainState.joined ? "yes" : "no") << "\",";
     ss << "\"active_heartbeat\":\"" << (chainState.active_heartbeat ? "yes" : "no") << "\",";
+    ss << "\"creator_eligible\":\"" << (walletCreatorEligible ? "yes" : "no") << "\",";
+    ss << "\"creator_eligibility_boundary_block\":\"" << currentSelectionBoundary << "\",";
+    ss << "\"creator_eligibility_checkpoint_block\":\"" << currentSelectionState.latest_block.number << "\",";
     ss << "\"heartbeat_renewal_due\":\"" << (chainState.heartbeat_renewal_due ? "yes" : "no") << "\",";
     ss << "\"last_heartbeat_block\":\"" << chainState.last_heartbeat_block << "\",";
     ss << "\"currency_supply\":\"" << chainState.issued_supply << "\",";

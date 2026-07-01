@@ -571,6 +571,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_natLabel(0),
       m_membershipJoinedLabel(0),
       m_membershipHeartbeatLabel(0),
+      m_membershipCreatorEligibleLabel(0),
       m_currentCreatorLabel(0),
       m_nextCreatorLabel(0),
       m_supplyLabel(0),
@@ -937,10 +938,12 @@ QWidget *MainWindow::createBalancePage()
     membershipLayout->addWidget(m_membershipJoinedLabel, 1, 0);
     m_membershipHeartbeatLabel = makeLabel(tr("Heartbeat: -"), "Muted");
     membershipLayout->addWidget(m_membershipHeartbeatLabel, 1, 1);
+    m_membershipCreatorEligibleLabel = makeLabel(tr("Creator eligible: -"), "Muted");
+    membershipLayout->addWidget(m_membershipCreatorEligibleLabel, 2, 0, 1, 2);
     m_currentCreatorLabel = makeLabel(tr("Current block: -"), "Muted");
-    membershipLayout->addWidget(m_currentCreatorLabel, 2, 0, 1, 2);
+    membershipLayout->addWidget(m_currentCreatorLabel, 3, 0, 1, 2);
     m_nextCreatorLabel = makeLabel(tr("Next block: -"), "Muted");
-    membershipLayout->addWidget(m_nextCreatorLabel, 3, 0, 1, 2);
+    membershipLayout->addWidget(m_nextCreatorLabel, 4, 0, 1, 2);
 
     layout->addWidget(summary);
     layout->addWidget(networkPanel);
@@ -2507,6 +2510,8 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString userCount = object.value("user_count").toString();
     QString blockCount = object.value("block_count").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
+    QString creatorEligible = object.value("creator_eligible").toString();
+    QString creatorEligibilityCheckpoint = object.value("creator_eligibility_checkpoint_block").toString();
     QString currentCreator = object.value("current_block_creator").toString();
     QString currentCreatorName = object.value("current_block_creator_name").toString();
     QString currentCreatorIsWallet = object.value("current_block_creator_is_wallet").toString();
@@ -2596,6 +2601,14 @@ void MainWindow::applyWalletStatus(const QString &json)
     }
     if (m_membershipHeartbeatLabel) {
         m_membershipHeartbeatLabel->setText(tr("Heartbeat: %1").arg(heartbeat));
+    }
+    if (m_membershipCreatorEligibleLabel) {
+        QString eligibleText = creatorEligible.isEmpty() ? tr("-") : creatorEligible;
+        if (!creatorEligibilityCheckpoint.isEmpty() && creatorEligibilityCheckpoint != "0") {
+            m_membershipCreatorEligibleLabel->setText(tr("Creator eligible: %1 (checkpoint %2)").arg(eligibleText).arg(creatorEligibilityCheckpoint));
+        } else {
+            m_membershipCreatorEligibleLabel->setText(tr("Creator eligible: %1").arg(eligibleText));
+        }
     }
     if (m_currentCreatorLabel) {
         if (currentCreator.isEmpty()) {
