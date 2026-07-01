@@ -870,8 +870,13 @@ QWidget *MainWindow::createBalancePage()
     pendingRow->setSpacing(14);
     m_estimatedBalanceLabel = makeLabel(tr("Estimated: -"), "PendingBalance");
     m_pendingBalanceLabel = makeLabel(tr("Pending: none"), "PendingBalance");
+    m_estimatedBalanceLabel->setWordWrap(false);
+    m_estimatedBalanceLabel->setMinimumWidth(170);
+    m_pendingBalanceLabel->setWordWrap(false);
+    m_pendingBalanceLabel->setMinimumWidth(420);
+    m_pendingBalanceLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     pendingRow->addWidget(m_estimatedBalanceLabel);
-    pendingRow->addWidget(m_pendingBalanceLabel);
+    pendingRow->addWidget(m_pendingBalanceLabel, 1);
     pendingRow->addStretch();
     summaryLayout->addLayout(pendingRow, 3, 0, 1, 2);
 
