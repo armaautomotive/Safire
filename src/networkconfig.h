@@ -20,6 +20,8 @@ public:
     std::string storageProfile;
     bool strictGenesis;
     bool enableNatTraversal;
+    bool enableBlockCreation;
+    bool hasBlockCreationSetting;
 
     CNetworkConfig()
     {
@@ -31,6 +33,8 @@ public:
         storageProfile = "desktop";
         strictGenesis = true;
         enableNatTraversal = false;
+        enableBlockCreation = false;
+        hasBlockCreationSetting = false;
     }
 
     bool hasExpectedGenesis() const
@@ -60,6 +64,7 @@ public:
         outfile << "storage_profile=" << normalizeStorageProfile(storageProfile) << "\n";
         outfile << "strict_genesis=" << (strictGenesis ? "1" : "0") << "\n";
         outfile << "enable_nat=" << (enableNatTraversal ? "1" : "0") << "\n";
+        outfile << "creator_mode=" << (enableBlockCreation ? "1" : "0") << "\n";
         outfile.close();
         return true;
     }
@@ -149,6 +154,14 @@ public:
                 config.enableNatTraversal = value.compare("1") == 0 ||
                     value.compare("true") == 0 ||
                     value.compare("yes") == 0;
+            } else if(key.compare("creator_mode") == 0 ||
+                      key.compare("enable_block_creation") == 0 ||
+                      key.compare("block_creator_mode") == 0){
+                config.enableBlockCreation = value.compare("1") == 0 ||
+                    value.compare("true") == 0 ||
+                    value.compare("yes") == 0 ||
+                    value.compare("on") == 0;
+                config.hasBlockCreationSetting = true;
             }
         }
         return config;

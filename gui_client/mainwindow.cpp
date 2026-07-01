@@ -625,6 +625,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_terminalStatusLabel(0),
       m_terminalStartButton(0),
       m_terminalStopButton(0),
+      m_blockCreatorCheckBox(0),
       m_publicPeerCheckBox(0),
       m_storageProfileComboBox(0),
       m_mainSendButton(0),
@@ -1407,6 +1408,8 @@ QWidget *MainWindow::createOptionsPage()
     QCheckBox *startNetwork = new QCheckBox(tr("Start networking when the wallet opens"));
     QCheckBox *showAdvanced = new QCheckBox(tr("Show advanced chain diagnostics"));
     QCheckBox *confirmBeforeSend = new QCheckBox(tr("Require confirmation before sending"));
+    m_blockCreatorCheckBox = new QCheckBox(tr("Participate in block creation"));
+    m_blockCreatorCheckBox->setChecked(blockCreatorModeEnabled());
     m_publicPeerCheckBox = new QCheckBox(tr("Help the network by accepting peer connections"));
     m_publicPeerCheckBox->setChecked(settings.value("publicPeerMode", false).toBool());
     m_storageProfileComboBox = new QComboBox;
@@ -1423,6 +1426,8 @@ QWidget *MainWindow::createOptionsPage()
     layout->addWidget(startNetwork);
     layout->addWidget(showAdvanced);
     layout->addWidget(confirmBeforeSend);
+    layout->addWidget(m_blockCreatorCheckBox);
+    layout->addWidget(makeLabel(tr("When enabled, this node sends heartbeat records and may be selected to create blocks and receive rewards."), "Muted"));
     layout->addWidget(m_publicPeerCheckBox);
     QHBoxLayout *storageLayout = new QHBoxLayout;
     storageLayout->setContentsMargins(0, 0, 0, 0);
@@ -1437,6 +1442,7 @@ QWidget *MainWindow::createOptionsPage()
     QPushButton *resetChainButton = createDangerButton(tr("Reset Blockchain Data"));
     layout->addWidget(resetChainButton, 0, Qt::AlignLeft);
     layout->addStretch();
+    connect(m_blockCreatorCheckBox, SIGNAL(stateChanged(int)), this, SLOT(saveOptions()));
     connect(m_publicPeerCheckBox, SIGNAL(stateChanged(int)), this, SLOT(saveOptions()));
     connect(m_storageProfileComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(saveOptions()));
     connect(resetChainButton, SIGNAL(clicked()), this, SLOT(resetBlockchain()));
@@ -2339,6 +2345,31 @@ bool MainWindow::publicPeerModeEnabled() const
     return settings.value("publicPeerMode", false).toBool();
 }
 
+bool MainWindow::blockCreatorModeEnabled() const
+{
+    QFile file(configFilePath());
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+
+    while (!file.atEnd()) {
+        QString line = QString::fromUtf8(file.readLine()).trimmed();
+        int separator = line.indexOf('=');
+        if (separator < 0) {
+            separator = line.indexOf(':');
+        }
+        if (separator < 0) {
+            continue;
+        }
+        QString key = line.left(separator).trimmed();
+        QString value = line.mid(separator + 1).trimmed().toLower();
+        if (key == "creator_mode" || key == "enable_block_creation" || key == "block_creator_mode") {
+            return value == "1" || value == "true" || value == "yes" || value == "on";
+        }
+    }
+    return false;
+}
+
 QString MainWindow::storageProfile() const
 {
     QFile file(configFilePath());
@@ -2402,6 +2433,46 @@ bool MainWindow::saveStorageProfile(const QString &profile) const
     }
     if (!replaced) {
         lines << QString("storage_profile=%1").arg(normalized);
+    }
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        return false;
+    }
+    file.write(lines.join('\n').toUtf8());
+    if (!lines.isEmpty() && !lines.last().isEmpty()) {
+        file.write("\n");
+    }
+    file.close();
+    return true;
+}
+
+bool MainWindow::saveBlockCreatorMode(bool enabled) const
+{
+    QFile file(configFilePath());
+    QStringList lines;
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        lines = QString::fromUtf8(file.readAll()).split('\n');
+        file.close();
+    }
+
+    bool replaced = false;
+    for (int i = 0; i < lines.size(); ++i) {
+        QString trimmed = lines.at(i).trimmed();
+        int separator = trimmed.indexOf('=');
+        if (separator < 0) {
+            separator = trimmed.indexOf(':');
+        }
+        if (separator < 0) {
+            continue;
+        }
+        QString key = trimmed.left(separator).trimmed();
+        if (key == "creator_mode" || key == "enable_block_creation" || key == "block_creator_mode") {
+            lines[i] = QString("creator_mode=%1").arg(enabled ? "1" : "0");
+            replaced = true;
+        }
+    }
+    if (!replaced) {
+        lines << QString("creator_mode=%1").arg(enabled ? "1" : "0");
     }
 
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
@@ -2492,6 +2563,9 @@ void MainWindow::saveOptions()
     QSettings settings("Safire", "SafireWallet");
     if (m_publicPeerCheckBox) {
         settings.setValue("publicPeerMode", m_publicPeerCheckBox->isChecked());
+    }
+    if (m_blockCreatorCheckBox && !saveBlockCreatorMode(m_blockCreatorCheckBox->isChecked())) {
+        appendTerminalText(tr("\nUnable to save block creator mode to safire.conf.\n"));
     }
     if (m_storageProfileComboBox) {
         QString profile = m_storageProfileComboBox->itemData(m_storageProfileComboBox->currentIndex()).toString();
@@ -2594,6 +2668,7 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString userCount = object.value("user_count").toString();
     QString blockCount = object.value("block_count").toString();
     QString heartbeat = object.value("active_heartbeat").toString();
+    QString creatorMode = object.value("creator_mode").toString();
     QString creatorEligible = object.value("creator_eligible").toString();
     QString creatorEligibilityCheckpoint = object.value("creator_eligibility_checkpoint_block").toString();
     QString creatorEligibilityEtaBlock = object.value("creator_eligibility_eta_block").toString();
@@ -2688,6 +2763,11 @@ void MainWindow::applyWalletStatus(const QString &json)
     if (m_membershipHeartbeatLabel) {
         m_membershipHeartbeatLabel->setText(tr("Heartbeat: %1").arg(heartbeat));
     }
+    if (m_blockCreatorCheckBox && !creatorMode.isEmpty()) {
+        bool previousSignalsBlocked = m_blockCreatorCheckBox->blockSignals(true);
+        m_blockCreatorCheckBox->setChecked(creatorMode == "yes");
+        m_blockCreatorCheckBox->blockSignals(previousSignalsBlocked);
+    }
     if (m_membershipCreatorEligibleLabel) {
         QString eligibleText = creatorEligible.isEmpty() ? tr("-") : creatorEligible;
         QString detail;
@@ -2695,7 +2775,9 @@ void MainWindow::applyWalletStatus(const QString &json)
         qint64 etaSeconds = creatorEligibilityEtaSeconds.toLongLong(&etaOk);
         bool etaBlockOk = false;
         qint64 etaBlock = creatorEligibilityEtaBlock.toLongLong(&etaBlockOk);
-        if (creatorEligible == "no" && etaOk && etaSeconds >= 0 && etaBlockOk && etaBlock > 0) {
+        if (creatorMode == "no") {
+            eligibleText = tr("off");
+        } else if (creatorEligible == "no" && etaOk && etaSeconds >= 0 && etaBlockOk && etaBlock > 0) {
             detail = tr("about %1, block %2").arg(formatSyncDuration(etaSeconds)).arg(etaBlock);
         } else if (!creatorEligibilityCheckpoint.isEmpty() && creatorEligibilityCheckpoint != "0") {
             detail = tr("checkpoint %1").arg(creatorEligibilityCheckpoint);

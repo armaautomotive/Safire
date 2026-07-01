@@ -2578,6 +2578,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
     ss << "\"joined\":\"" << (creatorState.joined ? "yes" : "no") << "\",";
     ss << "\"active_heartbeat\":\"" << (creatorState.active_heartbeat ? "yes" : "no") << "\",";
+    ss << "\"creator_mode\":\"" << (config.enableBlockCreation ? "yes" : "no") << "\",";
     ss << "\"creator_eligible\":\"" << (walletCreatorEligible ? "yes" : "no") << "\",";
     ss << "\"creator_eligibility_boundary_block\":\"" << currentSelectionBoundary << "\",";
     ss << "\"creator_eligibility_checkpoint_block\":\"" << currentSelectionState.latest_block.number << "\",";

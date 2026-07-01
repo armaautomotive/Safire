@@ -103,6 +103,35 @@ bool setDefaultTransactionFee(double fee){
     return true;
 }
 
+bool parseOnOffValue(const std::string& value, bool& enabled){
+    std::string normalized = value;
+    for(int i = 0; i < normalized.length(); i++){
+        normalized[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(normalized[i])));
+    }
+    if(normalized.compare("on") == 0 ||
+       normalized.compare("yes") == 0 ||
+       normalized.compare("true") == 0 ||
+       normalized.compare("1") == 0){
+        enabled = true;
+        return true;
+    }
+    if(normalized.compare("off") == 0 ||
+       normalized.compare("no") == 0 ||
+       normalized.compare("false") == 0 ||
+       normalized.compare("0") == 0){
+        enabled = false;
+        return true;
+    }
+    return false;
+}
+
+bool setBlockCreatorMode(bool enabled){
+    CNetworkConfig config = CNetworkConfig::load();
+    config.enableBlockCreation = enabled;
+    config.hasBlockCreationSetting = true;
+    return config.save();
+}
+
 std::string readCommandLine(std::string& lastCommand){
 #ifndef _WIN32
     if(isatty(STDIN_FILENO)){
@@ -1337,6 +1366,7 @@ void CCLI::printCommands(){
     " join                    - request membership in the main network.\n" <<
     " setname                 - update your public member name.\n" <<
     " heartbeat               - renew block creator eligibility.\n" <<
+    " creatormode [on|off]    - volunteer this node for block creation and rewards.\n" <<
     " switch [network name]   - switch current network. Default is 'main'.\n" <<
     //" swtch wallet            - change wallet" <<
 	" balance                 - print balance and transaction summary.\n" <<
@@ -1508,8 +1538,11 @@ void CCLI::processUserInput(){
             }
         } else if ( command.compare("heartbeat") == 0 ){
             functions.scanChain(publicKey, false);
+            CNetworkConfig config = CNetworkConfig::load();
             if(functions.joined == false){
                 std::cout << " Join the network before sending a heartbeat." << std::endl;
+            } else if(config.enableBlockCreation == false){
+                std::cout << " Block creator mode is off. Use creatormode on before sending heartbeats." << std::endl;
             } else {
                 CFunctions::record_structure heartbeatRecord;
                 heartbeatRecord.network = "main";
@@ -1529,6 +1562,23 @@ void CCLI::processUserInput(){
 
                 if(queueAndBroadcastRecord(functions, relayClient, heartbeatRecord)){
                     std::cout << "Heartbeat queued and broadcast. Eligibility renews after a block includes this record." << std::endl;
+                }
+            }
+
+		} else if ( firstCommandToken(command).compare("creatormode") == 0 ){
+            std::string value = commandArgument(command);
+            CNetworkConfig config = CNetworkConfig::load();
+            if(value.length() == 0){
+                std::cout << " Block creator mode: " << (config.enableBlockCreation ? "on" : "off") << std::endl;
+                std::cout << " Use creatormode on to send heartbeats and create blocks, or creatormode off for a passive wallet." << std::endl;
+            } else {
+                bool enabled = false;
+                if(parseOnOffValue(value, enabled) == false){
+                    std::cout << " Use creatormode on or creatormode off." << std::endl;
+                } else if(setBlockCreatorMode(enabled) == false){
+                    std::cout << " Unable to update safire.conf." << std::endl;
+                } else {
+                    std::cout << " Block creator mode: " << (enabled ? "on" : "off") << std::endl;
                 }
             }
 
@@ -1668,6 +1718,8 @@ void CCLI::processUserInput(){
             std::cout << " Network time offset: " << networkTime.getOffset() << "s" << std::endl;
             std::cout << " Clock status: " << (networkTime.isClockHealthy() ? "ok" : "check local clock") << std::endl;
             
+            CNetworkConfig config = CNetworkConfig::load();
+            std::cout << " Block creator mode: " << (config.enableBlockCreation ? "on" : "off") << std::endl;
             std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
             std::vector<CFunctions::record_structure> activeMembers = activeMembershipRecords();
             bool activeHeartbeat = false;

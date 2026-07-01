@@ -44,6 +44,30 @@ bool hasPendingHeartbeat(CFunctions& functions, const std::string& publicKey)
     return false;
 }
 
+bool hasArg(int argc, char* argv[], const std::string& name)
+{
+    for(int i = 1; i < argc; i++){
+        if(name.compare(argv[i]) == 0){
+            return true;
+        }
+    }
+    return false;
+}
+
+bool blockCreatorModeEnabled(int argc, char* argv[])
+{
+    CNetworkConfig config = CNetworkConfig::load();
+    if(config.enableBlockCreation ||
+       hasArg(argc, argv, "--creator-mode") ||
+       hasArg(argc, argv, "--enable-block-creation")){
+        return true;
+    }
+    if(config.hasBlockCreationSetting){
+        return false;
+    }
+    return hasArg(argc, argv, "--node-port");
+}
+
 bool recordExistsInAcceptedChain(CBlockDB& blockDB, const std::string& recordHash)
 {
     if(recordHash.length() == 0){
@@ -163,8 +187,12 @@ void queueHeartbeatIfDue(
     CRelayClient& relayClient,
     CECDSACrypto& ecdsa,
     const std::string& privateKey,
-    const std::string& publicKey
+    const std::string& publicKey,
+    bool creatorModeEnabled
 ){
+    if(creatorModeEnabled == false){
+        return;
+    }
     if(functions.joined == false || functions.heartbeat_renewal_due == false){
         return;
     }
@@ -325,6 +353,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         config.genesisBlock = block.number;
         config.genesisHash = block.hash;
         config.strictGenesis = true;
+        config.enableBlockCreation = true;
+        config.hasBlockCreationSetting = true;
         config.save();
 
         blockDB.AddBlock(block);
@@ -423,7 +453,8 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         wallet.readCreatorAccount(privateKey, publicKey);
         //functions.parseBlockFile(publicKey, false); // depricate
         functions.scanChain(publicKey, false); // ??? check this
-        queueHeartbeatIfDue(functions, relayClient, ecdsa, privateKey, publicKey);
+        bool creatorModeEnabled = blockCreatorModeEnabled(argc, argv);
+        queueHeartbeatIfDue(functions, relayClient, ecdsa, privateKey, publicKey, creatorModeEnabled);
         CNetworkTime rebroadcastTime;
         long rebroadcastEpoch = rebroadcastTime.getLocalEpoch();
         if(lastPendingRecordRebroadcastEpoch == 0 || rebroadcastEpoch - lastPendingRecordRebroadcastEpoch >= 30){
@@ -447,6 +478,9 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         }
         // Can't build block unless a member of the block.
         if(functions.joined == false){
+            build_block = false;
+        }
+        if(creatorModeEnabled == false){
             build_block = false;
         }
         if(CLocalPeerClient::getPeers().size() > 0 && !CLocalPeerClient::isSyncedWithPeers()){

@@ -154,6 +154,8 @@ private:
     bool publicPeerModeEnabled() const;
     QString storageProfile() const;
     bool saveStorageProfile(const QString &profile) const;
+    bool blockCreatorModeEnabled() const;
+    bool saveBlockCreatorMode(bool enabled) const;
     bool ensureBackendRunning();
 
     QStackedWidget *m_rootStack;
@@ -246,6 +248,7 @@ private:
     QLabel *m_terminalStatusLabel;
     QPushButton *m_terminalStartButton;
     QPushButton *m_terminalStopButton;
+    QCheckBox *m_blockCreatorCheckBox;
     QCheckBox *m_publicPeerCheckBox;
     QComboBox *m_storageProfileComboBox;
     QPushButton *m_mainSendButton;

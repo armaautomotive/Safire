@@ -184,6 +184,10 @@ int main(int argc, char* argv[])
         hasArg(argc, argv, "--enable-nat") ||
         hasArg(argc, argv, "--public-peer")) &&
         hasArg(argc, argv, "--disable-nat") == false;
+    bool enableBlockCreation = startupConfig.enableBlockCreation ||
+        hasArg(argc, argv, "--creator-mode") ||
+        hasArg(argc, argv, "--enable-block-creation") ||
+        (startupConfig.hasBlockCreationSetting == false && serverNodePort.length() > 0);
     std::string localNodePort = serverNodePort;
     if(localNodePort.length() == 0){
         localNodePort = getArgValue(argc, argv, "--api-port");
@@ -239,6 +243,7 @@ int main(int argc, char* argv[])
     }
     CNetworkTime startupNetworkTime;
     std::cout << " Network time offset: " << startupNetworkTime.getOffset() << "s" << std::endl;
+    std::cout << " Block creator mode: " << (enableBlockCreation ? "on" : "off") << std::endl;
     std::cout << " Joined network: " << (functions.joined > 0 ? "yes" : "no") << std::endl;
     CBlockDB startupBlockDB;
     long startupFirstBlockId = startupBlockDB.getFirstBlockId();
