@@ -2344,6 +2344,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << json_escape(latestBlock.hash) << "\",";
     ss << "\"latest_block_time\":\"" << json_escape(latestBlockTime) << "\",";
+    ss << "\"latest_block_record_count\":\"" << latestBlock.records.size() << "\",";
     ss << "\"block_count\":\"" << blockCount << "\",";
     ss << "\"genesis_match\":\"" << (config.genesisMatches(firstBlockId, firstBlock.hash) ? "yes" : "no") << "\",";
     ss << "\"network_time_offset\":\"" << netTime.getOffset() << "\",";

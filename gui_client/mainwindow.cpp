@@ -579,6 +579,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_supplyDifferenceLabel(0),
       m_userCountLabel(0),
       m_blockCountLabel(0),
+      m_latestBlockRecordCountLabel(0),
       m_historyTable(0),
       m_historyLoadingRow(0),
       m_historyLoadingSpinner(0),
@@ -918,6 +919,8 @@ QWidget *MainWindow::createBalancePage()
     networkInfoLayout->addWidget(m_ledgerBalanceTotalLabel, 2, 0, 1, 2);
     m_supplyDifferenceLabel = makeLabel(tr("Difference: -"), "Muted");
     networkInfoLayout->addWidget(m_supplyDifferenceLabel, 2, 2);
+    m_latestBlockRecordCountLabel = makeLabel(tr("Latest records: -"), "Muted");
+    networkInfoLayout->addWidget(m_latestBlockRecordCountLabel, 3, 0, 1, 3);
 
     connect(m_joinNetworkButton, SIGNAL(clicked()), this, SLOT(joinNetwork()));
     connect(m_mainSendButton, SIGNAL(clicked()), this, SLOT(showSend()));
@@ -2496,6 +2499,7 @@ void MainWindow::applyWalletStatus(const QString &json)
     QString peerChainMatch = object.value("peer_chain_match").toString();
     QString latestBlock = object.value("latest_block_id").toString();
     QString latestBlockTime = object.value("latest_block_time").toString();
+    QString latestBlockRecordCount = object.value("latest_block_record_count").toString();
     QString peerLatestBlock = object.value("peer_latest_block_id").toString();
     QString peerCount = object.value("local_peers").toString();
     QString natEnabled = object.value("nat_enabled").toString();
@@ -2696,6 +2700,10 @@ void MainWindow::applyWalletStatus(const QString &json)
     if (m_blockCountLabel) {
         QString displayedBlockCount = blockCount.isEmpty() ? latestBlock : blockCount;
         m_blockCountLabel->setText(tr("Blocks: %1").arg(displayedBlockCount));
+    }
+    if (m_latestBlockRecordCountLabel) {
+        QString displayedRecordCount = latestBlockRecordCount.isEmpty() ? tr("-") : latestBlockRecordCount;
+        m_latestBlockRecordCountLabel->setText(tr("Latest records: %1").arg(displayedRecordCount));
     }
 
     if (m_receiveAddressLabel && !publicKey.isEmpty()) {
