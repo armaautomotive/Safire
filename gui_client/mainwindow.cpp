@@ -902,9 +902,9 @@ QWidget *MainWindow::createBalancePage()
     m_syncEtaLabel = makeLabel(tr("Time to sync: -"), "Muted");
     networkLayout->addWidget(m_syncEtaLabel, 4, 0, 1, 2);
     m_peerLabel = makeLabel(tr("Peers: -"), "Muted");
-    networkLayout->addWidget(m_peerLabel, 5, 0, 1, 2);
+    networkLayout->addWidget(m_peerLabel, 5, 0);
     m_natLabel = makeLabel(tr("Public peer: off"), "Muted");
-    networkLayout->addWidget(m_natLabel, 6, 0, 1, 2);
+    networkLayout->addWidget(m_natLabel, 5, 1, Qt::AlignRight | Qt::AlignVCenter);
 
     QFrame *networkInfoPanel = makePanel("Panel");
     QGridLayout *networkInfoLayout = new QGridLayout(networkInfoPanel);
