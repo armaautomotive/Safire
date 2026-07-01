@@ -70,6 +70,8 @@ private slots:
     void terminalError(QProcess::ProcessError error);
     void saveOptions();
     void resetBlockchain();
+    void addWalletAccount();
+    void switchWalletAccount(int index);
     void refreshWalletStatus();
     void handleWalletStatusReply(QNetworkReply *reply);
 
@@ -111,6 +113,8 @@ private:
     void applyJoinNetworkResult(const QString &json, bool transportError);
     void applySetNameResult(const QString &json, bool transportError);
     void applyBlockchainResetResult(const QString &json, bool transportError);
+    void applyWalletAccounts(const QString &json);
+    void applyWalletAccountCreateResult(const QString &json, bool transportError);
     QString syncEtaText(double syncProgress,
                         bool progressOk,
                         qint64 latestBlockNumber,
@@ -153,6 +157,7 @@ private:
     bool m_backendStartBlocked;
     bool m_backendLockDetected;
     bool m_backendRestartPending;
+    bool m_loadingAccounts;
     double m_transactionFee;
     QString m_publicKey;
     QString m_publicName;
@@ -163,6 +168,8 @@ private:
     QPushButton *m_loginSkipButton;
     QLabel *m_userLabel;
     QLabel *m_walletTitleLabel;
+    QComboBox *m_accountCombo;
+    QPushButton *m_addAccountButton;
     QLabel *m_balanceLabel;
     QLabel *m_estimatedBalanceLabel;
     QLabel *m_pendingBalanceLabel;

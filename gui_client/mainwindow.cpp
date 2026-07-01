@@ -545,6 +545,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_backendStartBlocked(false),
       m_backendLockDetected(false),
       m_backendRestartPending(false),
+      m_loadingAccounts(false),
       m_transactionFee(0.0),
       m_publicKey(QString()),
       m_publicName(QString()),
@@ -555,6 +556,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_loginSkipButton(0),
       m_userLabel(0),
       m_walletTitleLabel(0),
+      m_accountCombo(0),
+      m_addAccountButton(0),
       m_balanceLabel(0),
       m_estimatedBalanceLabel(0),
       m_pendingBalanceLabel(0),
@@ -835,13 +838,21 @@ QWidget *MainWindow::createBalancePage()
 
     m_walletTitleLabel = createSectionTitle(tr("Wallet"));
     summaryLayout->addWidget(m_walletTitleLabel, 0, 0);
-    summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 1, 0);
+    QHBoxLayout *accountRow = new QHBoxLayout;
+    m_accountCombo = new QComboBox;
+    m_accountCombo->setMinimumWidth(260);
+    m_addAccountButton = createSecondaryButton(tr("Add Account"));
+    accountRow->addWidget(m_accountCombo);
+    accountRow->addWidget(m_addAccountButton);
+    accountRow->addStretch();
+    summaryLayout->addLayout(accountRow, 1, 0);
+    summaryLayout->addWidget(makeLabel(tr("Available Balance"), "Muted"), 2, 0);
     m_balanceLabel = makeLabel(tr("-"), "Balance");
-    summaryLayout->addWidget(m_balanceLabel, 2, 0);
+    summaryLayout->addWidget(m_balanceLabel, 3, 0);
     m_estimatedBalanceLabel = makeLabel(tr("Estimated: -"), "PendingBalance");
-    summaryLayout->addWidget(m_estimatedBalanceLabel, 3, 0);
+    summaryLayout->addWidget(m_estimatedBalanceLabel, 4, 0);
     m_pendingBalanceLabel = makeLabel(tr("Pending: none"), "PendingBalance");
-    summaryLayout->addWidget(m_pendingBalanceLabel, 4, 0);
+    summaryLayout->addWidget(m_pendingBalanceLabel, 5, 0);
 
     QHBoxLayout *actions = new QHBoxLayout;
     m_joinNetworkButton = createPrimaryButton(tr("Join Network"));
@@ -855,7 +866,7 @@ QWidget *MainWindow::createBalancePage()
     actions->addWidget(historyNow);
     actions->addWidget(setNameNow);
     actions->addStretch();
-    summaryLayout->addLayout(actions, 5, 0);
+    summaryLayout->addLayout(actions, 6, 0);
 
     QFrame *networkPanel = makePanel("Panel");
     QGridLayout *networkLayout = new QGridLayout(networkPanel);
@@ -903,6 +914,8 @@ QWidget *MainWindow::createBalancePage()
 
     connect(m_joinNetworkButton, SIGNAL(clicked()), this, SLOT(joinNetwork()));
     connect(m_mainSendButton, SIGNAL(clicked()), this, SLOT(showSend()));
+    connect(m_addAccountButton, SIGNAL(clicked()), this, SLOT(addWalletAccount()));
+    connect(m_accountCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(switchWalletAccount(int)));
     connect(receiveNow, SIGNAL(clicked()), this, SLOT(showReceive()));
     connect(historyNow, SIGNAL(clicked()), this, SLOT(showHistory()));
     connect(setNameNow, SIGNAL(clicked()), this, SLOT(setWalletName()));
@@ -1912,6 +1925,41 @@ void MainWindow::applySetNameResult(const QString &json, bool transportError)
     QMessageBox::warning(this, tr("Name Not Updated"), message);
 }
 
+void MainWindow::applyWalletAccountCreateResult(const QString &json, bool transportError)
+{
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    QString status;
+    QString message;
+    QString walletId;
+    if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+        QJsonObject object = document.object();
+        status = object.value("status").toString();
+        message = object.value("message").toString();
+        walletId = object.value("wallet_id").toString();
+    }
+
+    if (message.isEmpty()) {
+        message = transportError ? tr("Unable to create account.") : tr("Create account response was not understood.");
+    }
+
+    if (!transportError && status == "ok") {
+        QMessageBox::information(this, tr("Account Created"), message);
+        if (!walletId.isEmpty()) {
+            QUrl url(QString("http://127.0.0.1:%1/api/wallet/accounts/active").arg(m_backendPort));
+            QNetworkRequest request(url);
+            request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+            QUrlQuery form;
+            form.addQueryItem("wallet_id", walletId);
+            m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
+        }
+        refreshWalletStatus();
+        return;
+    }
+
+    QMessageBox::warning(this, tr("Account Not Created"), message);
+}
+
 void MainWindow::applyBlockchainResetResult(const QString &json, bool transportError)
 {
     QJsonParseError parseError;
@@ -2007,7 +2055,7 @@ void MainWindow::setLoadingState(const QString &path, bool loading)
 
 QString MainWindow::receiveAddress() const
 {
-    return QString("03D245A704904A61B82E7876D123D5C561B990A391E427FC9019229439D2986680");
+    return m_publicKey;
 }
 
 QString MainWindow::syncEtaText(double syncProgress,
@@ -2486,6 +2534,58 @@ void MainWindow::applyWalletStatus(const QString &json)
     if (m_receiveAddressLabel && !publicKey.isEmpty()) {
         m_receiveAddressLabel->setText(publicKey);
     }
+}
+
+void MainWindow::applyWalletAccounts(const QString &json)
+{
+    if (!m_accountCombo) {
+        return;
+    }
+
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        return;
+    }
+    QJsonObject object = document.object();
+    if (object.value("status").toString() != "ok") {
+        return;
+    }
+
+    QString activeWalletId = object.value("active_wallet_id").toString();
+    QJsonArray accounts = object.value("accounts").toArray();
+    QString previousWalletId = m_accountCombo->currentData().toString();
+
+    m_loadingAccounts = true;
+    m_accountCombo->blockSignals(true);
+    m_accountCombo->clear();
+    int activeIndex = -1;
+    int previousIndex = -1;
+    for (int i = 0; i < accounts.size(); ++i) {
+        QJsonObject account = accounts.at(i).toObject();
+        QString walletId = account.value("wallet_id").toString();
+        QString publicKey = account.value("public_key").toString();
+        QString publicName = account.value("public_name").toString();
+        QString label = account.value("label").toString();
+        QString balance = account.value("balance").toString();
+        QString displayName = publicName.isEmpty() ? (label.isEmpty() ? tr("Account") : label) : publicName;
+        QString display = tr("%1 (%2) - %3 SFR").arg(displayName).arg(shortAddress(publicKey)).arg(formatSfrValue(balance));
+        m_accountCombo->addItem(display, walletId);
+        if (walletId == activeWalletId || account.value("active").toString() == "yes") {
+            activeIndex = i;
+        }
+        if (walletId == previousWalletId) {
+            previousIndex = i;
+        }
+    }
+
+    if (activeIndex >= 0) {
+        m_accountCombo->setCurrentIndex(activeIndex);
+    } else if (previousIndex >= 0) {
+        m_accountCombo->setCurrentIndex(previousIndex);
+    }
+    m_accountCombo->blockSignals(false);
+    m_loadingAccounts = false;
 }
 
 void MainWindow::applyWalletHistory(const QString &json)
@@ -3386,6 +3486,59 @@ void MainWindow::joinNetwork()
     m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
+void MainWindow::addWalletAccount()
+{
+    bool ok = false;
+    QString label = QInputDialog::getText(this,
+                                          tr("Add Account"),
+                                          tr("Local account label"),
+                                          QLineEdit::Normal,
+                                          tr("Account"),
+                                          &ok).trimmed();
+    if (!ok) {
+        return;
+    }
+    if (label.isEmpty()) {
+        label = tr("Account");
+    }
+
+    if (!ensureBackendRunning()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Backend is unavailable."));
+        return;
+    }
+
+    QUrl url(QString("http://127.0.0.1:%1/api/wallet/accounts/create").arg(m_backendPort));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery form;
+    form.addQueryItem("label", label);
+    m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
+}
+
+void MainWindow::switchWalletAccount(int index)
+{
+    if (m_loadingAccounts || index < 0 || !m_accountCombo) {
+        return;
+    }
+    QString walletId = m_accountCombo->itemData(index).toString();
+    if (walletId.isEmpty() || walletId == m_publicKey) {
+        return;
+    }
+    if (!ensureBackendRunning()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Backend is unavailable."));
+        return;
+    }
+
+    QUrl url(QString("http://127.0.0.1:%1/api/wallet/accounts/active").arg(m_backendPort));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery form;
+    form.addQueryItem("wallet_id", walletId);
+    m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
+}
+
 void MainWindow::startTerminal()
 {
     m_backendStartBlocked = false;
@@ -3568,6 +3721,7 @@ void MainWindow::refreshWalletStatus()
     }
 
     requestJson("/api/wallet/status");
+    requestJson("/api/wallet/accounts");
 
     if (!m_contentStack) {
         return;
@@ -3649,6 +3803,11 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
             reply->deleteLater();
             return;
         }
+        if (path == "/api/wallet/accounts/create") {
+            applyWalletAccountCreateResult(QString::fromUtf8(body), true);
+            reply->deleteLater();
+            return;
+        }
         if (path == "/api/blockchain/reset") {
             applyBlockchainResetResult(QString::fromUtf8(body), true);
             reply->deleteLater();
@@ -3670,6 +3829,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
 
     if (path == "/api/wallet/history") {
         applyWalletHistory(QString::fromUtf8(body));
+    } else if (path == "/api/wallet/accounts") {
+        applyWalletAccounts(QString::fromUtf8(body));
     } else if (path == "/api/mempool") {
         applyMempool(QString::fromUtf8(body));
     } else if (path == "/api/blockchain/recent") {
@@ -3684,6 +3845,11 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         applyJoinNetworkResult(QString::fromUtf8(body), false);
     } else if (path == "/api/wallet/setname") {
         applySetNameResult(QString::fromUtf8(body), false);
+    } else if (path == "/api/wallet/accounts/create") {
+        applyWalletAccountCreateResult(QString::fromUtf8(body), false);
+    } else if (path == "/api/wallet/accounts/active") {
+        applyWalletAccounts(QString::fromUtf8(body));
+        requestJson("/api/wallet/status");
     } else if (path == "/api/blockchain/reset") {
         applyBlockchainResetResult(QString::fromUtf8(body), false);
     } else {

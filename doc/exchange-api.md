@@ -25,6 +25,37 @@ return zero confirmations.
 
 Returns compact confirmation status for a transaction hash.
 
+## Multi-account wallet endpoints
+
+The node shares one blockchain database, but the wallet can hold multiple local
+accounts/addresses.
+
+`GET /api/wallet/accounts`
+
+Lists local wallet accounts, the active account, public names, balances, joined
+state, and heartbeat state.
+
+`POST /api/wallet/accounts/create`
+
+Creates a new local keypair. The new account is not joined automatically.
+
+Parameters:
+
+```json
+{ "label": "Customer deposits" }
+```
+
+`POST /api/wallet/accounts/active`
+
+Switches the active wallet account used by wallet status, send, join, set name,
+history, receive, heartbeat, and block creation.
+
+Parameters:
+
+```json
+{ "wallet_id": "03..." }
+```
+
 ## Withdrawal endpoint
 
 `POST /api/exchange/withdraw`

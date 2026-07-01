@@ -22,6 +22,13 @@ private:
 
 
 public:
+    struct account {
+        std::string id;
+        std::string label;
+        std::string private_key;
+        std::string public_key;
+    };
+
     //! Construct an empty wallet.
     CWallet()
     {
@@ -35,7 +42,12 @@ public:
     bool fileExists(std::string fileName);
     bool write(std::string privateKey, std::string publicKey);
     bool read(std::string & privateKey, std::string & publicKey);
+    bool readAccount(std::string id, std::string & privateKey, std::string & publicKey);
+    bool createAccount(std::string label, account & created);
+    std::vector<account> listAccounts();
+    bool setActiveAccount(std::string id);
+    std::string activeAccountId();
+    bool ensureWalletStore();
 };
 
 #endif // MAGNITE_WALLET_H
-

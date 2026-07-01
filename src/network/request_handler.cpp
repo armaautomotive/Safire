@@ -1170,6 +1170,24 @@ long next_transfer_nonce(CBlockDB& block_db, const std::string& public_key)
   return nonce + 1;
 }
 
+bool selected_wallet_keys(const request& req,
+                          const std::string& request_path,
+                          CWallet& wallet,
+                          std::string& private_key,
+                          std::string& public_key)
+{
+  std::string wallet_id = submitted_value_any(req, request_path, "wallet_id");
+  if (wallet_id.length() == 0)
+  {
+    wallet_id = submitted_value_any(req, request_path, "address");
+  }
+  if (wallet_id.length() > 0)
+  {
+    return wallet.readAccount(wallet_id, private_key, public_key);
+  }
+  return wallet.read(private_key, public_key);
+}
+
 double accepted_member_supply(CBlockDB& block_db)
 {
   return CLedgerState::build(block_db).ledger_balance_total;
@@ -1482,6 +1500,42 @@ std::string exchange_deposits_json(CBlockDB& block_db, const std::string& addres
   return ss.str();
 }
 
+std::string wallet_accounts_json(CBlockDB& block_db)
+{
+  CWallet wallet;
+  std::vector<CWallet::account> accounts = wallet.listAccounts();
+  std::string active_id = wallet.activeAccountId();
+  std::map<std::string, std::string> names = accepted_member_names(block_db);
+  CLedgerState::state chain_state = CLedgerState::build(block_db);
+
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"active_wallet_id\":\"" << json_escape(active_id) << "\",";
+  ss << "\"accounts\":[";
+  for (int i = 0; i < accounts.size(); ++i)
+  {
+    if (i > 0)
+    {
+      ss << ",";
+    }
+    CWallet::account account = accounts.at(i);
+    CLedgerState::state account_state = CLedgerState::build(block_db, account.public_key);
+    ss << "{";
+    ss << "\"wallet_id\":\"" << json_escape(account.id) << "\",";
+    ss << "\"label\":\"" << json_escape(account.label) << "\",";
+    ss << "\"public_key\":\"" << json_escape(account.public_key) << "\",";
+    ss << "\"public_name\":\"" << json_escape(name_for_key(names, account.public_key)) << "\",";
+    ss << "\"active\":\"" << (account.id.compare(active_id) == 0 ? "yes" : "no") << "\",";
+    ss << "\"balance\":\"" << chain_state.balances[account.public_key] << "\",";
+    ss << "\"joined\":\"" << (account_state.joined ? "yes" : "no") << "\",";
+    ss << "\"active_heartbeat\":\"" << (account_state.active_heartbeat ? "yes" : "no") << "\",";
+    ss << "\"last_heartbeat_block\":\"" << account_state.last_heartbeat_block << "\"";
+    ss << "}";
+  }
+  ss << "]}";
+  return ss.str();
+}
+
 double sync_progress_percent(long first_block_id,
                              long latest_block_id,
                              const std::vector<CLocalPeerClient::peer_status>& local_peers)
@@ -1730,7 +1784,57 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
-  if (request_path == "/api/wallet/status")
+  if (request_path == "/api/wallet/accounts")
+  {
+    text_reply(rep, reply::ok, wallet_accounts_json(blockDB), "application/json");
+    return;
+  }
+
+  if (request_path.find("/api/wallet/accounts/active?") == 0
+      || (req.method == "POST" && request_path == "/api/wallet/accounts/active"))
+  {
+    CWallet wallet;
+    std::string wallet_id = submitted_value_any(req, request_path, "wallet_id");
+    if (wallet_id.length() == 0)
+    {
+      wallet_id = submitted_value_any(req, request_path, "address");
+    }
+    if (wallet_id.length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"wallet_id is required.\"}", "application/json");
+      return;
+    }
+    if (wallet.setActiveAccount(wallet_id) == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"not_found\",\"message\":\"Wallet account was not found.\"}", "application/json");
+      return;
+    }
+    text_reply(rep, reply::ok, wallet_accounts_json(blockDB), "application/json");
+    return;
+  }
+
+  if (request_path.find("/api/wallet/accounts/create?") == 0
+      || (req.method == "POST" && request_path == "/api/wallet/accounts/create"))
+  {
+    CWallet wallet;
+    CWallet::account created;
+    std::string label = submitted_value_any(req, request_path, "label");
+    if (wallet.createAccount(label, created) == false)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Unable to create wallet account.\"}", "application/json");
+      return;
+    }
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"message\":\"Wallet account created.\",";
+    ss << "\"wallet_id\":\"" << json_escape(created.id) << "\",";
+    ss << "\"label\":\"" << json_escape(created.label) << "\",";
+    ss << "\"public_key\":\"" << json_escape(created.public_key) << "\"}";
+    text_reply(rep, reply::created, ss.str(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/wallet/status" || request_path.find("/api/wallet/status?") == 0)
   {
     CWallet wallet;
     if (wallet.fileExists("wallet.dat") == false)
@@ -1741,7 +1845,11 @@ void request_handler::handle_request(const request& req, reply& rep)
 
     std::string privateKey;
     std::string publicKey;
-    wallet.read(privateKey, publicKey);
+    if (selected_wallet_keys(req, request_path, wallet, privateKey, publicKey) == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\"}", "application/json");
+      return;
+    }
     functions.scanChain(publicKey, false);
 
     long firstBlockId = blockDB.getFirstBlockId();
@@ -1796,6 +1904,8 @@ void request_handler::handle_request(const request& req, reply& rep)
 
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
+    ss << "\"active_wallet_id\":\"" << json_escape(wallet.activeAccountId()) << "\",";
+    ss << "\"wallet_id\":\"" << json_escape(publicKey) << "\",";
     ss << "\"public_key\":\"" << publicKey << "\",";
     ss << "\"public_name\":\"" << json_escape(name_for_key(memberNames, publicKey)) << "\",";
     ss << "\"active_member_count\":\"" << activeMemberKeys.size() << "\",";
@@ -1845,7 +1955,7 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
-  if (request_path == "/api/wallet/history")
+  if (request_path == "/api/wallet/history" || request_path.find("/api/wallet/history?") == 0)
   {
     CWallet wallet;
     if (wallet.fileExists("wallet.dat") == false)
@@ -1856,7 +1966,11 @@ void request_handler::handle_request(const request& req, reply& rep)
 
     std::string privateKey;
     std::string publicKey;
-    wallet.read(privateKey, publicKey);
+    if (selected_wallet_keys(req, request_path, wallet, privateKey, publicKey) == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\",\"records\":[]}", "application/json");
+      return;
+    }
     text_reply(rep, reply::ok, wallet_history_json(blockDB, publicKey), "application/json");
     return;
   }
@@ -1880,7 +1994,11 @@ void request_handler::handle_request(const request& req, reply& rep)
 
     std::string privateKey;
     std::string publicKey;
-    wallet.read(privateKey, publicKey);
+    if (selected_wallet_keys(req, request_path, wallet, privateKey, publicKey) == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\"}", "application/json");
+      return;
+    }
     functions.scanChain(publicKey, false);
     if (functions.joined == true)
     {
@@ -1950,7 +2068,11 @@ void request_handler::handle_request(const request& req, reply& rep)
 
     std::string privateKey;
     std::string publicKey;
-    wallet.read(privateKey, publicKey);
+    if (selected_wallet_keys(req, request_path, wallet, privateKey, publicKey) == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\"}", "application/json");
+      return;
+    }
     functions.scanChain(publicKey, false);
     if (functions.joined == false)
     {
@@ -2027,7 +2149,11 @@ void request_handler::handle_request(const request& req, reply& rep)
 
     std::string privateKey;
     std::string publicKey;
-    wallet.read(privateKey, publicKey);
+    if (selected_wallet_keys(req, request_path, wallet, privateKey, publicKey) == false)
+    {
+      text_reply(rep, reply::not_found, "{\"status\":\"no_wallet\",\"message\":\"Wallet account not found.\"}", "application/json");
+      return;
+    }
     functions.scanChain(publicKey, false);
 
     double transaction_fee = api_default_transaction_fee();

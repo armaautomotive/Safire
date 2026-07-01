@@ -204,17 +204,12 @@ int main(int argc, char* argv[])
     CLocalPeerClient::syncNetworkTime();
 
     CWallet wallet;
-    bool e = wallet.fileExists("wallet.dat");
-    //printf(" wallet exists: %d  \n", e);
-    if(e == 0){
+    if(wallet.read(privateKey, publicKey) == false){
         printf("No wallet found. Creating a new one...\n");
         std::string publicKeyUncompressed;
         int r = ecdsa.RandomPrivateKey(privateKey);
         r = ecdsa.GetPublicKey(privateKey, publicKeyUncompressed, publicKey);        
         wallet.write(privateKey, publicKey);
-    } else {
-        // Load wallet
-        wallet.read(privateKey, publicKey);
     }
     std::cout <<
         //"  private  " << privateKey << "\n  " <<
