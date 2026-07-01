@@ -952,9 +952,9 @@ QWidget *MainWindow::createBalancePage()
     m_membershipCreatorEligibleLabel = makeLabel(tr("Creator eligible: -"), "Muted");
     membershipLayout->addWidget(m_membershipCreatorEligibleLabel, 2, 0, 1, 2);
     m_currentCreatorLabel = makeLabel(tr("Current block: -"), "Muted");
-    membershipLayout->addWidget(m_currentCreatorLabel, 3, 0, 1, 2);
+    membershipLayout->addWidget(m_currentCreatorLabel, 3, 0);
     m_nextCreatorLabel = makeLabel(tr("Next block: -"), "Muted");
-    membershipLayout->addWidget(m_nextCreatorLabel, 4, 0, 1, 2);
+    membershipLayout->addWidget(m_nextCreatorLabel, 3, 1, Qt::AlignRight | Qt::AlignVCenter);
 
     layout->addWidget(summary);
     layout->addWidget(networkPanel);
