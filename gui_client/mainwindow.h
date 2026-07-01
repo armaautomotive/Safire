@@ -72,6 +72,7 @@ private slots:
     void saveOptions();
     void resetBlockchain();
     void addWalletAccount();
+    void setSelectedAccountName();
     void setCreatorAccount();
     void switchWalletAccount(int index);
     void refreshWalletStatus();
@@ -180,6 +181,7 @@ private:
     QLabel *m_walletTitleLabel;
     QComboBox *m_accountCombo;
     QPushButton *m_addAccountButton;
+    QPushButton *m_setAccountNameButton;
     QPushButton *m_setCreatorAccountButton;
     QLabel *m_balanceLabel;
     QLabel *m_estimatedBalanceLabel;

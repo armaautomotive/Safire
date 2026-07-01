@@ -560,6 +560,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_walletTitleLabel(0),
       m_accountCombo(0),
       m_addAccountButton(0),
+      m_setAccountNameButton(0),
       m_setCreatorAccountButton(0),
       m_balanceLabel(0),
       m_estimatedBalanceLabel(0),
@@ -1002,9 +1003,12 @@ QWidget *MainWindow::createAccountsPage()
     QHBoxLayout *header = new QHBoxLayout;
     header->addWidget(createSectionTitle(tr("Accounts")));
     header->addStretch();
+    m_setAccountNameButton = createSecondaryButton(tr("Change Name"));
+    m_setAccountNameButton->setEnabled(false);
     m_setCreatorAccountButton = createSecondaryButton(tr("Use for Rewards"));
     m_setCreatorAccountButton->setEnabled(false);
     m_addAccountButton = createPrimaryButton(tr("Add Account"));
+    header->addWidget(m_setAccountNameButton);
     header->addWidget(m_setCreatorAccountButton);
     header->addWidget(m_addAccountButton);
     layout->addLayout(header);
@@ -1026,6 +1030,7 @@ QWidget *MainWindow::createAccountsPage()
     layout->addWidget(m_accountsTable, 1);
 
     connect(m_addAccountButton, SIGNAL(clicked()), this, SLOT(addWalletAccount()));
+    connect(m_setAccountNameButton, SIGNAL(clicked()), this, SLOT(setSelectedAccountName()));
     connect(m_setCreatorAccountButton, SIGNAL(clicked()), this, SLOT(setCreatorAccount()));
     return page;
 }
@@ -2831,6 +2836,9 @@ void MainWindow::applyWalletAccounts(const QString &json)
         if (m_setCreatorAccountButton) {
             m_setCreatorAccountButton->setEnabled(false);
         }
+        if (m_setAccountNameButton) {
+            m_setAccountNameButton->setEnabled(false);
+        }
         if (m_accountsTable) {
             m_accountsTable->setRowCount(0);
         }
@@ -2865,7 +2873,8 @@ void MainWindow::applyWalletAccounts(const QString &json)
         QString balance = account.value("balance").toString();
         bool isActive = walletId == activeWalletId || account.value("active").toString() == "yes";
         bool isCreator = walletId == creatorWalletId || account.value("creator").toString() == "yes";
-        QString displayName = publicName.isEmpty() ? (label.isEmpty() ? tr("Account") : label) : publicName;
+        QString baseDisplayName = publicName.isEmpty() ? (label.isEmpty() ? tr("Account") : label) : publicName;
+        QString displayName = baseDisplayName;
         if (isCreator) {
             displayName = tr("%1 [rewards]").arg(displayName);
         }
@@ -2883,6 +2892,7 @@ void MainWindow::applyWalletAccounts(const QString &json)
             }
             QTableWidgetItem *nameItem = new QTableWidgetItem(displayName);
             nameItem->setData(Qt::UserRole, walletId);
+            nameItem->setData(Qt::UserRole + 1, baseDisplayName);
             m_accountsTable->setItem(row, 0, nameItem);
             m_accountsTable->setItem(row, 1, new QTableWidgetItem(publicKey));
             m_accountsTable->setItem(row, 2, new QTableWidgetItem(tr("%1 SFR").arg(formatSfrValue(balance))));
@@ -2918,6 +2928,9 @@ void MainWindow::applyWalletAccounts(const QString &json)
     }
     if (m_setCreatorAccountButton) {
         m_setCreatorAccountButton->setEnabled(true);
+    }
+    if (m_setAccountNameButton) {
+        m_setAccountNameButton->setEnabled(true);
     }
     m_loadingAccounts = false;
 }
@@ -3866,6 +3879,48 @@ void MainWindow::addWalletAccount()
 
     QUrlQuery form;
     form.addQueryItem("label", label);
+    m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
+}
+
+void MainWindow::setSelectedAccountName()
+{
+    if (!m_accountsTable || m_accountsTable->currentRow() < 0) {
+        QMessageBox::information(this, tr("Safire"), tr("Select an account first."));
+        return;
+    }
+    QTableWidgetItem *selectedItem = m_accountsTable->item(m_accountsTable->currentRow(), 0);
+    if (!selectedItem) {
+        QMessageBox::information(this, tr("Safire"), tr("Select an account first."));
+        return;
+    }
+    QString walletId = selectedItem->data(Qt::UserRole).toString();
+    QString currentName = selectedItem->data(Qt::UserRole + 1).toString();
+    if (walletId.isEmpty()) {
+        return;
+    }
+
+    bool ok = false;
+    QString name = QInputDialog::getText(this,
+                                         tr("Set Public Name"),
+                                         tr("Enter public name:"),
+                                         QLineEdit::Normal,
+                                         currentName,
+                                         &ok).trimmed();
+    if (!ok || name.isEmpty()) {
+        return;
+    }
+    if (!ensureBackendRunning()) {
+        QMessageBox::warning(this, tr("Safire"), tr("Backend is unavailable."));
+        return;
+    }
+
+    QUrl url(QString("http://127.0.0.1:%1/api/wallet/setname").arg(m_backendPort));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery form;
+    form.addQueryItem("wallet_id", walletId);
+    form.addQueryItem("name", name);
     m_networkManager->post(request, form.query(QUrl::FullyEncoded).toUtf8());
 }
 
