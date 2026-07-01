@@ -69,15 +69,18 @@ cp "$PROJECT_ROOT/scripts/server-restart.sh" "$WORK_DIR/$PACKAGE_NAME/scripts/se
 chmod +x "$WORK_DIR/$PACKAGE_NAME/scripts/"*.sh
 
 TARBALL="$DIST_DIR/${PACKAGE_NAME}.tar.gz"
+LATEST_TARBALL="$DIST_DIR/safire-linux-latest.tar.gz"
 rm -f "$TARBALL"
 (
   cd "$WORK_DIR"
   tar -czf "$TARBALL" "$PACKAGE_NAME"
 )
+cp "$TARBALL" "$LATEST_TARBALL"
 
 if [[ -n "$UPLOAD_TARGET" ]]; then
-  scp "$TARBALL" "$UPLOAD_TARGET"
+  scp "$TARBALL" "$LATEST_TARBALL" "$UPLOAD_TARGET"
 fi
 
 echo "Created:"
 echo "  $TARBALL"
+echo "  $LATEST_TARBALL"

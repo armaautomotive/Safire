@@ -127,6 +127,8 @@ fi
 ZIP_FILE="$DIST_DIR/${APP_NAME}-mac-${PACKAGE_VERSION}.zip"
 DMG_ROOT="$WORK_DIR/dmg-root"
 DMG_FILE="$DIST_DIR/${APP_NAME}-mac-${PACKAGE_VERSION}.dmg"
+LATEST_ZIP_FILE="$DIST_DIR/${APP_NAME}-mac-latest.zip"
+LATEST_DMG_FILE="$DIST_DIR/${APP_NAME}-mac-latest.dmg"
 
 rm -f "$ZIP_FILE" "$DMG_FILE"
 (
@@ -139,15 +141,20 @@ cp -R "$APP_STAGE" "$DMG_ROOT/$APP_NAME.app"
 ln -s /Applications "$DMG_ROOT/Applications"
 hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_ROOT" -ov -format UDZO "$DMG_FILE"
 
+cp "$ZIP_FILE" "$LATEST_ZIP_FILE"
+cp "$DMG_FILE" "$LATEST_DMG_FILE"
+
 if [[ "$NOTARIZE" -eq 1 ]]; then
   xcrun notarytool submit "$DMG_FILE" --keychain-profile "$APPLE_NOTARY_PROFILE" --wait
   xcrun stapler staple "$DMG_FILE"
 fi
 
 if [[ -n "$UPLOAD_TARGET" ]]; then
-  scp "$ZIP_FILE" "$DMG_FILE" "$UPLOAD_TARGET"
+  scp "$ZIP_FILE" "$DMG_FILE" "$LATEST_ZIP_FILE" "$LATEST_DMG_FILE" "$UPLOAD_TARGET"
 fi
 
 echo "Created:"
 echo "  $ZIP_FILE"
 echo "  $DMG_FILE"
+echo "  $LATEST_ZIP_FILE"
+echo "  $LATEST_DMG_FILE"
