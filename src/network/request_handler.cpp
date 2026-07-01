@@ -424,6 +424,32 @@ bool exchange_api_authorized(const request& req, const std::string& request_path
   return submitted_key.length() > 0 && submitted_key.compare(configured_key) == 0;
 }
 
+std::string configured_admin_api_key()
+{
+  std::ifstream infile(API_SETTINGS_FILE);
+  std::string line;
+  while (std::getline(infile, line))
+  {
+    std::size_t start = line.find("admin_api_key:");
+    if (start == 0)
+    {
+      return line.substr(14);
+    }
+  }
+  return "";
+}
+
+bool admin_api_authorized(const request& req, const std::string& request_path)
+{
+  std::string configured_key = configured_admin_api_key();
+  if (configured_key.length() == 0)
+  {
+    return false;
+  }
+  std::string submitted_key = submitted_value_any(req, request_path, "api_key");
+  return submitted_key.length() > 0 && submitted_key.compare(configured_key) == 0;
+}
+
 long connected_block_count(CBlockDB& block_db)
 {
   long first_block_id = block_db.getFirstBlockId();
@@ -1232,6 +1258,61 @@ std::string network_users_json(CBlockDB& block_db)
   return ss.str();
 }
 
+std::string peers_json(CBlockDB& block_db)
+{
+  std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
+  std::string advertisedPeer = CLocalPeerClient::getAdvertisedPeer();
+  long firstBlockId = block_db.getFirstBlockId();
+  long latestBlockId = block_db.getLatestBlockId();
+  CFunctions::block_structure firstBlock = block_db.getBlock(firstBlockId);
+  CFunctions::block_structure latestBlock = block_db.getBlock(latestBlockId);
+  CNetworkConfig config = CNetworkConfig::load();
+  bool selfGenesisMatch = config.genesisMatches(firstBlockId, firstBlock.hash);
+  std::stringstream ss;
+  ss << "{\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
+  ss << "\"self_url\":\"" << json_escape(advertisedPeer) << "\",";
+  ss << "\"peers\":[";
+  bool wrotePeer = false;
+  if (advertisedPeer.length() > 0)
+  {
+    ss << "{";
+    ss << "\"url\":\"" << json_escape(advertisedPeer) << "\",";
+    ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
+    ss << "\"latest_block_hash\":\"" << json_escape(latestBlock.hash) << "\",";
+    ss << "\"genesis_match\":\"" << (selfGenesisMatch ? "yes" : "no") << "\",";
+    ss << "\"reachable\":\"" << (latestBlockId >= 0 ? "yes" : "no") << "\",";
+    ss << "\"last_success_epoch\":\"0\",";
+    ss << "\"first_failure_epoch\":\"0\",";
+    ss << "\"score\":\"100\"";
+    ss << "}";
+    wrotePeer = true;
+  }
+  for (int i = 0; i < peers.size(); ++i)
+  {
+    if (advertisedPeer.length() > 0 && peers.at(i).url.compare(advertisedPeer) == 0)
+    {
+      continue;
+    }
+    if (wrotePeer)
+    {
+      ss << ",";
+    }
+    ss << "{";
+    ss << "\"url\":\"" << json_escape(peers.at(i).url) << "\",";
+    ss << "\"latest_block_id\":\"" << peers.at(i).latestBlockId << "\",";
+    ss << "\"latest_block_hash\":\"" << peers.at(i).latestBlockHash << "\",";
+    ss << "\"genesis_match\":\"" << (peers.at(i).genesisMatch ? "yes" : "no") << "\",";
+    ss << "\"reachable\":\"" << (peers.at(i).reachable ? "yes" : "no") << "\",";
+    ss << "\"last_success_epoch\":\"" << peers.at(i).lastSuccessEpoch << "\",";
+    ss << "\"first_failure_epoch\":\"" << peers.at(i).firstFailureEpoch << "\",";
+    ss << "\"score\":\"" << peers.at(i).score << "\"";
+    ss << "}";
+    wrotePeer = true;
+  }
+  ss << "]}";
+  return ss.str();
+}
+
 std::string wallet_history_json(CBlockDB& block_db, const std::string& public_key)
 {
   long first_block_id = block_db.getFirstBlockId();
@@ -1536,6 +1617,176 @@ std::string wallet_accounts_json(CBlockDB& block_db)
   return ss.str();
 }
 
+std::string lower_ascii(std::string value)
+{
+  for (int i = 0; i < value.length(); ++i)
+  {
+    value[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(value[i])));
+  }
+  return value;
+}
+
+std::string admin_page_html()
+{
+  return R"HTML(<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Safire Admin</title>
+  <style>
+    :root { color-scheme: light; --ink:#0e2930; --muted:#637b82; --line:#d9e7ea; --panel:#ffffff; --accent:#087987; --bg:#eef6f8; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif; color:var(--ink); background:linear-gradient(135deg,#f7fbff,#eaf7f2); }
+    header { padding:22px 28px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.82); position:sticky; top:0; z-index:2; }
+    h1 { margin:0; font-size:28px; }
+    main { padding:22px 28px 34px; max-width:1280px; margin:0 auto; }
+    .grid { display:grid; grid-template-columns:repeat(4,minmax(170px,1fr)); gap:14px; }
+    .panel { background:rgba(255,255,255,.9); border:1px solid var(--line); border-radius:8px; padding:16px; box-shadow:0 8px 24px rgba(20,60,70,.04); }
+    .wide { grid-column:span 2; }
+    .full { grid-column:1 / -1; }
+    h2 { margin:0 0 12px; font-size:18px; }
+    .metric { font-size:28px; font-weight:800; letter-spacing:0; }
+    .muted { color:var(--muted); }
+    .ok { color:#08734f; font-weight:700; }
+    .bad { color:#b3261e; font-weight:700; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th,td { text-align:left; border-bottom:1px solid #edf3f5; padding:8px 6px; vertical-align:top; }
+    code, pre { font-family:Menlo,Consolas,monospace; }
+    pre { margin:0; white-space:pre-wrap; overflow:auto; max-height:360px; background:#0d171b; color:#d9f7ef; border-radius:8px; padding:12px; }
+    input,button { font:inherit; border-radius:7px; padding:9px 10px; border:1px solid #bfd3d7; }
+    input { background:#fff; color:var(--ink); }
+    button { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; cursor:pointer; }
+    button.secondary { background:#edf5f6; color:#17454d; border-color:#c8d9dc; }
+    .command { display:grid; grid-template-columns:180px 1fr auto; gap:10px; margin-bottom:12px; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0; }
+    .chip { border:1px solid #bfd3d7; background:#edf5f6; color:#17454d; border-radius:999px; padding:6px 10px; cursor:pointer; }
+    @media (max-width:900px) { .grid { grid-template-columns:1fr; } .wide { grid-column:auto; } .command { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Safire Admin</h1>
+    <div class="muted">Node management console. Use an SSH tunnel or protected network for remote access.</div>
+  </header>
+  <main>
+    <section class="grid">
+      <div class="panel"><h2>Latest Block</h2><div id="latest" class="metric">-</div><div id="sync" class="muted">Sync -</div></div>
+      <div class="panel"><h2>Wallet</h2><div id="wallet" class="metric">-</div><div id="walletKey" class="muted">-</div></div>
+      <div class="panel"><h2>Network</h2><div id="peers" class="metric">-</div><div id="peerSync" class="muted">Peers</div></div>
+      <div class="panel"><h2>Supply</h2><div id="supply" class="metric">-</div><div id="ledger" class="muted">Ledger -</div></div>
+      <div class="panel wide"><h2>Users</h2><div id="users"></div></div>
+      <div class="panel wide"><h2>Peers</h2><div id="peerList"></div></div>
+      <div class="panel full">
+        <h2>Command</h2>
+        <div class="command">
+          <input id="key" type="password" placeholder="admin_api_key">
+          <input id="cmd" placeholder="status, users, mempool, blockchain, peers, exchange, accounts">
+          <button onclick="runCommand()">Run</button>
+        </div>
+        <div class="chips" id="chips"></div>
+        <pre id="output">Configure settings.dat with admin_api_key:&lt;secret&gt; to enable command execution.</pre>
+      </div>
+    </section>
+  </main>
+  <script>
+    const safeCommands = ["status","network","users","mempool","blockchain","peers","exchange","accounts"];
+    const $ = id => document.getElementById(id);
+    const short = v => !v ? "-" : (v.length > 22 ? v.slice(0,12) + "..." + v.slice(-6) : v);
+    const fmt = v => (v === undefined || v === null || v === "") ? "-" : String(Number(v)).replace(/\.?0+$/,"");
+    function table(rows, cols) {
+      if (!rows || !rows.length) return '<span class="muted">None</span>';
+      return '<table><thead><tr>' + cols.map(c=>'<th>'+c[0]+'</th>').join('') + '</tr></thead><tbody>' +
+        rows.slice(0,8).map(r=>'<tr>'+cols.map(c=>'<td>'+c[1](r)+'</td>').join('')+'</tr>').join('') + '</tbody></table>';
+    }
+    async function getJson(path) {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) throw new Error(path + " returned " + res.status);
+      return await res.json();
+    }
+    async function refresh() {
+      try {
+        const [status, users, peers] = await Promise.all([getJson('/api/exchange/status'), getJson('/api/network/users'), getJson('/api/peers')]);
+        $('latest').textContent = status.latest_block_id || '-';
+        $('sync').textContent = 'Sync ' + fmt(status.sync_progress) + '% / Genesis ' + (status.genesis_match || '-');
+        $('wallet').textContent = fmt(status.wallet_balance) + ' SFR';
+        $('walletKey').textContent = short(status.public_key);
+        $('peers').textContent = status.local_peers || '0';
+        $('peerSync').innerHTML = 'Peer sync <span class="' + (status.peer_sync === 'yes' ? 'ok' : 'bad') + '">' + (status.peer_sync || '-') + '</span>';
+        $('supply').textContent = fmt(status.issued_supply) + ' SFR';
+        $('ledger').textContent = 'Ledger ' + fmt(status.ledger_balance_total) + ' SFR';
+        $('users').innerHTML = table(users.users || [], [['Name', r=>r.name || '-'], ['Balance', r=>fmt(r.balance)], ['Address', r=>short(r.public_key)]]);
+        $('peerList').innerHTML = table(peers.peers || [], [['URL', r=>r.url || '-'], ['Reachable', r=>r.reachable || '-'], ['Block', r=>r.latest_block_id || '-'], ['Score', r=>r.score || '-']]);
+      } catch (err) {
+        $('output').textContent = 'Refresh failed: ' + err.message;
+      }
+    }
+    async function runCommand() {
+      const apiKey = $('key').value;
+      const command = $('cmd').value.trim();
+      if (!command) return;
+      sessionStorage.setItem('safire_admin_key', apiKey);
+      const body = new URLSearchParams({ api_key: apiKey, command });
+      const res = await fetch('/api/admin/command', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
+      const text = await res.text();
+      try { $('output').textContent = JSON.stringify(JSON.parse(text), null, 2); }
+      catch (_) { $('output').textContent = text; }
+    }
+    $('key').value = sessionStorage.getItem('safire_admin_key') || '';
+    safeCommands.forEach(c => {
+      const button = document.createElement('button');
+      button.className = 'chip secondary';
+      button.textContent = c;
+      button.onclick = () => { $('cmd').value = c; runCommand(); };
+      $('chips').appendChild(button);
+    });
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>)HTML";
+}
+
+std::string admin_command_json(CBlockDB& block_db, const std::string& command)
+{
+  std::string normalized = lower_ascii(command);
+  std::string payload;
+  if (normalized == "status" || normalized == "network" || normalized == "exchange")
+  {
+    payload = exchange_status_json(block_db);
+  }
+  else if (normalized == "users")
+  {
+    payload = network_users_json(block_db);
+  }
+  else if (normalized == "mempool")
+  {
+    payload = mempool_json();
+  }
+  else if (normalized == "blockchain" || normalized == "chain")
+  {
+    payload = recent_blockchain_json(block_db);
+  }
+  else if (normalized == "peers")
+  {
+    payload = peers_json(block_db);
+  }
+  else if (normalized == "accounts")
+  {
+    payload = wallet_accounts_json(block_db);
+  }
+  else
+  {
+    return "{\"status\":\"error\",\"message\":\"Unsupported admin command. Allowed: status, network, users, mempool, blockchain, peers, exchange, accounts.\"}";
+  }
+
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"command\":\"" << json_escape(normalized) << "\",";
+  ss << "\"output\":" << payload << "}";
+  return ss.str();
+}
+
 double sync_progress_percent(long first_block_id,
                              long latest_block_id,
                              const std::vector<CLocalPeerClient::peer_status>& local_peers)
@@ -1649,6 +1900,46 @@ void request_handler::handle_request(const request& req, reply& rep)
   CBlockDB blockDB;
   CFunctions functions;
 
+  if (request_path == "/admin" || request_path == "/admin/")
+  {
+    text_reply(rep, reply::ok, admin_page_html(), "text/html");
+    return;
+  }
+
+  if (request_path == "/api/admin/status")
+  {
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"command_api\":\"" << (configured_admin_api_key().length() > 0 ? "enabled" : "disabled") << "\"}";
+    text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
+  if ((req.method == "POST" && request_path == "/api/admin/command")
+      || request_path.find("/api/admin/command?") == 0)
+  {
+    if (configured_admin_api_key().length() == 0)
+    {
+      text_reply(rep, reply::forbidden, "{\"status\":\"error\",\"message\":\"Admin command API is disabled. Add admin_api_key:<secret> to settings.dat to enable it.\"}", "application/json");
+      return;
+    }
+    if (admin_api_authorized(req, request_path) == false)
+    {
+      text_reply(rep, reply::unauthorized, "{\"status\":\"error\",\"message\":\"Invalid or missing admin API key.\"}", "application/json");
+      return;
+    }
+
+    std::string command = submitted_value_any(req, request_path, "command");
+    if (command.length() == 0)
+    {
+      text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Command is required.\"}", "application/json");
+      return;
+    }
+
+    text_reply(rep, reply::ok, admin_command_json(blockDB, command), "application/json");
+    return;
+  }
+
   if (request_path == "/api/status")
   {
     long firstBlockId = blockDB.getFirstBlockId();
@@ -1730,57 +2021,7 @@ void request_handler::handle_request(const request& req, reply& rep)
 
   if (request_path == "/api/peers")
   {
-    std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
-    std::string advertisedPeer = CLocalPeerClient::getAdvertisedPeer();
-    long firstBlockId = blockDB.getFirstBlockId();
-    long latestBlockId = blockDB.getLatestBlockId();
-    CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
-    CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
-    CNetworkConfig config = CNetworkConfig::load();
-    bool selfGenesisMatch = config.genesisMatches(firstBlockId, firstBlock.hash);
-    std::stringstream ss;
-    ss << "{\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
-    ss << "\"self_url\":\"" << json_escape(advertisedPeer) << "\",";
-    ss << "\"peers\":[";
-    bool wrotePeer = false;
-    if (advertisedPeer.length() > 0)
-    {
-      ss << "{";
-      ss << "\"url\":\"" << json_escape(advertisedPeer) << "\",";
-      ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
-      ss << "\"latest_block_hash\":\"" << json_escape(latestBlock.hash) << "\",";
-      ss << "\"genesis_match\":\"" << (selfGenesisMatch ? "yes" : "no") << "\",";
-      ss << "\"reachable\":\"" << (latestBlockId >= 0 ? "yes" : "no") << "\",";
-      ss << "\"last_success_epoch\":\"0\",";
-      ss << "\"first_failure_epoch\":\"0\",";
-      ss << "\"score\":\"100\"";
-      ss << "}";
-      wrotePeer = true;
-    }
-    for (int i = 0; i < peers.size(); ++i)
-    {
-      if (advertisedPeer.length() > 0 && peers.at(i).url.compare(advertisedPeer) == 0)
-      {
-        continue;
-      }
-      if (wrotePeer)
-      {
-        ss << ",";
-      }
-      ss << "{";
-      ss << "\"url\":\"" << json_escape(peers.at(i).url) << "\",";
-      ss << "\"latest_block_id\":\"" << peers.at(i).latestBlockId << "\",";
-      ss << "\"latest_block_hash\":\"" << peers.at(i).latestBlockHash << "\",";
-      ss << "\"genesis_match\":\"" << (peers.at(i).genesisMatch ? "yes" : "no") << "\",";
-      ss << "\"reachable\":\"" << (peers.at(i).reachable ? "yes" : "no") << "\",";
-      ss << "\"last_success_epoch\":\"" << peers.at(i).lastSuccessEpoch << "\",";
-      ss << "\"first_failure_epoch\":\"" << peers.at(i).firstFailureEpoch << "\",";
-      ss << "\"score\":\"" << peers.at(i).score << "\"";
-      ss << "}";
-      wrotePeer = true;
-    }
-    ss << "]}";
-    text_reply(rep, reply::ok, ss.str(), "application/json");
+    text_reply(rep, reply::ok, peers_json(blockDB), "application/json");
     return;
   }
 
