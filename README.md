@@ -96,6 +96,17 @@ For Developer ID signing and notarization on macOS, use:
 <code>APPLE_SIGN_IDENTITY="Developer ID Application: Subject Reality Software (XSDMH4B293)" APPLE_NOTARY_PROFILE="safire-notary" scripts/package-mac.sh --sign --notarize</code><br>
 To upload artifacts after packaging, pass <code>--upload-target root@example.com:/var/www/download</code> or set <code>SAFIRE_UPLOAD_TARGET</code>.<br>
 
+<b>Website and test node deployment:</b><br>
+The static website lives in <code>web/</code>. Deploy it to a web root with:
+<br>
+<code>scripts/deploy-website.sh root@safire.org:/var/www/safire.org</code><br>
+Deploy one or more Linux test nodes from Git, rebuild, and restart the background server with:
+<br>
+<code>scripts/deploy-node.sh root@safire.org</code><br>
+Pass runtime arguments after <code>--</code>, for example:
+<br>
+<code>scripts/deploy-node.sh root@node1 root@node2 -- --node-port 4888 --enable-nat</code><br>
+
 <b>Windows:</b><br>
 Instructions for building on windows will be comming later.<br> 
 
