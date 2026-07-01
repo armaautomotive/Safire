@@ -562,6 +562,120 @@ std::map<std::string, double> acceptedLedgerBalances(){
     return CLedgerState::build(blockDB).balances;
 }
 
+double pendingWalletBalanceDelta(const std::string& publicKey,
+                                 const std::vector<CFunctions::record_structure>& records,
+                                 int& pendingRecordCount){
+    pendingRecordCount = 0;
+    double delta = 0.0;
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        bool touchesWallet = record.sender_public_key.compare(publicKey) == 0 ||
+                             record.recipient_public_key.compare(publicKey) == 0;
+        if(touchesWallet == false){
+            continue;
+        }
+
+        pendingRecordCount++;
+        if(record.transaction_type == CFunctions::TRANSFER_CURRENCY){
+            bool sentByWallet = record.sender_public_key.compare(publicKey) == 0;
+            bool receivedByWallet = record.recipient_public_key.compare(publicKey) == 0;
+            if(sentByWallet && receivedByWallet){
+                delta -= record.fee;
+            } else if(sentByWallet){
+                delta -= record.amount + record.fee;
+            } else if(receivedByWallet){
+                delta += record.amount;
+            }
+        }
+    }
+    return delta;
+}
+
+double pendingWalletNegativeDelta(const std::string& publicKey,
+                                  const std::vector<CFunctions::record_structure>& records){
+    double delta = 0.0;
+    for(int i = 0; i < records.size(); i++){
+        CFunctions::record_structure record = records.at(i);
+        if(record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+           record.sender_public_key.compare(publicKey) == 0){
+            if(record.recipient_public_key.compare(publicKey) == 0){
+                delta -= record.fee;
+            } else {
+                delta -= record.amount + record.fee;
+            }
+        } else if(record.transaction_type == CFunctions::VOTE &&
+                  record.sender_public_key.compare(publicKey) == 0){
+            delta -= record.fee;
+        }
+    }
+    return delta;
+}
+
+double recentAcceptedWalletNegativeDelta(const std::string& publicKey, long confirmedStopBlock){
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId < 0 || latestBlockId < 0 || publicKey.length() == 0){
+        return 0.0;
+    }
+
+    double delta = 0.0;
+    std::set<std::string> acceptedRecordHashes;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        if(block.number > confirmedStopBlock){
+            for(int i = 0; i < block.records.size(); i++){
+                CFunctions::record_structure record = block.records.at(i);
+                if(record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end()){
+                    continue;
+                }
+                if(record.hash.length() > 0){
+                    acceptedRecordHashes.insert(record.hash);
+                }
+                if(record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+                   record.sender_public_key.compare(publicKey) == 0){
+                    if(record.recipient_public_key.compare(publicKey) == 0){
+                        delta -= record.fee;
+                    } else {
+                        delta -= record.amount + record.fee;
+                    }
+                } else if(record.transaction_type == CFunctions::VOTE &&
+                          record.sender_public_key.compare(publicKey) == 0){
+                    delta -= record.fee;
+                }
+            }
+        }
+
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+    return delta;
+}
+
+double spendableConfirmedBalance(const std::string& publicKey){
+    CBlockDB blockDB;
+    long confirmedStopBlock = CLedgerState::confirmedStopBlock(blockDB, CFunctions::WALLET_CONFIRMATION_BLOCKS);
+    CLedgerState::state confirmedState = CLedgerState::build(blockDB, publicKey, confirmedStopBlock);
+
+    CFunctions functions;
+    std::vector<CFunctions::record_structure> pendingRecords = functions.peekQueueRecords();
+    double spendable = confirmedState.wallet_balance;
+    spendable += recentAcceptedWalletNegativeDelta(publicKey, confirmedStopBlock);
+    spendable += pendingWalletNegativeDelta(publicKey, pendingRecords);
+    if(spendable < 0.0 && spendable > -0.000001){
+        spendable = 0.0;
+    }
+    return spendable;
+}
+
 long nextTransferNonce(const std::string& publicKey){
     CBlockDB blockDB;
     CLedgerState::state ledgerState = CLedgerState::build(blockDB);
@@ -1437,27 +1551,31 @@ void CCLI::processUserInput(){
                 std::cout << " Default transaction fee set to " << fee << " sfr." << std::endl;
             }
 
-		} else if ( command.find("balance") != std::string::npos ){
-			
+        } else if ( command.find("balance") != std::string::npos ){
+            CBlockDB blockDB;
+            long confirmedStopBlock = CLedgerState::confirmedStopBlock(blockDB, CFunctions::WALLET_CONFIRMATION_BLOCKS);
+            CLedgerState::state confirmedState = CLedgerState::build(blockDB, publicKey, confirmedStopBlock);
+            CLedgerState::state tipState = CLedgerState::build(blockDB, publicKey);
 
-			//CFunctions functions;
-			//std::string privateKey;
-			//std::string publicKey;
-			//CWallet wallet;
-			//bool e = wallet.fileExists("wallet.dat");
-			//if(e != 0){
-				// Load wallet
-				//wallet.read(privateKey, publicKey);
-    
-				//functions.parseBlockFile(publicKey, false);
-                functions.scanChain(publicKey, false);
-            
-            // Print chain sync status.
-            
-            
-				std::cout << " Your balance: " << functions.balance << " sfr" << std::endl;
+            CFunctions pendingFunctions;
+            int mempoolPendingCount = 0;
+            double mempoolPendingDelta = pendingWalletBalanceDelta(publicKey, pendingFunctions.peekQueueRecords(), mempoolPendingCount);
+            double acceptedPendingDelta = tipState.wallet_balance - confirmedState.wallet_balance;
+            if(std::fabs(acceptedPendingDelta) < 0.000001){
+                acceptedPendingDelta = 0.0;
+            }
+            double pendingDelta = acceptedPendingDelta + mempoolPendingDelta;
+            int pendingCount = mempoolPendingCount + (std::fabs(acceptedPendingDelta) >= 0.000001 ? 1 : 0);
+            double estimatedBalance = confirmedState.wallet_balance + pendingDelta;
 
-			//}
+            std::cout << " Your balance: " << confirmedState.wallet_balance << " sfr" << std::endl;
+            std::cout << " Estimated balance: " << estimatedBalance << " sfr" << std::endl;
+            std::cout << " Pending settlement: " << pendingDelta << " sfr";
+            if(pendingCount > 0){
+                std::cout << " (" << pendingCount << " record" << (pendingCount == 1 ? "" : "s") << ")";
+            }
+            std::cout << std::endl;
+            std::cout << " Confirmed through block: " << confirmedStopBlock << std::endl;
         } else if ( command.compare("history") == 0 ){
             printWalletHistory(publicKey, "");
 
@@ -1486,11 +1604,10 @@ void CCLI::processUserInput(){
             double transactionFee = getDefaultTransactionFee();
             double totalDebit = d_amount + transactionFee;
 
-            // TODO also check balance adjusted using sent requests in queue....
             // TODO check destination address is an accepted user
             if(d_amount <= 0.0){
                 std::cout << "Invalid amount. Unable to send transfer request. " << std::endl;
-            } else if(totalDebit > functions.balance ){
+            } else if(totalDebit > spendableConfirmedBalance(publicKey) ){
                 std::cout << "Insuficient balance. Unable to send transfer request. Amount plus fee is " << totalDebit << " sfr." << std::endl;
             } else {
 

@@ -26,6 +26,7 @@ public:
     static const long HEARTBEAT_RENEW_BLOCKS = 5520; // About 23 hours at 15 seconds per block.
     static const long CARRY_FORWARD_PERIOD_BLOCKS = 172800; // About 30 days at 15 seconds per block.
     static const long CARRY_FORWARD_PRUNE_BLOCKS = 2102400; // Legacy default, about 1 year at 15 seconds per block.
+    static const int WALLET_CONFIRMATION_BLOCKS = 1; // Keep the current tip block in pending settlement.
     static constexpr double CARRY_FORWARD_REWARD = 1.0;
     static const int MAX_RECORD_NAME_BYTES = 64;
     static const int MAX_RECORD_VALUE_BYTES = 256;

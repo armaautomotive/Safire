@@ -1188,6 +1188,182 @@ double pending_wallet_balance_delta(const std::string& public_key,
   return delta;
 }
 
+double pending_wallet_negative_delta(const std::string& public_key,
+                                     const std::vector<CFunctions::record_structure>& records)
+{
+  double delta = 0.0;
+  for (int i = 0; i < records.size(); ++i)
+  {
+    CFunctions::record_structure record = records.at(i);
+    if (record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+        record.sender_public_key.compare(public_key) == 0)
+    {
+      if (record.recipient_public_key.compare(public_key) == 0)
+      {
+        delta -= record.fee;
+      }
+      else
+      {
+        delta -= record.amount + record.fee;
+      }
+    }
+    else if (record.transaction_type == CFunctions::VOTE &&
+             record.sender_public_key.compare(public_key) == 0)
+    {
+      delta -= record.fee;
+    }
+  }
+  return delta;
+}
+
+bool record_affects_wallet_balance(const CFunctions::block_structure& block,
+                                   const CFunctions::record_structure& record,
+                                   const std::string& public_key)
+{
+  if (public_key.length() == 0)
+  {
+    return false;
+  }
+  if (record.transaction_type == CFunctions::ISSUE_CURRENCY)
+  {
+    return record.recipient_public_key.compare(public_key) == 0;
+  }
+  if (record.transaction_type == CFunctions::TRANSFER_CURRENCY)
+  {
+    return record.sender_public_key.compare(public_key) == 0 ||
+           record.recipient_public_key.compare(public_key) == 0 ||
+           block.creator_key.compare(public_key) == 0;
+  }
+  if (record.transaction_type == CFunctions::VOTE)
+  {
+    return record.sender_public_key.compare(public_key) == 0 ||
+           block.creator_key.compare(public_key) == 0;
+  }
+  if (record.transaction_type == CFunctions::CARRY_FORWARD)
+  {
+    return record.sender_public_key.compare(public_key) == 0 ||
+           record.recipient_public_key.compare(public_key) == 0;
+  }
+  return false;
+}
+
+int recent_accepted_wallet_record_count(CBlockDB& block_db,
+                                        const std::string& public_key,
+                                        long confirmed_stop_block)
+{
+  int count = 0;
+  long firstBlockId = block_db.getFirstBlockId();
+  long latestBlockId = block_db.getLatestBlockId();
+  if (firstBlockId < 0 || latestBlockId < 0 || public_key.length() == 0)
+  {
+    return count;
+  }
+
+  std::set<std::string> acceptedRecordHashes;
+  CFunctions::block_structure block = block_db.getBlock(firstBlockId);
+  int guard = 0;
+  while (block.number > 0 && guard < 100000)
+  {
+    if (block.number > confirmed_stop_block)
+    {
+      for (int i = 0; i < block.records.size(); ++i)
+      {
+        CFunctions::record_structure record = block.records.at(i);
+        if (record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end())
+        {
+          continue;
+        }
+        if (record.hash.length() > 0)
+        {
+          acceptedRecordHashes.insert(record.hash);
+        }
+        if (record_affects_wallet_balance(block, record, public_key))
+        {
+          count++;
+        }
+      }
+    }
+
+    if (block.number == latestBlockId)
+    {
+      break;
+    }
+    CFunctions::block_structure nextBlock = block_db.getNextBlock(block);
+    if (nextBlock.number <= 0 || nextBlock.number == block.number)
+    {
+      break;
+    }
+    block = nextBlock;
+    ++guard;
+  }
+  return count;
+}
+
+double recent_accepted_wallet_negative_delta(CBlockDB& block_db,
+                                             const std::string& public_key,
+                                             long confirmed_stop_block)
+{
+  double delta = 0.0;
+  long firstBlockId = block_db.getFirstBlockId();
+  long latestBlockId = block_db.getLatestBlockId();
+  if (firstBlockId < 0 || latestBlockId < 0 || public_key.length() == 0)
+  {
+    return delta;
+  }
+
+  std::set<std::string> acceptedRecordHashes;
+  CFunctions::block_structure block = block_db.getBlock(firstBlockId);
+  int guard = 0;
+  while (block.number > 0 && guard < 100000)
+  {
+    if (block.number > confirmed_stop_block)
+    {
+      for (int i = 0; i < block.records.size(); ++i)
+      {
+        CFunctions::record_structure record = block.records.at(i);
+        if (record.hash.length() > 0 && acceptedRecordHashes.find(record.hash) != acceptedRecordHashes.end())
+        {
+          continue;
+        }
+        if (record.hash.length() > 0)
+        {
+          acceptedRecordHashes.insert(record.hash);
+        }
+        if (record.transaction_type == CFunctions::TRANSFER_CURRENCY &&
+            record.sender_public_key.compare(public_key) == 0)
+        {
+          if (record.recipient_public_key.compare(public_key) == 0)
+          {
+            delta -= record.fee;
+          }
+          else
+          {
+            delta -= record.amount + record.fee;
+          }
+        }
+        else if (record.transaction_type == CFunctions::VOTE &&
+                 record.sender_public_key.compare(public_key) == 0)
+        {
+          delta -= record.fee;
+        }
+      }
+    }
+
+    if (block.number == latestBlockId)
+    {
+      break;
+    }
+    CFunctions::block_structure nextBlock = block_db.getNextBlock(block);
+    if (nextBlock.number <= 0 || nextBlock.number == block.number)
+    {
+      break;
+    }
+    block = nextBlock;
+    ++guard;
+  }
+  return delta;
+}
+
 long next_transfer_nonce(CBlockDB& block_db, const std::string& public_key)
 {
   CLedgerState::state ledger_state = CLedgerState::build(block_db);
@@ -1658,6 +1834,8 @@ std::string wallet_accounts_json(CBlockDB& block_db)
   std::string active_id = wallet.activeAccountId();
   std::string creator_id = wallet.creatorAccountId();
   CLedgerState::state chain_state = CLedgerState::build(block_db);
+  long confirmedStopBlock = CLedgerState::confirmedStopBlock(block_db, CFunctions::WALLET_CONFIRMATION_BLOCKS);
+  CLedgerState::state confirmed_chain_state = CLedgerState::build(block_db, "", confirmedStopBlock);
 
   std::stringstream ss;
   ss << "{\"status\":\"ok\",";
@@ -1682,7 +1860,8 @@ std::string wallet_accounts_json(CBlockDB& block_db)
     ss << "\"public_name\":\"" << json_escape(name_for_key(chain_state.names, account.public_key)) << "\",";
     ss << "\"active\":\"" << (account.id.compare(active_id) == 0 ? "yes" : "no") << "\",";
     ss << "\"creator\":\"" << (account.id.compare(creator_id) == 0 ? "yes" : "no") << "\",";
-    ss << "\"balance\":\"" << chain_state.balances[account.public_key] << "\",";
+    ss << "\"balance\":\"" << confirmed_chain_state.balances[account.public_key] << "\",";
+    ss << "\"estimated_balance\":\"" << chain_state.balances[account.public_key] << "\",";
     ss << "\"joined\":\"" << (joined ? "yes" : "no") << "\",";
     ss << "\"active_heartbeat\":\"" << (activeHeartbeat ? "yes" : "no") << "\",";
     ss << "\"last_heartbeat_block\":\"" << lastHeartbeatBlock << "\"";
@@ -2285,6 +2464,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     bool peerChainMatch = hasBestPeer ? local_chain_matches_peer(blockDB, bestPeer) : true;
     bool peerSync = synced_with_peer_latest(blockDB, latestBlockId, localPeers);
     CLedgerState::state chainState = CLedgerState::build(blockDB, publicKey);
+    long confirmedStopBlock = CLedgerState::confirmedStopBlock(blockDB, CFunctions::WALLET_CONFIRMATION_BLOCKS);
+    CLedgerState::state confirmedChainState = CLedgerState::build(blockDB, publicKey, confirmedStopBlock);
     CLedgerState::state creatorState = creatorPublicKey.compare(publicKey) == 0 ?
       chainState : CLedgerState::build(blockDB, creatorPublicKey);
     std::map<std::string, std::string> memberNames = chainState.names;
@@ -2293,8 +2474,16 @@ void request_handler::handle_request(const request& req, reply& rep)
     std::vector<CFunctions::record_structure> pendingRecords = pendingFunctions.peekQueueRecords();
     int mempoolRecordCount = pendingRecords.size();
     int pendingWalletRecordCount = 0;
-    double pendingWalletDelta = pending_wallet_balance_delta(publicKey, pendingRecords, pendingWalletRecordCount);
-    double estimatedWalletBalance = chainState.wallet_balance + pendingWalletDelta;
+    double mempoolWalletDelta = pending_wallet_balance_delta(publicKey, pendingRecords, pendingWalletRecordCount);
+    double acceptedPendingWalletDelta = chainState.wallet_balance - confirmedChainState.wallet_balance;
+    if (std::fabs(acceptedPendingWalletDelta) < 0.000001)
+    {
+      acceptedPendingWalletDelta = 0.0;
+    }
+    int acceptedPendingWalletRecordCount = recent_accepted_wallet_record_count(blockDB, publicKey, confirmedStopBlock);
+    double pendingWalletDelta = acceptedPendingWalletDelta + mempoolWalletDelta;
+    int totalPendingWalletRecordCount = acceptedPendingWalletRecordCount + pendingWalletRecordCount;
+    double estimatedWalletBalance = confirmedChainState.wallet_balance + pendingWalletDelta;
     double supplyDifference = ledgerBalanceTotal - chainState.issued_supply;
     if (std::fabs(supplyDifference) < 0.000001)
     {
@@ -2374,10 +2563,17 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"next_block_creator_name\":\"" << json_escape(name_for_key(memberNames, nextCreator)) << "\",";
     ss << "\"next_block_creator_is_wallet\":\"" << (nextCreator.compare(creatorPublicKey) == 0 ? "yes" : "no") << "\",";
     ss << "\"seconds_until_next_block\":\"" << secondsUntilNextBlock << "\",";
-    ss << "\"balance\":\"" << chainState.wallet_balance << "\",";
+    ss << "\"balance\":\"" << confirmedChainState.wallet_balance << "\",";
+    ss << "\"tip_balance\":\"" << chainState.wallet_balance << "\",";
+    ss << "\"confirmed_block_id\":\"" << confirmedStopBlock << "\",";
+    ss << "\"confirmation_blocks\":\"" << CFunctions::WALLET_CONFIRMATION_BLOCKS << "\",";
+    ss << "\"accepted_pending_balance_delta\":\"" << acceptedPendingWalletDelta << "\",";
+    ss << "\"accepted_pending_wallet_records\":\"" << acceptedPendingWalletRecordCount << "\",";
+    ss << "\"mempool_pending_balance_delta\":\"" << mempoolWalletDelta << "\",";
     ss << "\"pending_balance_delta\":\"" << pendingWalletDelta << "\",";
     ss << "\"estimated_balance\":\"" << estimatedWalletBalance << "\",";
-    ss << "\"pending_wallet_records\":\"" << pendingWalletRecordCount << "\",";
+    ss << "\"pending_wallet_records\":\"" << totalPendingWalletRecordCount << "\",";
+    ss << "\"mempool_pending_wallet_records\":\"" << pendingWalletRecordCount << "\",";
     ss << "\"mempool_record_count\":\"" << mempoolRecordCount << "\",";
     ss << "\"transaction_fee\":\"" << api_default_transaction_fee() << "\",";
     ss << "\"joined\":\"" << (creatorState.joined ? "yes" : "no") << "\",";
@@ -2618,6 +2814,21 @@ void request_handler::handle_request(const request& req, reply& rep)
       return;
     }
     functions.scanChain(publicKey, false);
+    long confirmedStopBlock = CLedgerState::confirmedStopBlock(blockDB, CFunctions::WALLET_CONFIRMATION_BLOCKS);
+    CLedgerState::state confirmedChainState = CLedgerState::build(blockDB, publicKey, confirmedStopBlock);
+    CFunctions pendingFunctions;
+    int pendingWalletRecordCount = 0;
+    std::vector<CFunctions::record_structure> pendingRecords = pendingFunctions.peekQueueRecords();
+    double mempoolWalletDelta = pending_wallet_balance_delta(publicKey, pendingRecords, pendingWalletRecordCount);
+    double acceptedNegativeDelta = recent_accepted_wallet_negative_delta(blockDB, publicKey, confirmedStopBlock);
+    double mempoolNegativeDelta = pending_wallet_negative_delta(publicKey, pendingRecords);
+    double spendableBalance = confirmedChainState.wallet_balance;
+    spendableBalance += acceptedNegativeDelta;
+    spendableBalance += mempoolNegativeDelta;
+    if (spendableBalance < 0.0 && spendableBalance > -0.000001)
+    {
+      spendableBalance = 0.0;
+    }
 
     double transaction_fee = api_default_transaction_fee();
     std::string fee_value = submitted_value(req, request_path, "fee");
@@ -2627,11 +2838,12 @@ void request_handler::handle_request(const request& req, reply& rep)
       return;
     }
     double total_debit = amount + transaction_fee;
-    if (total_debit > functions.balance)
+    if (total_debit > spendableBalance)
     {
       std::stringstream error;
       error << "{\"status\":\"error\",\"message\":\"Insufficient balance. Amount plus fee is "
-            << total_debit << " SFR.\"}";
+            << total_debit << " SFR. Available confirmed balance is "
+            << spendableBalance << " SFR.\"}";
       text_reply(rep, reply::bad_request, error.str(), "application/json");
       return;
     }

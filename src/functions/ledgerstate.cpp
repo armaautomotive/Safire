@@ -359,6 +359,39 @@ double CLedgerState::balanceAtBlock(CBlockDB& blockDB, const std::string& public
     return balances[publicKey];
 }
 
+long CLedgerState::confirmedStopBlock(CBlockDB& blockDB, int confirmationBlocks)
+{
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if (firstBlockId < 0 || latestBlockId < 0) {
+        return -1;
+    }
+    if (confirmationBlocks <= 0) {
+        return latestBlockId;
+    }
+
+    std::vector<long> connectedBlocks;
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while (block.number > 0 && guard < 100000) {
+        connectedBlocks.push_back(block.number);
+        if (block.number == latestBlockId) {
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if (nextBlock.number <= 0 || nextBlock.number == block.number) {
+            break;
+        }
+        block = nextBlock;
+        ++guard;
+    }
+
+    if (connectedBlocks.size() <= static_cast<std::size_t>(confirmationBlocks)) {
+        return firstBlockId - 1;
+    }
+    return connectedBlocks.at(connectedBlocks.size() - confirmationBlocks - 1);
+}
+
 std::vector<std::string> CLedgerState::activeMemberKeysAt(const CLedgerState::state& ledgerState, long blockNumber)
 {
     std::vector<std::string> active;
