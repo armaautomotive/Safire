@@ -81,6 +81,8 @@ CLocalPeerClient::peer_status emptyPeerStatus(const std::string& peer)
 {
     CLocalPeerClient::peer_status status;
     status.url = peer;
+    status.publicKey = "";
+    status.publicName = "";
     status.firstBlockId = -1;
     status.firstBlockHash = "";
     status.latestBlockId = -1;
@@ -483,6 +485,24 @@ std::string latestBlockHashFromStatus(const std::string& statusJson)
     return functions.parseSectionString(statusJson, "\"latest_block_hash\":\"", "\"");
 }
 
+std::string publicKeyFromStatus(const std::string& statusJson)
+{
+    if (statusJson.find("\"public_key\":\"") == std::string::npos) {
+        return "";
+    }
+    CFunctions functions;
+    return functions.parseSectionString(statusJson, "\"public_key\":\"", "\"");
+}
+
+std::string publicNameFromStatus(const std::string& statusJson)
+{
+    if (statusJson.find("\"public_name\":\"") == std::string::npos) {
+        return "";
+    }
+    CFunctions functions;
+    return functions.parseSectionString(statusJson, "\"public_name\":\"", "\"");
+}
+
 CLocalPeerClient::peer_status statusFromPeer(const std::string& peer)
 {
     CLocalPeerClient::peer_status status = emptyPeerStatus(peer);
@@ -500,6 +520,8 @@ CLocalPeerClient::peer_status statusFromPeer(const std::string& peer)
     status.firstBlockHash = firstBlockHashFromStatus(peerStatus);
     status.latestBlockId = latestBlockFromStatus(peerStatus);
     status.latestBlockHash = latestBlockHashFromStatus(peerStatus);
+    status.publicKey = publicKeyFromStatus(peerStatus);
+    status.publicName = publicNameFromStatus(peerStatus);
     status.protocolVersion = protocolVersionFromStatus(peerStatus);
     CNetworkConfig config = CNetworkConfig::load();
     status.genesisMatch = config.genesisMatches(status.firstBlockId, status.firstBlockHash) &&
@@ -923,8 +945,15 @@ void CLocalPeerClient::syncThread(int argc, char* argv[])
         }
         purgeUnavailablePeers();
         std::vector<peer_status> statuses = getPeerStatuses();
+        std::vector<std::string> priorityPeers = getPriorityPeersForUpcomingCreators(20);
+        std::set<std::string> priorityPeerSet(priorityPeers.begin(), priorityPeers.end());
         std::sort(statuses.begin(), statuses.end(),
-            [](const peer_status& a, const peer_status& b){
+            [priorityPeerSet](const peer_status& a, const peer_status& b){
+                bool aPriority = priorityPeerSet.find(a.url) != priorityPeerSet.end();
+                bool bPriority = priorityPeerSet.find(b.url) != priorityPeerSet.end();
+                if (aPriority != bPriority) {
+                    return aPriority;
+                }
                 if (a.score == b.score) {
                     return a.latestBlockId > b.latestBlockId;
                 }
@@ -1341,6 +1370,77 @@ long CLocalPeerClient::getNetworkTimeOffset()
     return netTime.getOffset();
 }
 
+std::vector<CLocalPeerClient::creator_schedule_slot> CLocalPeerClient::getUpcomingCreatorSchedule(int slotCount)
+{
+    std::vector<creator_schedule_slot> schedule;
+    if (slotCount <= 0) {
+        return schedule;
+    }
+    if (slotCount > 200) {
+        slotCount = 200;
+    }
+
+    CBlockDB blockDB;
+    long firstBlockId = blockDB.getFirstBlockId();
+    if (firstBlockId <= 0) {
+        return schedule;
+    }
+
+    CNetworkTime netTime;
+    long currentSlot = netTime.getEpoch() / 15;
+    long cachedSelectionBoundary = -1;
+    CLedgerState::state cachedSelectionState;
+    for (int i = 0; i < slotCount; ++i) {
+        long slot = currentSlot + i;
+        long selectionBoundary = CSelector::getSelectionBoundaryBlock(slot, firstBlockId);
+        if (selectionBoundary != cachedSelectionBoundary) {
+            cachedSelectionState = CLedgerState::build(blockDB, "", selectionBoundary);
+            cachedSelectionBoundary = selectionBoundary;
+        }
+        std::vector<std::string> activeMemberKeys = CLedgerState::activeMemberKeysAt(cachedSelectionState, selectionBoundary);
+        std::string creatorKey = CSelector::getSelectedUserForBlock(slot, cachedSelectionState.latest_block.hash, activeMemberKeys);
+
+        creator_schedule_slot item;
+        item.blockId = slot;
+        item.selectionBoundaryBlock = selectionBoundary;
+        item.selectionCheckpointBlock = cachedSelectionState.latest_block.number;
+        item.selectionCheckpointHash = cachedSelectionState.latest_block.hash;
+        item.creatorKey = creatorKey;
+        item.creatorPeerUrl = "";
+
+        if (creatorKey.length() > 0) {
+            for (std::map<std::string, peer_status>::const_iterator it = peerStatuses.begin(); it != peerStatuses.end(); ++it) {
+                const peer_status& status = it->second;
+                if (status.publicKey.compare(creatorKey) == 0 &&
+                    status.reachable &&
+                    status.genesisMatch &&
+                    !shouldSkipPeerForScore(status)) {
+                    item.creatorPeerUrl = status.url;
+                    break;
+                }
+            }
+        }
+        schedule.push_back(item);
+    }
+    return schedule;
+}
+
+std::vector<std::string> CLocalPeerClient::getPriorityPeersForUpcomingCreators(int slotCount)
+{
+    std::vector<std::string> priorityPeers;
+    std::set<std::string> seen;
+    std::vector<creator_schedule_slot> schedule = getUpcomingCreatorSchedule(slotCount);
+    for (int i = 0; i < schedule.size(); ++i) {
+        std::string peer = normalizePeerUrl(schedule.at(i).creatorPeerUrl);
+        if (peer.empty() || seen.find(peer) != seen.end()) {
+            continue;
+        }
+        priorityPeers.push_back(peer);
+        seen.insert(peer);
+    }
+    return priorityPeers;
+}
+
 void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& record)
 {
     if (!running || peers.empty()) {
@@ -1352,21 +1452,29 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
         return;
     }
     std::string recordJson = functions.recordJSON(record);
+    std::vector<std::string> orderedPeers = getPriorityPeersForUpcomingCreators(20);
+    std::set<std::string> seenPeers(orderedPeers.begin(), orderedPeers.end());
     for (int i = 0; i < peers.size(); ++i) {
+        if (seenPeers.find(peers.at(i)) == seenPeers.end()) {
+            orderedPeers.push_back(peers.at(i));
+            seenPeers.insert(peers.at(i));
+        }
+    }
+    for (int i = 0; i < orderedPeers.size(); ++i) {
         if (!running) {
             break;
         }
-        if (peerStatuses.find(peers.at(i)) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[peers.at(i)])) {
+        if (peerStatuses.find(orderedPeers.at(i)) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[orderedPeers.at(i)])) {
             continue;
         }
-        std::string response = httpPost(peers.at(i) + "/api/records/submit", recordJson);
+        std::string response = httpPost(orderedPeers.at(i) + "/api/records/submit", recordJson);
         if (response.find("accepted") != std::string::npos) {
             continue;
         }
 
         std::string encodedRecord = urlEncode(recordJson);
         if (!encodedRecord.empty()) {
-            httpGet(peers.at(i) + "/api/records/submit?record=" + encodedRecord);
+            httpGet(orderedPeers.at(i) + "/api/records/submit?record=" + encodedRecord);
         }
     }
 }
@@ -1388,21 +1496,29 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
             return;
         }
     }
+    std::vector<std::string> orderedPeers = getPriorityPeersForUpcomingCreators(20);
+    std::set<std::string> seenPeers(orderedPeers.begin(), orderedPeers.end());
     for (int i = 0; i < peers.size(); ++i) {
+        if (seenPeers.find(peers.at(i)) == seenPeers.end()) {
+            orderedPeers.push_back(peers.at(i));
+            seenPeers.insert(peers.at(i));
+        }
+    }
+    for (int i = 0; i < orderedPeers.size(); ++i) {
         if (!running) {
             break;
         }
-        if (peerStatuses.find(peers.at(i)) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[peers.at(i)])) {
+        if (peerStatuses.find(orderedPeers.at(i)) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[orderedPeers.at(i)])) {
             continue;
         }
-        std::string response = httpPost(peers.at(i) + "/api/blocks/submit", blockJson);
+        std::string response = httpPost(orderedPeers.at(i) + "/api/blocks/submit", blockJson);
         if (response.find("\"status\":\"accepted\"") != std::string::npos || response == "accepted") {
             continue;
         }
 
         std::string encodedBlock = urlEncode(blockJson);
         if (!encodedBlock.empty()) {
-            httpGet(peers.at(i) + "/api/blocks/submit?block=" + encodedBlock);
+            httpGet(orderedPeers.at(i) + "/api/blocks/submit?block=" + encodedBlock);
         }
     }
 }
@@ -1414,7 +1530,15 @@ void CLocalPeerClient::broadcastHandoff(const CFunctions::block_structure& block
         return;
     }
 
-    std::vector<std::string> localPeers = getPeers();
+    std::vector<std::string> localPeers = getPriorityPeersForUpcomingCreators(20);
+    std::set<std::string> seenPeers(localPeers.begin(), localPeers.end());
+    std::vector<std::string> allPeers = getPeers();
+    for (int i = 0; i < allPeers.size(); ++i) {
+        if (seenPeers.find(allPeers.at(i)) == seenPeers.end()) {
+            localPeers.push_back(allPeers.at(i));
+            seenPeers.insert(allPeers.at(i));
+        }
+    }
     for (int i = 0; i < localPeers.size(); ++i) {
         std::string peer = normalizePeerUrl(localPeers.at(i));
         if (peer.empty()) {

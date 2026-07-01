@@ -1284,6 +1284,15 @@ std::string peers_json(CBlockDB& block_db)
   CFunctions::block_structure latestBlock = block_db.getBlock(latestBlockId);
   CNetworkConfig config = CNetworkConfig::load();
   bool selfGenesisMatch = config.genesisMatches(firstBlockId, firstBlock.hash);
+  CWallet wallet;
+  std::string privateKey;
+  std::string publicKey;
+  std::string publicName;
+  if (wallet.read(privateKey, publicKey))
+  {
+    std::map<std::string, std::string> names = accepted_member_names(block_db);
+    publicName = name_for_key(names, publicKey);
+  }
   std::stringstream ss;
   ss << "{\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
   ss << "\"self_url\":\"" << json_escape(advertisedPeer) << "\",";
@@ -1293,6 +1302,8 @@ std::string peers_json(CBlockDB& block_db)
   {
     ss << "{";
     ss << "\"url\":\"" << json_escape(advertisedPeer) << "\",";
+    ss << "\"public_key\":\"" << json_escape(publicKey) << "\",";
+    ss << "\"public_name\":\"" << json_escape(publicName) << "\",";
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << json_escape(latestBlock.hash) << "\",";
     ss << "\"genesis_match\":\"" << (selfGenesisMatch ? "yes" : "no") << "\",";
@@ -1315,6 +1326,8 @@ std::string peers_json(CBlockDB& block_db)
     }
     ss << "{";
     ss << "\"url\":\"" << json_escape(peers.at(i).url) << "\",";
+    ss << "\"public_key\":\"" << json_escape(peers.at(i).publicKey) << "\",";
+    ss << "\"public_name\":\"" << json_escape(peers.at(i).publicName) << "\",";
     ss << "\"latest_block_id\":\"" << peers.at(i).latestBlockId << "\",";
     ss << "\"latest_block_hash\":\"" << peers.at(i).latestBlockHash << "\",";
     ss << "\"genesis_match\":\"" << (peers.at(i).genesisMatch ? "yes" : "no") << "\",";
@@ -2011,10 +2024,21 @@ void request_handler::handle_request(const request& req, reply& rep)
     CFunctions::block_structure latestBlock = blockDB.getBlock(latestBlockId);
     CNetworkConfig config = CNetworkConfig::load();
     CNatMapper::status natStatus = CNatMapper::currentStatus();
+    CWallet wallet;
+    std::string privateKey;
+    std::string publicKey;
+    std::string publicName;
+    if (wallet.read(privateKey, publicKey))
+    {
+      std::map<std::string, std::string> names = accepted_member_names(blockDB);
+      publicName = name_for_key(names, publicKey);
+    }
     std::stringstream ss;
     ss << "{\"status\":\"ok\",";
     ss << "\"protocol_version\":\"" << CLocalPeerClient::PROTOCOL_VERSION << "\",";
     ss << "\"network\":\"" << config.network << "\",";
+    ss << "\"public_key\":\"" << json_escape(publicKey) << "\",";
+    ss << "\"public_name\":\"" << json_escape(publicName) << "\",";
     ss << "\"first_block_id\":\"" << firstBlockId << "\",";
     ss << "\"first_block_hash\":\"" << firstBlock.hash << "\",";
     ss << "\"expected_genesis_block\":\"" << config.genesisBlock << "\",";
@@ -2029,6 +2053,52 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"nat_external_address\":\"" << json_escape(natStatus.externalAddress) << "\",";
     ss << "\"nat_external_port\":\"" << natStatus.externalPort << "\",";
     ss << "\"nat_message\":\"" << json_escape(natStatus.message) << "\"}";
+    text_reply(rep, reply::ok, ss.str(), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/schedule/upcoming" || request_path.find("/api/schedule/upcoming?") == 0)
+  {
+    int limit = 20;
+    std::string limitValue = submitted_value_any(req, request_path, "limit");
+    if (limitValue.length() > 0)
+    {
+      limit = std::atoi(limitValue.c_str());
+    }
+    if (limit <= 0)
+    {
+      limit = 20;
+    }
+    if (limit > 100)
+    {
+      limit = 100;
+    }
+
+    std::map<std::string, std::string> names = accepted_member_names(blockDB);
+    std::vector<CLocalPeerClient::creator_schedule_slot> schedule = CLocalPeerClient::getUpcomingCreatorSchedule(limit);
+    std::stringstream ss;
+    ss << "{\"status\":\"ok\",";
+    ss << "\"epoch_size_blocks\":\"" << CSelector::getEpochSizeBlocks() << "\",";
+    ss << "\"selection_lag_epochs\":\"" << CSelector::getSelectionLagEpochs() << "\",";
+    ss << "\"slots\":[";
+    for (int i = 0; i < schedule.size(); ++i)
+    {
+      if (i > 0)
+      {
+        ss << ",";
+      }
+      CLocalPeerClient::creator_schedule_slot item = schedule.at(i);
+      ss << "{";
+      ss << "\"block_id\":\"" << item.blockId << "\",";
+      ss << "\"creator_key\":\"" << json_escape(item.creatorKey) << "\",";
+      ss << "\"creator_name\":\"" << json_escape(name_for_key(names, item.creatorKey)) << "\",";
+      ss << "\"creator_peer_url\":\"" << json_escape(item.creatorPeerUrl) << "\",";
+      ss << "\"selection_boundary_block\":\"" << item.selectionBoundaryBlock << "\",";
+      ss << "\"selection_checkpoint_block\":\"" << item.selectionCheckpointBlock << "\",";
+      ss << "\"selection_checkpoint_hash\":\"" << json_escape(item.selectionCheckpointHash) << "\"";
+      ss << "}";
+    }
+    ss << "]}";
     text_reply(rep, reply::ok, ss.str(), "application/json");
     return;
   }

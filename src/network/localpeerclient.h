@@ -21,6 +21,8 @@ public:
 
     struct peer_status {
         std::string url;
+        std::string publicKey;
+        std::string publicName;
         long firstBlockId;
         std::string firstBlockHash;
         long latestBlockId;
@@ -35,6 +37,15 @@ public:
         bool genesisMatch;
         bool reachable;
         std::string lastError;
+    };
+
+    struct creator_schedule_slot {
+        long blockId;
+        long selectionBoundaryBlock;
+        long selectionCheckpointBlock;
+        std::string selectionCheckpointHash;
+        std::string creatorKey;
+        std::string creatorPeerUrl;
     };
 
     static void setPeers(const std::vector<std::string>& peers);
@@ -60,6 +71,8 @@ public:
     static bool isSyncedWithPeers();
     static bool syncNetworkTime();
     static long getNetworkTimeOffset();
+    static std::vector<creator_schedule_slot> getUpcomingCreatorSchedule(int slotCount);
+    static std::vector<std::string> getPriorityPeersForUpcomingCreators(int slotCount);
     static void broadcastRecord(const CFunctions::record_structure& record);
     static void broadcastBlock(const CFunctions::block_structure& block);
     static void broadcastHandoff(const CFunctions::block_structure& block, const std::string& creatorPrivateKey);
