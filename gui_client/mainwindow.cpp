@@ -338,8 +338,9 @@ protected:
             qint64 number = firstSlot + i;
             QRectF bar(plot.left() + i * (width + gap), plot.top() + 4, width, plot.height() - 8);
             QJsonObject block = blocksByNumber.value(number);
-            bool missing = block.isEmpty();
-            bool expectedMissing = missing && number > latest && m_expectedLatestBlock >= number;
+            bool missing = block.isEmpty() || block.value("missing").toString() == "yes";
+            bool expectedMissing = missing &&
+                (block.value("expected").toString() == "yes" || (number > latest && m_expectedLatestBlock >= number));
             int recordCount = block.value("record_count").toString().toInt();
             QString networkStatus = block.value("network_status").toString();
 
@@ -352,6 +353,10 @@ protected:
                 painter.setPen(QPen(QColor("#b7791f"), 1, Qt::DashLine));
                 painter.setBrush(Qt::NoBrush);
                 painter.drawRoundedRect(bar.adjusted(2, 2, -2, -2), 2, 2);
+            } else if (missing) {
+                painter.setPen(QPen(QColor("#b3261e"), 1, Qt::DashLine));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawRoundedRect(bar.adjusted(2, 2, -2, -2), 2, 2);
             }
 
             if (isEpochBoundary(number)) {
@@ -360,7 +365,14 @@ protected:
                 painter.drawLine(QPointF(x, plot.top() + 1), QPointF(x, plot.bottom() - 1));
             }
 
-            if (!missing && width >= 18.0) {
+            if (missing && width >= 18.0) {
+                painter.setPen(expectedMissing ? QColor("#8a5a00") : QColor("#8f1d14"));
+                QFont font = painter.font();
+                font.setBold(true);
+                font.setPointSize(8);
+                painter.setFont(font);
+                painter.drawText(bar, Qt::AlignCenter, expectedMissing ? QString("?") : QString("M"));
+            } else if (!missing && width >= 18.0) {
                 painter.setPen(recordCount >= 3 || networkStatus == "mismatch" ? QColor("#ffffff") : QColor("#17454d"));
                 QFont font = painter.font();
                 font.setBold(true);
@@ -414,6 +426,22 @@ private:
     {
         QString name = block.value("creator_name").toString();
         QString key = block.value("creator_key").toString();
+        if (name.isEmpty() && key.isEmpty()) {
+            return QObject::tr("-");
+        }
+        if (name.isEmpty()) {
+            return shortHash(key);
+        }
+        if (key.isEmpty()) {
+            return name;
+        }
+        return QObject::tr("%1 (%2)").arg(name).arg(shortHash(key));
+    }
+
+    QString expectedCreatorDisplay(const QJsonObject &block) const
+    {
+        QString name = block.value("expected_creator_name").toString();
+        QString key = block.value("expected_creator_key").toString();
         if (name.isEmpty() && key.isEmpty()) {
             return QObject::tr("-");
         }
@@ -487,13 +515,16 @@ private:
             qint64 number = firstSlot + i;
             QJsonObject block = blocksByNumber.value(number);
             bool epochBoundary = isEpochBoundary(number);
-            if (block.isEmpty()) {
-                QString state = (number > latest && m_expectedLatestBlock >= number) ?
+            bool missing = block.isEmpty() || block.value("missing").toString() == "yes";
+            if (missing) {
+                bool expectedMissing = block.value("expected").toString() == "yes" || (number > latest && m_expectedLatestBlock >= number);
+                QString state = expectedMissing ?
                     QObject::tr("expected, not received yet") :
                     QObject::tr("missing/no block stored");
                 QStringList lines;
                 lines << QObject::tr("Block %1").arg(number)
                       << QObject::tr("Status: %1").arg(state)
+                      << QObject::tr("Expected creator: %1").arg(expectedCreatorDisplay(block))
                       << QObject::tr("Estimated time: %1").arg(timeDisplay(QString(), number));
                 if (epochBoundary) {
                     lines << QObject::tr("Epoch boundary");
@@ -512,6 +543,7 @@ private:
             lines << QObject::tr("Block %1").arg(number)
                   << QObject::tr("Time: %1").arg(timeDisplay(block.value("time").toString(), number))
                   << QObject::tr("Creator: %1").arg(creatorDisplay(block))
+                  << QObject::tr("Expected creator: %1").arg(expectedCreatorDisplay(block))
                   << QObject::tr("Records: %1").arg(recordCount.isEmpty() ? QObject::tr("0") : recordCount)
                   << QObject::tr("Status: %1").arg(networkStatusDisplay(networkStatus))
                   << QObject::tr("Hash: %1").arg(shortHash(hash));
@@ -570,7 +602,7 @@ private:
             return QColor("#fff5dc");
         }
         if (missing) {
-            return QColor("#f3f7f8");
+            return QColor("#ffe8e3");
         }
         if (networkStatus == "mismatch") {
             return QColor("#b3261e");
@@ -609,7 +641,7 @@ private:
         qint64 firstSlot = visibleLatest - slotCount + 1;
         for (int i = 0; i < slotCount; ++i) {
             QJsonObject block = blocksByNumber.value(firstSlot + i);
-            if (block.isEmpty()) {
+            if (block.isEmpty() || block.value("missing").toString() == "yes") {
                 ++missing;
             } else {
                 totalRecords += block.value("record_count").toString().toInt();
@@ -3952,7 +3984,8 @@ void MainWindow::applyBlockchain(const QString &json)
     QString selectedKey = selectedBlockchainBlockKey();
     m_blockchainBlocks = object.value("blocks").toArray();
     if (m_blockActivity) {
-        m_blockActivity->setBlocks(m_blockchainBlocks);
+        QJsonArray activitySlots = object.value("activity_slots").toArray();
+        m_blockActivity->setBlocks(activitySlots.isEmpty() ? m_blockchainBlocks : activitySlots);
     }
     if (!m_blockchainTable) {
         return;
