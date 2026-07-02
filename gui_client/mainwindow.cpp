@@ -15,6 +15,8 @@
 #include <QFileInfo>
 #include <QFrame>
 #include <QGridLayout>
+#include <QEvent>
+#include <QHelpEvent>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QInputDialog>
@@ -55,6 +57,7 @@
 #include <QTableWidgetItem>
 #include <QTextCursor>
 #include <QTextEdit>
+#include <QToolTip>
 #include <QtMath>
 #include <QVBoxLayout>
 #include <QVector>
@@ -259,6 +262,7 @@ public:
     {
         setMinimumHeight(42);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setMouseTracking(true);
     }
 
     void setBlocks(const QJsonArray &blocks)
@@ -278,6 +282,22 @@ public:
     }
 
 protected:
+    bool event(QEvent *event)
+    {
+        if (event->type() == QEvent::ToolTip) {
+            QHelpEvent *helpEvent = static_cast<QHelpEvent *>(event);
+            QString text = tooltipForPosition(helpEvent->pos());
+            if (!text.isEmpty()) {
+                QToolTip::showText(helpEvent->globalPos(), text, this);
+            } else {
+                QToolTip::hideText();
+                event->ignore();
+            }
+            return true;
+        }
+        return QWidget::event(event);
+    }
+
     void paintEvent(QPaintEvent *event)
     {
         QWidget::paintEvent(event);
@@ -352,6 +372,166 @@ protected:
     }
 
 private:
+    QRectF plotRect() const
+    {
+        return rect().adjusted(0, 6, 0, -6);
+    }
+
+    int slotCount() const
+    {
+        return 20;
+    }
+
+    qreal slotGap() const
+    {
+        return 3.0;
+    }
+
+    qreal slotWidth(const QRectF &plot) const
+    {
+        qreal width = (plot.width() - (slotGap() * (slotCount() - 1))) / slotCount();
+        if (width < 3.0) {
+            width = 3.0;
+        }
+        return width;
+    }
+
+    QRectF slotRect(int index, const QRectF &plot) const
+    {
+        qreal width = slotWidth(plot);
+        return QRectF(plot.left() + index * (width + slotGap()), plot.top() + 4, width, plot.height() - 8);
+    }
+
+    QString shortHash(const QString &hash) const
+    {
+        if (hash.length() <= 14) {
+            return hash;
+        }
+        return hash.left(12) + "...";
+    }
+
+    QString creatorDisplay(const QJsonObject &block) const
+    {
+        QString name = block.value("creator_name").toString();
+        QString key = block.value("creator_key").toString();
+        if (name.isEmpty() && key.isEmpty()) {
+            return QObject::tr("-");
+        }
+        if (name.isEmpty()) {
+            return shortHash(key);
+        }
+        if (key.isEmpty()) {
+            return name;
+        }
+        return QObject::tr("%1 (%2)").arg(name).arg(shortHash(key));
+    }
+
+    QString timeDisplay(const QString &timeText, qint64 blockNumber) const
+    {
+        bool timeOk = false;
+        qint64 epoch = timeText.toLongLong(&timeOk);
+        if (timeOk && epoch > 0) {
+            return QDateTime::fromSecsSinceEpoch(epoch).toString("yyyy-MM-dd HH:mm:ss");
+        }
+        if (!timeText.isEmpty()) {
+            return timeText;
+        }
+        if (blockNumber > 0) {
+            return QDateTime::fromSecsSinceEpoch(blockNumber * 15).toString("yyyy-MM-dd HH:mm:ss");
+        }
+        return QObject::tr("-");
+    }
+
+    QString networkStatusDisplay(const QString &networkStatus) const
+    {
+        if (networkStatus == "match") {
+            return QObject::tr("matches peer");
+        }
+        if (networkStatus == "mismatch") {
+            return QObject::tr("peer mismatch");
+        }
+        if (networkStatus == "ahead") {
+            return QObject::tr("ahead of peer");
+        }
+        if (networkStatus == "unknown") {
+            return QObject::tr("not compared");
+        }
+        return networkStatus.isEmpty() ? QObject::tr("-") : networkStatus;
+    }
+
+    QString tooltipForPosition(const QPoint &position) const
+    {
+        if (m_blocks.isEmpty()) {
+            return summaryText();
+        }
+
+        QMap<qint64, QJsonObject> blocksByNumber;
+        qint64 latest = collectBlocks(blocksByNumber);
+        if (latest < 0) {
+            return summaryText();
+        }
+
+        QRectF plot = plotRect();
+        if (!plot.contains(position)) {
+            return QString();
+        }
+
+        qint64 visibleLatest = visibleLatestBlock(latest);
+        qint64 firstSlot = visibleLatest - slotCount() + 1;
+        for (int i = 0; i < slotCount(); ++i) {
+            QRectF bar = slotRect(i, plot);
+            if (!bar.contains(position)) {
+                continue;
+            }
+
+            qint64 number = firstSlot + i;
+            QJsonObject block = blocksByNumber.value(number);
+            bool epochBoundary = isEpochBoundary(number);
+            if (block.isEmpty()) {
+                QString state = (number > latest && m_expectedLatestBlock >= number) ?
+                    QObject::tr("expected, not received yet") :
+                    QObject::tr("missing/no block stored");
+                QStringList lines;
+                lines << QObject::tr("Block %1").arg(number)
+                      << QObject::tr("Status: %1").arg(state)
+                      << QObject::tr("Estimated time: %1").arg(timeDisplay(QString(), number));
+                if (epochBoundary) {
+                    lines << QObject::tr("Epoch boundary");
+                }
+                return lines.join("\n");
+            }
+
+            QString recordCount = block.value("record_count").toString();
+            QString hash = block.value("hash").toString();
+            QString previousHash = block.value("previous_hash").toString();
+            QString previousBlock = block.value("previous_block_id").toString();
+            QString networkStatus = block.value("network_status").toString();
+            QString peerHash = block.value("peer_hash").toString();
+            QString peerUrl = block.value("peer_url").toString();
+            QStringList lines;
+            lines << QObject::tr("Block %1").arg(number)
+                  << QObject::tr("Time: %1").arg(timeDisplay(block.value("time").toString(), number))
+                  << QObject::tr("Creator: %1").arg(creatorDisplay(block))
+                  << QObject::tr("Records: %1").arg(recordCount.isEmpty() ? QObject::tr("0") : recordCount)
+                  << QObject::tr("Status: %1").arg(networkStatusDisplay(networkStatus))
+                  << QObject::tr("Hash: %1").arg(shortHash(hash));
+            if (!previousBlock.isEmpty()) {
+                lines << QObject::tr("Previous: %1 (%2)").arg(previousBlock).arg(shortHash(previousHash));
+            }
+            if (!peerHash.isEmpty() && peerHash != hash) {
+                lines << QObject::tr("Peer hash: %1").arg(shortHash(peerHash));
+            }
+            if (!peerUrl.isEmpty()) {
+                lines << QObject::tr("Peer: %1").arg(peerUrl);
+            }
+            if (epochBoundary) {
+                lines << QObject::tr("Epoch boundary");
+            }
+            return lines.join("\n");
+        }
+        return summaryText();
+    }
+
     qint64 collectBlocks(QMap<qint64, QJsonObject> &blocksByNumber) const
     {
         qint64 latest = -1;
