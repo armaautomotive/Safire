@@ -1057,6 +1057,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_blockExplorerNextButton(0),
       m_blockExplorerStartEpoch(-1),
       m_blockExplorerCount(2),
+      m_blockExplorerFollowLatest(true),
       m_peerMap(0),
       m_peersTable(0),
       m_peersLoadingRow(0),
@@ -4492,11 +4493,8 @@ void MainWindow::showBlockExplorer()
 {
     m_contentStack->setCurrentIndex(8);
     setActiveNav(m_blockExplorerButton);
-    if (m_blockExplorerStartEpoch >= 0) {
-        requestJson(QString("/api/block-explorer?epoch=%1&count=%2").arg(m_blockExplorerStartEpoch).arg(m_blockExplorerCount));
-    } else {
-        requestJson(QString("/api/block-explorer?count=%1").arg(m_blockExplorerCount));
-    }
+    m_blockExplorerFollowLatest = true;
+    requestJson(QString("/api/block-explorer?count=%1").arg(m_blockExplorerCount));
     refreshWalletStatus();
 }
 
@@ -4523,6 +4521,7 @@ void MainWindow::previousBlockExplorerPage()
     if (m_blockExplorerStartEpoch < 0) {
         return;
     }
+    m_blockExplorerFollowLatest = false;
     m_blockExplorerStartEpoch -= m_blockExplorerCount;
     if (m_blockExplorerStartEpoch < 0) {
         m_blockExplorerStartEpoch = 0;
@@ -4535,6 +4534,7 @@ void MainWindow::nextBlockExplorerPage()
     if (m_blockExplorerStartEpoch < 0) {
         return;
     }
+    m_blockExplorerFollowLatest = false;
     m_blockExplorerStartEpoch += m_blockExplorerCount;
     requestJson(QString("/api/block-explorer?epoch=%1&count=%2").arg(m_blockExplorerStartEpoch).arg(m_blockExplorerCount));
 }
@@ -5208,6 +5208,12 @@ void MainWindow::refreshWalletStatus()
     } else if (page == 7) {
         requestJson("/api/blockchain/recent");
     } else if (page == 8) {
+        if (m_blockExplorerFollowLatest || m_blockExplorerStartEpoch < 0) {
+            requestJson(QString("/api/block-explorer?count=%1").arg(m_blockExplorerCount));
+        } else {
+            requestJson(QString("/api/block-explorer?epoch=%1&count=%2").arg(m_blockExplorerStartEpoch).arg(m_blockExplorerCount));
+        }
+    } else if (page == 9) {
         requestJson("/api/peers");
     }
 }
@@ -5255,41 +5261,46 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
     }
 
     QByteArray body = reply->readAll();
-    QString path = reply->url().path();
+    QString routePath = reply->url().path();
+    QString path = routePath;
+    QString query = reply->url().query();
+    if (!query.isEmpty()) {
+        path += "?" + query;
+    }
     m_pendingRequests.removeAll(path);
     setLoadingState(path, false);
     if (reply->error() != QNetworkReply::NoError) {
-        if (path == "/api/wallet/send") {
+        if (routePath == "/api/wallet/send") {
             applySendPaymentResult(QString::fromUtf8(body), true);
             reply->deleteLater();
             return;
         }
-        if (path == "/api/wallet/join") {
+        if (routePath == "/api/wallet/join") {
             applyJoinNetworkResult(QString::fromUtf8(body), true);
             reply->deleteLater();
             return;
         }
-        if (path == "/api/wallet/setname") {
+        if (routePath == "/api/wallet/setname") {
             applySetNameResult(QString::fromUtf8(body), true);
             reply->deleteLater();
             return;
         }
-        if (path == "/api/wallet/accounts/create") {
+        if (routePath == "/api/wallet/accounts/create") {
             applyWalletAccountCreateResult(QString::fromUtf8(body), true);
             reply->deleteLater();
             return;
         }
-        if (path == "/api/wallet/accounts/creator") {
+        if (routePath == "/api/wallet/accounts/creator") {
             QMessageBox::warning(this, tr("Reward Account Not Updated"), tr("Unable to update the reward account."));
             reply->deleteLater();
             return;
         }
-        if (path == "/api/blockchain/reset") {
+        if (routePath == "/api/blockchain/reset") {
             applyBlockchainResetResult(QString::fromUtf8(body), true);
             reply->deleteLater();
             return;
         }
-        if (path == "/api/chain/recover") {
+        if (routePath == "/api/chain/recover") {
             applyChainRecoveryResult(QString::fromUtf8(body), true);
             reply->deleteLater();
             return;
@@ -5308,37 +5319,37 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         m_loadedDataPaths.append(path);
     }
 
-    if (path == "/api/wallet/history") {
+    if (routePath == "/api/wallet/history") {
         applyWalletHistory(QString::fromUtf8(body));
-    } else if (path == "/api/wallet/accounts") {
+    } else if (routePath == "/api/wallet/accounts") {
         applyWalletAccounts(QString::fromUtf8(body));
-    } else if (path == "/api/mempool") {
+    } else if (routePath == "/api/mempool") {
         applyMempool(QString::fromUtf8(body));
-    } else if (path == "/api/blockchain/recent") {
+    } else if (routePath == "/api/blockchain/recent") {
         applyBlockchain(QString::fromUtf8(body));
-    } else if (path.startsWith("/api/block-explorer")) {
+    } else if (routePath == "/api/block-explorer") {
         applyBlockExplorer(QString::fromUtf8(body));
-    } else if (path == "/api/peers") {
+    } else if (routePath == "/api/peers") {
         applyPeers(QString::fromUtf8(body));
-    } else if (path == "/api/network/users") {
+    } else if (routePath == "/api/network/users") {
         applyNetworkUsers(QString::fromUtf8(body));
-    } else if (path == "/api/wallet/send") {
+    } else if (routePath == "/api/wallet/send") {
         applySendPaymentResult(QString::fromUtf8(body), false);
-    } else if (path == "/api/wallet/join") {
+    } else if (routePath == "/api/wallet/join") {
         applyJoinNetworkResult(QString::fromUtf8(body), false);
-    } else if (path == "/api/wallet/setname") {
+    } else if (routePath == "/api/wallet/setname") {
         applySetNameResult(QString::fromUtf8(body), false);
-    } else if (path == "/api/wallet/accounts/create") {
+    } else if (routePath == "/api/wallet/accounts/create") {
         applyWalletAccountCreateResult(QString::fromUtf8(body), false);
-    } else if (path == "/api/wallet/accounts/active") {
+    } else if (routePath == "/api/wallet/accounts/active") {
         applyWalletAccounts(QString::fromUtf8(body));
         requestJson("/api/wallet/status");
-    } else if (path == "/api/wallet/accounts/creator") {
+    } else if (routePath == "/api/wallet/accounts/creator") {
         applyWalletAccounts(QString::fromUtf8(body));
         requestJson("/api/wallet/status");
-    } else if (path == "/api/blockchain/reset") {
+    } else if (routePath == "/api/blockchain/reset") {
         applyBlockchainResetResult(QString::fromUtf8(body), false);
-    } else if (path == "/api/chain/recover") {
+    } else if (routePath == "/api/chain/recover") {
         applyChainRecoveryResult(QString::fromUtf8(body), false);
     } else {
         applyWalletStatus(QString::fromUtf8(body));

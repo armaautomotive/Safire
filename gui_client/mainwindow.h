@@ -250,6 +250,7 @@ private:
     QPushButton *m_blockExplorerNextButton;
     int m_blockExplorerStartEpoch;
     int m_blockExplorerCount;
+    bool m_blockExplorerFollowLatest;
     PeerMapWidget *m_peerMap;
     QTableWidget *m_peersTable;
     QWidget *m_peersLoadingRow;
