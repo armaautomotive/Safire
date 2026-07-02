@@ -4230,8 +4230,8 @@ void MainWindow::applyBlockExplorer(const QString &json)
                 QJsonObject epoch = epochs.at(i).toObject();
                 QFrame *epochPanel = makePanel("AccountCard");
                 QVBoxLayout *epochLayout = new QVBoxLayout(epochPanel);
-                epochLayout->setContentsMargins(14, 12, 14, 12);
-                epochLayout->setSpacing(8);
+                epochLayout->setContentsMargins(14, 10, 14, 10);
+                epochLayout->setSpacing(4);
 
                 QString epochNumber = epoch.value("epoch").toString();
                 QString startBlock = epoch.value("start_block").toString();
@@ -4292,7 +4292,7 @@ void MainWindow::applyBlockExplorer(const QString &json)
                     qint64 endBlockNumber = lastSlot.value("number").toString().toLongLong(&endBlockOk);
 
                     BlockActivityWidget *strip = new BlockActivityWidget;
-                    strip->setMinimumHeight(48);
+                    strip->setFixedHeight(40);
                     strip->setDisplaySlotCount(rowSlots.size());
                     strip->setChainContext(endBlockOk ? endBlockNumber : -1, firstBlockOk ? firstBlockNumber : -1, epochSize);
                     if (selectedNumberOk) {
