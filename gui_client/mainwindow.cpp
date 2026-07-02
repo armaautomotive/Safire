@@ -26,6 +26,7 @@
 #include <QList>
 #include <QMap>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -63,6 +64,7 @@
 #include <QVBoxLayout>
 #include <QVector>
 #include <QWidget>
+#include <functional>
 
 namespace {
 
@@ -260,7 +262,8 @@ public:
           m_expectedLatestBlock(-1),
           m_firstBlock(-1),
           m_epochSizeBlocks(0),
-          m_slotCount(20)
+          m_slotCount(20),
+          m_selectedBlockNumber(-1)
     {
         setMinimumHeight(42);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -294,6 +297,17 @@ public:
         m_slotCount = slotCount;
         setToolTip(summaryText());
         update();
+    }
+
+    void setSelectedBlockNumber(qint64 blockNumber)
+    {
+        m_selectedBlockNumber = blockNumber;
+        update();
+    }
+
+    void setBlockClickHandler(const std::function<void(const QJsonObject&)> &handler)
+    {
+        m_blockClickHandler = handler;
     }
 
 protected:
@@ -380,6 +394,14 @@ protected:
                 painter.drawLine(QPointF(x, plot.top() + 1), QPointF(x, plot.bottom() - 1));
             }
 
+            if (number == m_selectedBlockNumber) {
+                painter.setPen(QPen(QColor("#00343b"), 3));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawRoundedRect(bar.adjusted(1, 1, -1, -1), 3, 3);
+                painter.setPen(QPen(QColor("#ffffff"), 1));
+                painter.drawRoundedRect(bar.adjusted(4, 4, -4, -4), 2, 2);
+            }
+
             if (missing && width >= 18.0) {
                 painter.setPen(expectedMissing ? QColor("#8a5a00") : QColor("#8f1d14"));
                 QFont font = painter.font();
@@ -396,6 +418,23 @@ protected:
                 painter.drawText(bar, Qt::AlignCenter, QString::number(recordCount));
             }
         }
+    }
+
+    void mousePressEvent(QMouseEvent *event)
+    {
+        QJsonObject block = blockForPosition(event->pos());
+        if (!block.isEmpty()) {
+            bool numberOk = false;
+            qint64 blockNumber = block.value("number").toString().toLongLong(&numberOk);
+            if (numberOk) {
+                m_selectedBlockNumber = blockNumber;
+                update();
+            }
+            if (m_blockClickHandler) {
+                m_blockClickHandler(block);
+            }
+        }
+        QWidget::mousePressEvent(event);
     }
 
 private:
@@ -585,6 +624,33 @@ private:
         return summaryText();
     }
 
+    QJsonObject blockForPosition(const QPoint &position) const
+    {
+        if (m_blocks.isEmpty()) {
+            return QJsonObject();
+        }
+
+        QMap<qint64, QJsonObject> blocksByNumber;
+        qint64 latest = collectBlocks(blocksByNumber);
+        if (latest < 0) {
+            return QJsonObject();
+        }
+
+        QRectF plot = plotRect();
+        if (!plot.contains(position)) {
+            return QJsonObject();
+        }
+
+        qint64 visibleLatest = visibleLatestBlock(latest);
+        qint64 firstSlot = visibleLatest - slotCount() + 1;
+        for (int i = 0; i < slotCount(); ++i) {
+            if (slotRect(i, plot).contains(position)) {
+                return blocksByNumber.value(firstSlot + i);
+            }
+        }
+        return QJsonObject();
+    }
+
     qint64 collectBlocks(QMap<qint64, QJsonObject> &blocksByNumber) const
     {
         qint64 latest = -1;
@@ -682,6 +748,8 @@ private:
     qint64 m_firstBlock;
     int m_epochSizeBlocks;
     int m_slotCount;
+    qint64 m_selectedBlockNumber;
+    std::function<void(const QJsonObject&)> m_blockClickHandler;
 };
 
 class HistoryChartWidget : public QWidget
@@ -1052,6 +1120,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_blockchainNextButton(0),
       m_blockExplorerContent(0),
       m_blockExplorerRecordsTable(0),
+      m_blockExplorerRecordsTitle(0),
       m_blockExplorerPageLabel(0),
       m_blockExplorerPrevButton(0),
       m_blockExplorerNextButton(0),
@@ -1828,7 +1897,8 @@ QWidget *MainWindow::createBlockExplorerPage()
     scroll->setWidget(m_blockExplorerContent);
     layout->addWidget(scroll, 2);
 
-    layout->addWidget(makeLabel(tr("Records in Loaded Epochs"), "SmallTitle"));
+    m_blockExplorerRecordsTitle = makeLabel(tr("Selected Block"), "SmallTitle");
+    layout->addWidget(m_blockExplorerRecordsTitle);
     m_blockExplorerRecordsTable = new QTableWidget(0, 6);
     QStringList headers;
     headers << tr("Epoch") << tr("Block") << tr("Type") << tr("Account") << tr("Amount") << tr("Hash");
@@ -4133,6 +4203,12 @@ void MainWindow::applyBlockExplorer(const QString &json)
         m_blockExplorerNextButton->setEnabled(startOk && latestOk && startEpoch + qMax(1, count) <= latestEpoch);
     }
 
+    bool selectedNumberOk = false;
+    qint64 selectedNumber = m_blockExplorerSelectedBlock.value("number").toString().toLongLong(&selectedNumberOk);
+    QJsonObject selectedBlockInPage;
+    QJsonObject fallbackBlock;
+    m_blockExplorerStripWidgets.clear();
+
     if (m_blockExplorerContent) {
         QVBoxLayout *layout = qobject_cast<QVBoxLayout *>(m_blockExplorerContent->layout());
         if (layout) {
@@ -4181,6 +4257,18 @@ void MainWindow::applyBlockExplorer(const QString &json)
                 epochLayout->addWidget(meta);
 
                 QJsonArray slotArray = epoch.value("slots").toArray();
+                for (int slotIndex = 0; slotIndex < slotArray.size(); ++slotIndex) {
+                    QJsonObject slot = slotArray.at(slotIndex).toObject();
+                    bool numberOk = false;
+                    qint64 blockNumber = slot.value("number").toString().toLongLong(&numberOk);
+                    if (selectedNumberOk && numberOk && blockNumber == selectedNumber) {
+                        selectedBlockInPage = slot;
+                    }
+                    if (slot.value("missing").toString() != "yes") {
+                        fallbackBlock = slot;
+                    }
+                }
+
                 const int rowCount = 3;
                 int slotsPerRow = (slotArray.size() + rowCount - 1) / rowCount;
                 if (slotsPerRow < 1) {
@@ -4205,7 +4293,14 @@ void MainWindow::applyBlockExplorer(const QString &json)
                     strip->setMinimumHeight(48);
                     strip->setDisplaySlotCount(rowSlots.size());
                     strip->setChainContext(endBlockOk ? endBlockNumber : -1, firstBlockOk ? firstBlockNumber : -1, epochSize);
+                    if (selectedNumberOk) {
+                        strip->setSelectedBlockNumber(selectedNumber);
+                    }
+                    strip->setBlockClickHandler([this](const QJsonObject &block) {
+                        selectBlockExplorerBlock(block);
+                    });
                     strip->setBlocks(rowSlots);
+                    m_blockExplorerStripWidgets.append(strip);
                     epochLayout->addWidget(strip);
                 }
                 layout->addWidget(epochPanel);
@@ -4214,73 +4309,133 @@ void MainWindow::applyBlockExplorer(const QString &json)
         }
     }
 
+    QJsonObject blockToShow = selectedBlockInPage.isEmpty() ? fallbackBlock : selectedBlockInPage;
+    selectBlockExplorerBlock(blockToShow);
+}
+
+void MainWindow::selectBlockExplorerBlock(const QJsonObject &block)
+{
+    m_blockExplorerSelectedBlock = block;
+    bool selectedNumberOk = false;
+    qint64 selectedNumber = block.value("number").toString().toLongLong(&selectedNumberOk);
+    for (int i = 0; i < m_blockExplorerStripWidgets.size(); ++i) {
+        BlockActivityWidget *strip = dynamic_cast<BlockActivityWidget *>(m_blockExplorerStripWidgets.at(i));
+        if (strip) {
+            strip->setSelectedBlockNumber(selectedNumberOk ? selectedNumber : -1);
+        }
+    }
+    renderBlockExplorerSelectedBlock();
+}
+
+void MainWindow::renderBlockExplorerSelectedBlock()
+{
     if (!m_blockExplorerRecordsTable) {
         return;
     }
-
     m_blockExplorerRecordsTable->setUpdatesEnabled(false);
     m_blockExplorerRecordsTable->setRowCount(0);
-    QJsonArray epochs = object.value("epochs").toArray();
-    for (int e = 0; e < epochs.size(); ++e) {
-        QJsonObject epoch = epochs.at(e).toObject();
-        QString epochNumber = epoch.value("epoch").toString();
-        QJsonArray slotArray = epoch.value("slots").toArray();
-        for (int s = 0; s < slotArray.size(); ++s) {
-            QJsonObject slot = slotArray.at(s).toObject();
-            if (slot.value("missing").toString() == "yes") {
-                continue;
-            }
-            QString blockNumber = slot.value("number").toString();
-            QJsonArray records = slot.value("records").toArray();
-            for (int r = 0; r < records.size(); ++r) {
-                QJsonObject record = records.at(r).toObject();
-                QString type = record.value("type").toString();
-                QString from = blockchainAccountLabel(record.value("from_name").toString(), record.value("from_key").toString());
-                QString to = blockchainAccountLabel(record.value("to_name").toString(), record.value("to_key").toString());
-                QString member = blockchainAccountLabel(record.value("member_name").toString(), record.value("member_key").toString());
-                QString account = member;
-                if (!record.value("from_key").toString().isEmpty() || !record.value("to_key").toString().isEmpty()) {
-                    account = tr("%1 -> %2").arg(from).arg(to);
-                }
-                QString amount = record.value("amount").toString();
-                QString fee = record.value("fee").toString();
-                QString hash = record.value("hash").toString();
 
-                int row = m_blockExplorerRecordsTable->rowCount();
-                m_blockExplorerRecordsTable->insertRow(row);
-                QStringList values;
-                values << epochNumber
-                       << blockNumber
-                       << (type.isEmpty() ? tr("-") : type)
-                       << account
-                       << (amount.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(amount)))
-                       << shortAddress(hash);
-                QString tooltip = tr("Block %1 record %2\nType: %3\nFrom: %4\nTo: %5\nAmount: %6\nFee: %7\nHash: %8")
-                    .arg(blockNumber)
-                    .arg(record.value("index").toString())
-                    .arg(type)
-                    .arg(from)
-                    .arg(to)
-                    .arg(amount.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(amount)))
-                    .arg(fee.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(fee)))
-                    .arg(hash);
-                for (int column = 0; column < values.size(); ++column) {
-                    QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
-                    item->setToolTip(tooltip);
-                    m_blockExplorerRecordsTable->setItem(row, column, item);
-                }
-            }
+    QString blockNumber = m_blockExplorerSelectedBlock.value("number").toString();
+    QString epochNumber = m_blockExplorerSelectedBlock.value("epoch").toString();
+    QString creator = blockchainAccountLabel(m_blockExplorerSelectedBlock.value("creator_name").toString(),
+                                             m_blockExplorerSelectedBlock.value("creator_key").toString());
+    QString expectedCreator = blockchainAccountLabel(m_blockExplorerSelectedBlock.value("expected_creator_name").toString(),
+                                                     m_blockExplorerSelectedBlock.value("expected_creator_key").toString());
+    bool missing = m_blockExplorerSelectedBlock.value("missing").toString() == "yes";
+    bool expected = m_blockExplorerSelectedBlock.value("expected").toString() == "yes";
+    QJsonArray records = m_blockExplorerSelectedBlock.value("records").toArray();
+
+    if (m_blockExplorerRecordsTitle) {
+        if (m_blockExplorerSelectedBlock.isEmpty()) {
+            m_blockExplorerRecordsTitle->setText(tr("Selected Block"));
+        } else if (missing) {
+            m_blockExplorerRecordsTitle->setText(tr("Selected Block %1: %2")
+                .arg(blockNumber)
+                .arg(expected ? tr("upcoming") : tr("missing")));
+        } else {
+            m_blockExplorerRecordsTitle->setText(tr("Selected Block %1: %2 record(s)")
+                .arg(blockNumber)
+                .arg(records.size()));
         }
     }
-    if (m_blockExplorerRecordsTable->rowCount() == 0) {
+
+    if (m_blockExplorerSelectedBlock.isEmpty()) {
         int row = m_blockExplorerRecordsTable->rowCount();
         m_blockExplorerRecordsTable->insertRow(row);
         m_blockExplorerRecordsTable->setItem(row, 0, new QTableWidgetItem(tr("-")));
         m_blockExplorerRecordsTable->setItem(row, 1, new QTableWidgetItem(tr("-")));
         m_blockExplorerRecordsTable->setItem(row, 2, new QTableWidgetItem(tr("-")));
-        m_blockExplorerRecordsTable->setItem(row, 3, new QTableWidgetItem(tr("No records in loaded epochs")));
+        m_blockExplorerRecordsTable->setItem(row, 3, new QTableWidgetItem(tr("Select a block above to inspect its records")));
         m_blockExplorerRecordsTable->setItem(row, 4, new QTableWidgetItem(tr("-")));
         m_blockExplorerRecordsTable->setItem(row, 5, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->resizeRowsToContents();
+        m_blockExplorerRecordsTable->setUpdatesEnabled(true);
+        return;
+    }
+
+    if (missing) {
+        int row = m_blockExplorerRecordsTable->rowCount();
+        m_blockExplorerRecordsTable->insertRow(row);
+        m_blockExplorerRecordsTable->setItem(row, 0, new QTableWidgetItem(epochNumber));
+        m_blockExplorerRecordsTable->setItem(row, 1, new QTableWidgetItem(blockNumber));
+        m_blockExplorerRecordsTable->setItem(row, 2, new QTableWidgetItem(expected ? tr("UPCOMING") : tr("MISSING")));
+        m_blockExplorerRecordsTable->setItem(row, 3, new QTableWidgetItem(tr("Expected creator: %1").arg(expectedCreator)));
+        m_blockExplorerRecordsTable->setItem(row, 4, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->setItem(row, 5, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->resizeRowsToContents();
+        m_blockExplorerRecordsTable->setUpdatesEnabled(true);
+        return;
+    }
+
+    for (int r = 0; r < records.size(); ++r) {
+        QJsonObject record = records.at(r).toObject();
+        QString type = record.value("type").toString();
+        QString from = blockchainAccountLabel(record.value("from_name").toString(), record.value("from_key").toString());
+        QString to = blockchainAccountLabel(record.value("to_name").toString(), record.value("to_key").toString());
+        QString member = blockchainAccountLabel(record.value("member_name").toString(), record.value("member_key").toString());
+        QString account = member;
+        if (!record.value("from_key").toString().isEmpty() || !record.value("to_key").toString().isEmpty()) {
+            account = tr("%1 -> %2").arg(from).arg(to);
+        }
+        QString amount = record.value("amount").toString();
+        QString fee = record.value("fee").toString();
+        QString hash = record.value("hash").toString();
+
+        int row = m_blockExplorerRecordsTable->rowCount();
+        m_blockExplorerRecordsTable->insertRow(row);
+        QStringList values;
+        values << epochNumber
+               << blockNumber
+               << (type.isEmpty() ? tr("-") : type)
+               << account
+               << (amount.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(amount)))
+               << shortAddress(hash);
+        QString tooltip = tr("Block %1 record %2\nCreator: %3\nType: %4\nFrom: %5\nTo: %6\nAmount: %7\nFee: %8\nHash: %9")
+            .arg(blockNumber)
+            .arg(record.value("index").toString())
+            .arg(creator)
+            .arg(type)
+            .arg(from)
+            .arg(to)
+            .arg(amount.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(amount)))
+            .arg(fee.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(fee)))
+            .arg(hash);
+        for (int column = 0; column < values.size(); ++column) {
+            QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
+            item->setToolTip(tooltip);
+            m_blockExplorerRecordsTable->setItem(row, column, item);
+        }
+    }
+
+    if (m_blockExplorerRecordsTable->rowCount() == 0) {
+        int row = m_blockExplorerRecordsTable->rowCount();
+        m_blockExplorerRecordsTable->insertRow(row);
+        m_blockExplorerRecordsTable->setItem(row, 0, new QTableWidgetItem(epochNumber));
+        m_blockExplorerRecordsTable->setItem(row, 1, new QTableWidgetItem(blockNumber));
+        m_blockExplorerRecordsTable->setItem(row, 2, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->setItem(row, 3, new QTableWidgetItem(tr("No records in selected block")));
+        m_blockExplorerRecordsTable->setItem(row, 4, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->setItem(row, 5, new QTableWidgetItem(shortAddress(m_blockExplorerSelectedBlock.value("hash").toString())));
     }
     m_blockExplorerRecordsTable->resizeRowsToContents();
     m_blockExplorerRecordsTable->setUpdatesEnabled(true);

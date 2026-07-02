@@ -2,6 +2,8 @@
 #define MAINWINDOW_H
 
 #include <QJsonArray>
+#include <QJsonObject>
+#include <QList>
 #include <QMainWindow>
 #include <QProcess>
 #include <QStringList>
@@ -119,6 +121,8 @@ private:
     void applyMempool(const QString &json);
     void applyBlockchain(const QString &json);
     void applyBlockExplorer(const QString &json);
+    void selectBlockExplorerBlock(const QJsonObject &block);
+    void renderBlockExplorerSelectedBlock();
     void applyPeers(const QString &json);
     void applyNetworkUsers(const QString &json);
     void applySendPaymentResult(const QString &json, bool transportError);
@@ -245,12 +249,15 @@ private:
     QPushButton *m_blockchainNextButton;
     QWidget *m_blockExplorerContent;
     QTableWidget *m_blockExplorerRecordsTable;
+    QLabel *m_blockExplorerRecordsTitle;
     QLabel *m_blockExplorerPageLabel;
     QPushButton *m_blockExplorerPrevButton;
     QPushButton *m_blockExplorerNextButton;
     int m_blockExplorerStartEpoch;
     int m_blockExplorerCount;
     bool m_blockExplorerFollowLatest;
+    QJsonObject m_blockExplorerSelectedBlock;
+    QList<QWidget *> m_blockExplorerStripWidgets;
     PeerMapWidget *m_peerMap;
     QTableWidget *m_peersTable;
     QWidget *m_peersLoadingRow;
