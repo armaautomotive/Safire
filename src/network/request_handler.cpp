@@ -1264,6 +1264,227 @@ std::string recent_blockchain_json(CBlockDB& block_db)
   return ss.str();
 }
 
+void append_record_json(std::stringstream& ss,
+                        const CFunctions::record_structure& record,
+                        int index,
+                        const std::map<std::string, std::string>& names)
+{
+  ss << "{";
+  ss << "\"index\":\"" << index << "\",";
+  ss << "\"type\":\"" << record_type_name(record.transaction_type) << "\",";
+  ss << "\"network\":\"" << json_escape(record.network) << "\",";
+  ss << "\"time\":\"" << json_escape(record.time) << "\",";
+  if (record.nonce > 0)
+  {
+    ss << "\"nonce\":\"" << record.nonce << "\",";
+  }
+  ss << "\"amount\":\"" << record.amount << "\",";
+  ss << "\"fee\":\"" << record.fee << "\",";
+  ss << "\"from_key\":\"" << json_escape(record.sender_public_key) << "\",";
+  ss << "\"from_name\":\"" << json_escape(name_for_key(names, record.sender_public_key)) << "\",";
+  ss << "\"to_key\":\"" << json_escape(record.recipient_public_key) << "\",";
+  ss << "\"to_name\":\"" << json_escape(name_for_key(names, record.recipient_public_key)) << "\",";
+  ss << "\"member_key\":\"" << json_escape(record.sender_public_key) << "\",";
+  ss << "\"member_name\":\"" << json_escape(name_for_key(names, record.sender_public_key)) << "\",";
+  ss << "\"name\":\"" << json_escape(record.name) << "\",";
+  ss << "\"value\":\"" << json_escape(record.value) << "\",";
+  ss << "\"hash\":\"" << json_escape(record.hash) << "\"";
+  ss << "}";
+}
+
+std::string block_explorer_json(CBlockDB& block_db, long requested_epoch, int epoch_count)
+{
+  long first_block_id = block_db.getFirstBlockId();
+  long latest_block_id = block_db.getLatestBlockId();
+  if (first_block_id < 0 || latest_block_id < 0)
+  {
+    return "{\"status\":\"ok\",\"epochs\":[]}";
+  }
+
+  if (epoch_count < 1)
+  {
+    epoch_count = 2;
+  }
+  if (epoch_count > 3)
+  {
+    epoch_count = 3;
+  }
+
+  long epoch_size = CSelector::getEpochSizeBlocks();
+  long latest_epoch = CSelector::getEpochForBlock(latest_block_id, first_block_id);
+  CSelector selector;
+  long current_time_block = selector.getCurrentTimeBlock();
+  long start_epoch = requested_epoch >= 0 ? requested_epoch : latest_epoch - epoch_count + 1;
+  if (start_epoch < 0)
+  {
+    start_epoch = 0;
+  }
+  long end_epoch = start_epoch + epoch_count - 1;
+
+  long first_slot = first_block_id + (start_epoch * epoch_size);
+  long last_slot = first_block_id + ((end_epoch + 1) * epoch_size) - 1;
+  if (first_slot < first_block_id)
+  {
+    first_slot = first_block_id;
+  }
+
+  std::map<long, CFunctions::block_structure> blocks_by_number;
+  CFunctions::block_structure block = block_db.getBlock(latest_block_id);
+  int guard = 0;
+  while (block.number > 0 && guard < 200000)
+  {
+    if (block.number >= first_slot && block.number <= last_slot)
+    {
+      blocks_by_number[block.number] = block;
+    }
+    if (block.number < first_slot ||
+        block.number == first_block_id ||
+        block.previous_block_id <= 0)
+    {
+      break;
+    }
+
+    CFunctions::block_structure previous_block;
+    if (block.previous_block_hash.length() > 0)
+    {
+      previous_block = block_db.getBlockByHash(block.previous_block_hash);
+    }
+    if (previous_block.number <= 0)
+    {
+      previous_block = block_db.getBlock(block.previous_block_id);
+    }
+    if (previous_block.number <= 0 || previous_block.number == block.number)
+    {
+      break;
+    }
+    block = previous_block;
+    ++guard;
+  }
+
+  std::map<std::string, std::string> names = accepted_member_names(block_db);
+  std::map<long, CLedgerState::state> selection_states_by_boundary;
+
+  std::stringstream ss;
+  ss << "{\"status\":\"ok\",";
+  ss << "\"first_block_id\":\"" << first_block_id << "\",";
+  ss << "\"latest_block_id\":\"" << latest_block_id << "\",";
+  ss << "\"current_time_block\":\"" << current_time_block << "\",";
+  ss << "\"epoch_size_blocks\":\"" << epoch_size << "\",";
+  ss << "\"selection_lag_epochs\":\"" << CSelector::getSelectionLagEpochs() << "\",";
+  ss << "\"latest_epoch\":\"" << latest_epoch << "\",";
+  ss << "\"start_epoch\":\"" << start_epoch << "\",";
+  ss << "\"count\":\"" << epoch_count << "\",";
+  ss << "\"epochs\":[";
+
+  for (long epoch = start_epoch; epoch <= end_epoch; ++epoch)
+  {
+    if (epoch > start_epoch)
+    {
+      ss << ",";
+    }
+
+    long epoch_start_block = first_block_id + (epoch * epoch_size);
+    long epoch_end_block = epoch_start_block + epoch_size - 1;
+    long produced = 0;
+    long missing = 0;
+    long future = 0;
+    std::set<std::string> expected_creators;
+
+    std::stringstream slots_json;
+    slots_json << "[";
+    for (long slot = epoch_start_block; slot <= epoch_end_block; ++slot)
+    {
+      if (slot > epoch_start_block)
+      {
+        slots_json << ",";
+      }
+
+      long selection_boundary = CSelector::getSelectionBoundaryBlock(slot, first_block_id);
+      if (selection_states_by_boundary.find(selection_boundary) == selection_states_by_boundary.end())
+      {
+        selection_states_by_boundary[selection_boundary] = CLedgerState::build(block_db, "", selection_boundary);
+      }
+      CLedgerState::state selection_state = selection_states_by_boundary[selection_boundary];
+      std::vector<std::string> active_member_keys = CLedgerState::activeMemberKeysAt(selection_state, selection_state.latest_block_id);
+      std::string expected_creator = "";
+      if (active_member_keys.size() > 0 && selection_state.latest_block.hash.length() > 0)
+      {
+        expected_creator = CSelector::getSelectedUserForBlock(slot, selection_state.latest_block.hash, active_member_keys);
+        expected_creators.insert(expected_creator);
+      }
+      std::string expected_creator_name = name_for_key(names, expected_creator);
+
+      std::map<long, CFunctions::block_structure>::iterator block_it = blocks_by_number.find(slot);
+      bool slot_missing = block_it == blocks_by_number.end();
+      bool slot_future = slot_missing && slot >= current_time_block;
+      CFunctions::block_structure current_block;
+      if (slot_missing)
+      {
+        if (slot_future)
+        {
+          ++future;
+        }
+        else
+        {
+          ++missing;
+        }
+      }
+      else
+      {
+        ++produced;
+        current_block = block_it->second;
+      }
+
+      slots_json << "{";
+      slots_json << "\"number\":\"" << slot << "\",";
+      slots_json << "\"epoch\":\"" << epoch << "\",";
+      slots_json << "\"missing\":\"" << (slot_missing ? "yes" : "no") << "\",";
+      slots_json << "\"expected\":\"" << (slot_future ? "yes" : "no") << "\",";
+      slots_json << "\"expected_creator_key\":\"" << json_escape(expected_creator) << "\",";
+      slots_json << "\"expected_creator_name\":\"" << json_escape(expected_creator_name) << "\",";
+      slots_json << "\"network_status\":\"" << (slot_missing ? (slot_future ? "future" : "missing") : "match") << "\",";
+      slots_json << "\"time\":\"" << json_escape(slot_missing ? "" : current_block.time) << "\",";
+      slots_json << "\"previous_block_id\":\"" << (slot_missing ? -1 : current_block.previous_block_id) << "\",";
+      slots_json << "\"creator_key\":\"" << json_escape(slot_missing ? "" : current_block.creator_key) << "\",";
+      slots_json << "\"creator_name\":\"" << json_escape(slot_missing ? "" : name_for_key(names, current_block.creator_key)) << "\",";
+      slots_json << "\"hash\":\"" << json_escape(slot_missing ? "" : current_block.hash) << "\",";
+      slots_json << "\"previous_hash\":\"" << json_escape(slot_missing ? "" : current_block.previous_block_hash) << "\",";
+      slots_json << "\"records_merkle_root\":\"" << json_escape(slot_missing ? "" : current_block.records_merkle_root) << "\",";
+      slots_json << "\"record_count\":\"" << (slot_missing ? 0 : current_block.records.size()) << "\",";
+      slots_json << "\"records\":[";
+      if (!slot_missing)
+      {
+        for (int r = 0; r < current_block.records.size(); ++r)
+        {
+          if (r > 0)
+          {
+            slots_json << ",";
+          }
+          append_record_json(slots_json, current_block.records.at(r), r, names);
+        }
+      }
+      slots_json << "]}";
+    }
+    slots_json << "]";
+
+    ss << "{";
+    ss << "\"epoch\":\"" << epoch << "\",";
+    ss << "\"start_block\":\"" << epoch_start_block << "\",";
+    ss << "\"end_block\":\"" << epoch_end_block << "\",";
+    ss << "\"start_time\":\"" << (epoch_start_block * 15) << "\",";
+    ss << "\"end_time\":\"" << (epoch_end_block * 15) << "\",";
+    ss << "\"produced_blocks\":\"" << produced << "\",";
+    ss << "\"missing_blocks\":\"" << missing << "\",";
+    ss << "\"future_slots\":\"" << future << "\",";
+    ss << "\"expected_creator_count\":\"" << expected_creators.size() << "\",";
+    ss << "\"slots\":" << slots_json.str();
+    ss << "}";
+  }
+
+  ss << "]}";
+  return ss.str();
+}
+
 void add_balance_delta(std::map<std::string, double>& balances, const std::string& public_key, double amount)
 {
   if (public_key.length() == 0)
@@ -3438,6 +3659,24 @@ void request_handler::handle_request(const request& req, reply& rep)
   if (request_path == "/api/blockchain/recent")
   {
     text_reply(rep, reply::ok, recent_blockchain_json(blockDB), "application/json");
+    return;
+  }
+
+  if (request_path == "/api/block-explorer" || request_path.find("/api/block-explorer?") == 0)
+  {
+    long epoch = -1;
+    int count = 2;
+    std::string epoch_value = submitted_value_any(req, request_path, "epoch");
+    std::string count_value = submitted_value_any(req, request_path, "count");
+    if (epoch_value.length() > 0)
+    {
+      epoch = std::atol(epoch_value.c_str());
+    }
+    if (count_value.length() > 0)
+    {
+      count = std::atoi(count_value.c_str());
+    }
+    text_reply(rep, reply::ok, block_explorer_json(blockDB, epoch, count), "application/json");
     return;
   }
 

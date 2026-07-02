@@ -15,6 +15,7 @@ class QNetworkReply;
 class QPlainTextEdit;
 class QProgressBar;
 class QPushButton;
+class QVBoxLayout;
 class QStackedWidget;
 class QTableWidget;
 class QTextEdit;
@@ -46,6 +47,7 @@ private slots:
     void showHistory();
     void showMempool();
     void showBlockchain();
+    void showBlockExplorer();
     void showPeers();
     void showTerminal();
     void showOptions();
@@ -57,6 +59,8 @@ private slots:
     void nextHistoryPage();
     void previousBlockchainPage();
     void nextBlockchainPage();
+    void previousBlockExplorerPage();
+    void nextBlockExplorerPage();
     void filterNetworkUsers(const QString &text);
     void filterBlockchainBlocks(const QString &text);
     void updateHistoryChart();
@@ -92,6 +96,7 @@ private:
     QWidget *createHistoryPage();
     QWidget *createMempoolPage();
     QWidget *createBlockchainPage();
+    QWidget *createBlockExplorerPage();
     QWidget *createPeersPage();
     QWidget *createTerminalPage();
     QWidget *createOptionsPage();
@@ -113,6 +118,7 @@ private:
     void applyWalletHistory(const QString &json);
     void applyMempool(const QString &json);
     void applyBlockchain(const QString &json);
+    void applyBlockExplorer(const QString &json);
     void applyPeers(const QString &json);
     void applyNetworkUsers(const QString &json);
     void applySendPaymentResult(const QString &json, bool transportError);
@@ -237,6 +243,13 @@ private:
     QLabel *m_blockchainPageLabel;
     QPushButton *m_blockchainPrevButton;
     QPushButton *m_blockchainNextButton;
+    QWidget *m_blockExplorerContent;
+    QTableWidget *m_blockExplorerRecordsTable;
+    QLabel *m_blockExplorerPageLabel;
+    QPushButton *m_blockExplorerPrevButton;
+    QPushButton *m_blockExplorerNextButton;
+    int m_blockExplorerStartEpoch;
+    int m_blockExplorerCount;
     PeerMapWidget *m_peerMap;
     QTableWidget *m_peersTable;
     QWidget *m_peersLoadingRow;
@@ -270,6 +283,7 @@ private:
     QPushButton *m_historyButton;
     QPushButton *m_mempoolButton;
     QPushButton *m_blockchainButton;
+    QPushButton *m_blockExplorerButton;
     QPushButton *m_peersButton;
     QPushButton *m_terminalButton;
     QPushButton *m_optionsButton;

@@ -39,6 +39,7 @@
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSettings>
 #include <QSizePolicy>
 #include <QStackedLayout>
@@ -258,7 +259,8 @@ public:
         : QWidget(parent),
           m_expectedLatestBlock(-1),
           m_firstBlock(-1),
-          m_epochSizeBlocks(0)
+          m_epochSizeBlocks(0),
+          m_slotCount(20)
     {
         setMinimumHeight(42);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -277,6 +279,19 @@ public:
         m_expectedLatestBlock = expectedLatestBlock;
         m_firstBlock = firstBlock;
         m_epochSizeBlocks = epochSizeBlocks;
+        setToolTip(summaryText());
+        update();
+    }
+
+    void setDisplaySlotCount(int slotCount)
+    {
+        if (slotCount < 1) {
+            slotCount = 20;
+        }
+        if (slotCount > 160) {
+            slotCount = 160;
+        }
+        m_slotCount = slotCount;
         setToolTip(summaryText());
         update();
     }
@@ -325,7 +340,7 @@ protected:
             return;
         }
 
-        const int slotCount = 20;
+        const int slotCount = this->slotCount();
         const qreal gap = 3.0;
         qreal width = (plot.width() - (gap * (slotCount - 1))) / slotCount;
         if (width < 3.0) {
@@ -391,7 +406,7 @@ private:
 
     int slotCount() const
     {
-        return 20;
+        return m_slotCount;
     }
 
     qreal slotGap() const
@@ -483,6 +498,12 @@ private:
         }
         if (networkStatus == "unknown") {
             return QObject::tr("not compared");
+        }
+        if (networkStatus == "future") {
+            return QObject::tr("upcoming/expected");
+        }
+        if (networkStatus == "missing") {
+            return QObject::tr("missing");
         }
         return networkStatus.isEmpty() ? QObject::tr("-") : networkStatus;
     }
@@ -636,7 +657,7 @@ private:
             return QObject::tr("Latest block activity: no recent block data yet.");
         }
 
-        const int slotCount = 20;
+        const int slotCount = this->slotCount();
         qint64 visibleLatest = visibleLatestBlock(latest);
         qint64 firstSlot = visibleLatest - slotCount + 1;
         for (int i = 0; i < slotCount; ++i) {
@@ -660,6 +681,7 @@ private:
     qint64 m_expectedLatestBlock;
     qint64 m_firstBlock;
     int m_epochSizeBlocks;
+    int m_slotCount;
 };
 
 class HistoryChartWidget : public QWidget
@@ -944,6 +966,7 @@ bool isPageDataPath(const QString &path)
            path == "/api/wallet/history" ||
            path == "/api/mempool" ||
            path == "/api/blockchain/recent" ||
+           path.startsWith("/api/block-explorer") ||
            path == "/api/peers";
 }
 
@@ -1027,6 +1050,13 @@ MainWindow::MainWindow(QWidget *parent)
       m_blockchainPageLabel(0),
       m_blockchainPrevButton(0),
       m_blockchainNextButton(0),
+      m_blockExplorerContent(0),
+      m_blockExplorerRecordsTable(0),
+      m_blockExplorerPageLabel(0),
+      m_blockExplorerPrevButton(0),
+      m_blockExplorerNextButton(0),
+      m_blockExplorerStartEpoch(-1),
+      m_blockExplorerCount(2),
       m_peerMap(0),
       m_peersTable(0),
       m_peersLoadingRow(0),
@@ -1060,6 +1090,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_historyButton(0),
       m_mempoolButton(0),
       m_blockchainButton(0),
+      m_blockExplorerButton(0),
       m_peersButton(0),
       m_terminalButton(0),
       m_optionsButton(0),
@@ -1211,6 +1242,7 @@ QWidget *MainWindow::createShellPage()
     m_historyButton = createNavButton(tr("History"));
     m_mempoolButton = createNavButton(tr("Mempool"));
     m_blockchainButton = createNavButton(tr("Blockchain"));
+    m_blockExplorerButton = createNavButton(tr("Block Explorer"));
     m_peersButton = createNavButton(tr("Peers"));
     m_terminalButton = createNavButton(tr("Terminal"));
     m_optionsButton = createNavButton(tr("Options"));
@@ -1223,6 +1255,7 @@ QWidget *MainWindow::createShellPage()
     nav->addWidget(m_historyButton);
     nav->addWidget(m_mempoolButton);
     nav->addWidget(m_blockchainButton);
+    nav->addWidget(m_blockExplorerButton);
     nav->addWidget(m_peersButton);
     nav->addWidget(m_terminalButton);
     nav->addWidget(m_optionsButton);
@@ -1240,6 +1273,7 @@ QWidget *MainWindow::createShellPage()
     m_contentStack->addWidget(createHistoryPage());
     m_contentStack->addWidget(createMempoolPage());
     m_contentStack->addWidget(createBlockchainPage());
+    m_contentStack->addWidget(createBlockExplorerPage());
     m_contentStack->addWidget(createPeersPage());
     m_contentStack->addWidget(createTerminalPage());
     m_contentStack->addWidget(createOptionsPage());
@@ -1252,6 +1286,7 @@ QWidget *MainWindow::createShellPage()
     connect(m_historyButton, SIGNAL(clicked()), this, SLOT(showHistory()));
     connect(m_mempoolButton, SIGNAL(clicked()), this, SLOT(showMempool()));
     connect(m_blockchainButton, SIGNAL(clicked()), this, SLOT(showBlockchain()));
+    connect(m_blockExplorerButton, SIGNAL(clicked()), this, SLOT(showBlockExplorer()));
     connect(m_peersButton, SIGNAL(clicked()), this, SLOT(showPeers()));
     connect(m_terminalButton, SIGNAL(clicked()), this, SLOT(showTerminal()));
     connect(m_optionsButton, SIGNAL(clicked()), this, SLOT(showOptions()));
@@ -1759,6 +1794,58 @@ QWidget *MainWindow::createBlockchainPage()
     connect(m_blockchainSearchEdit, SIGNAL(textChanged(QString)), this, SLOT(filterBlockchainBlocks(QString)));
     connect(m_blockchainPrevButton, SIGNAL(clicked()), this, SLOT(previousBlockchainPage()));
     connect(m_blockchainNextButton, SIGNAL(clicked()), this, SLOT(nextBlockchainPage()));
+    return page;
+}
+
+QWidget *MainWindow::createBlockExplorerPage()
+{
+    QFrame *page = makePanel("Panel");
+    QVBoxLayout *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(26, 24, 26, 24);
+    layout->setSpacing(14);
+
+    QHBoxLayout *header = new QHBoxLayout;
+    header->addWidget(createSectionTitle(tr("Block Explorer")));
+    header->addStretch();
+    m_blockExplorerPrevButton = createSecondaryButton(tr("Previous Epochs"));
+    m_blockExplorerPageLabel = makeLabel(tr("Epochs -"), "Muted");
+    m_blockExplorerNextButton = createSecondaryButton(tr("Next Epochs"));
+    header->addWidget(m_blockExplorerPrevButton);
+    header->addWidget(m_blockExplorerPageLabel);
+    header->addWidget(m_blockExplorerNextButton);
+    layout->addLayout(header);
+    layout->addWidget(makeLabel(tr("Epoch sections show produced blocks, missing slots, expected creators, and record counts."), "Muted"));
+
+    QScrollArea *scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    m_blockExplorerContent = new QWidget;
+    QVBoxLayout *contentLayout = new QVBoxLayout(m_blockExplorerContent);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(12);
+    contentLayout->addStretch();
+    scroll->setWidget(m_blockExplorerContent);
+    layout->addWidget(scroll, 2);
+
+    layout->addWidget(makeLabel(tr("Records in Loaded Epochs"), "SmallTitle"));
+    m_blockExplorerRecordsTable = new QTableWidget(0, 6);
+    QStringList headers;
+    headers << tr("Epoch") << tr("Block") << tr("Type") << tr("Account") << tr("Amount") << tr("Hash");
+    m_blockExplorerRecordsTable->setHorizontalHeaderLabels(headers);
+    m_blockExplorerRecordsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_blockExplorerRecordsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_blockExplorerRecordsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_blockExplorerRecordsTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_blockExplorerRecordsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    m_blockExplorerRecordsTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    m_blockExplorerRecordsTable->verticalHeader()->setVisible(false);
+    m_blockExplorerRecordsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_blockExplorerRecordsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_blockExplorerRecordsTable->setWordWrap(true);
+    layout->addWidget(m_blockExplorerRecordsTable, 1);
+
+    connect(m_blockExplorerPrevButton, SIGNAL(clicked()), this, SLOT(previousBlockExplorerPage()));
+    connect(m_blockExplorerNextButton, SIGNAL(clicked()), this, SLOT(nextBlockExplorerPage()));
     return page;
 }
 
@@ -2614,7 +2701,7 @@ void MainWindow::applyChainRecoveryResult(const QString &json, bool transportErr
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
-    buttons << m_balanceButton << m_accountsButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_blockchainButton << m_peersButton << m_terminalButton << m_optionsButton;
+    buttons << m_balanceButton << m_accountsButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_blockchainButton << m_blockExplorerButton << m_peersButton << m_terminalButton << m_optionsButton;
     for (int i = 0; i < buttons.size(); ++i) {
         QPushButton *button = buttons.at(i);
         if (!button) {
@@ -4005,6 +4092,179 @@ void MainWindow::applyBlockchain(const QString &json)
     renderBlockchainPage();
 }
 
+void MainWindow::applyBlockExplorer(const QString &json)
+{
+    QJsonParseError parseError;
+    QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        return;
+    }
+
+    QJsonObject object = document.object();
+    if (object.value("status").toString() != "ok") {
+        return;
+    }
+
+    bool startOk = false;
+    bool countOk = false;
+    bool latestOk = false;
+    int startEpoch = object.value("start_epoch").toString().toInt(&startOk);
+    int count = object.value("count").toString().toInt(&countOk);
+    int latestEpoch = object.value("latest_epoch").toString().toInt(&latestOk);
+    int epochSize = object.value("epoch_size_blocks").toString().toInt();
+    QString firstBlock = object.value("first_block_id").toString();
+    bool firstBlockOk = false;
+    qint64 firstBlockNumber = firstBlock.toLongLong(&firstBlockOk);
+    if (startOk) {
+        m_blockExplorerStartEpoch = startEpoch;
+    }
+    if (countOk && count > 0) {
+        m_blockExplorerCount = count;
+    }
+    if (m_blockExplorerPageLabel) {
+        int endEpoch = startEpoch + qMax(1, count) - 1;
+        m_blockExplorerPageLabel->setText(tr("Epochs %1-%2").arg(startEpoch).arg(endEpoch));
+    }
+    if (m_blockExplorerPrevButton) {
+        m_blockExplorerPrevButton->setEnabled(startOk && startEpoch > 0);
+    }
+    if (m_blockExplorerNextButton) {
+        m_blockExplorerNextButton->setEnabled(startOk && latestOk && startEpoch + qMax(1, count) <= latestEpoch);
+    }
+
+    if (m_blockExplorerContent) {
+        QVBoxLayout *layout = qobject_cast<QVBoxLayout *>(m_blockExplorerContent->layout());
+        if (layout) {
+            QLayoutItem *item = 0;
+            while ((item = layout->takeAt(0)) != 0) {
+                if (item->widget()) {
+                    delete item->widget();
+                }
+                delete item;
+            }
+
+            QJsonArray epochs = object.value("epochs").toArray();
+            if (epochs.isEmpty()) {
+                layout->addWidget(makeLabel(tr("No epoch data available."), "Muted"));
+            }
+            for (int i = 0; i < epochs.size(); ++i) {
+                QJsonObject epoch = epochs.at(i).toObject();
+                QFrame *epochPanel = makePanel("AccountCard");
+                QVBoxLayout *epochLayout = new QVBoxLayout(epochPanel);
+                epochLayout->setContentsMargins(14, 12, 14, 12);
+                epochLayout->setSpacing(8);
+
+                QString epochNumber = epoch.value("epoch").toString();
+                QString startBlock = epoch.value("start_block").toString();
+                QString endBlock = epoch.value("end_block").toString();
+                QString produced = epoch.value("produced_blocks").toString();
+                QString missing = epoch.value("missing_blocks").toString();
+                QString future = epoch.value("future_slots").toString();
+                QString startTime = epoch.value("start_time").toString();
+                QString endTime = epoch.value("end_time").toString();
+                bool startTimeOk = false;
+                bool endTimeOk = false;
+                qint64 startEpochTime = startTime.toLongLong(&startTimeOk);
+                qint64 endEpochTime = endTime.toLongLong(&endTimeOk);
+                QString startDate = startTimeOk ? QDateTime::fromSecsSinceEpoch(startEpochTime).toString("yyyy-MM-dd HH:mm") : tr("-");
+                QString endDate = endTimeOk ? QDateTime::fromSecsSinceEpoch(endEpochTime).toString("yyyy-MM-dd HH:mm") : tr("-");
+
+                QLabel *title = makeLabel(tr("Epoch %1  Blocks %2-%3").arg(epochNumber).arg(startBlock).arg(endBlock), "SmallTitle");
+                epochLayout->addWidget(title);
+                QLabel *meta = makeLabel(tr("%1 to %2   Produced: %3   Missing: %4   Upcoming: %5")
+                    .arg(startDate)
+                    .arg(endDate)
+                    .arg(produced.isEmpty() ? tr("0") : produced)
+                    .arg(missing.isEmpty() ? tr("0") : missing)
+                    .arg(future.isEmpty() ? tr("0") : future), "Muted");
+                epochLayout->addWidget(meta);
+
+                QJsonArray slotArray = epoch.value("slots").toArray();
+                BlockActivityWidget *strip = new BlockActivityWidget;
+                strip->setMinimumHeight(54);
+                strip->setDisplaySlotCount(slotArray.size());
+                qint64 endBlockNumber = endBlock.toLongLong();
+                strip->setChainContext(endBlockNumber, firstBlockOk ? firstBlockNumber : -1, epochSize);
+                strip->setBlocks(slotArray);
+                epochLayout->addWidget(strip);
+                layout->addWidget(epochPanel);
+            }
+            layout->addStretch();
+        }
+    }
+
+    if (!m_blockExplorerRecordsTable) {
+        return;
+    }
+
+    m_blockExplorerRecordsTable->setUpdatesEnabled(false);
+    m_blockExplorerRecordsTable->setRowCount(0);
+    QJsonArray epochs = object.value("epochs").toArray();
+    for (int e = 0; e < epochs.size(); ++e) {
+        QJsonObject epoch = epochs.at(e).toObject();
+        QString epochNumber = epoch.value("epoch").toString();
+        QJsonArray slotArray = epoch.value("slots").toArray();
+        for (int s = 0; s < slotArray.size(); ++s) {
+            QJsonObject slot = slotArray.at(s).toObject();
+            if (slot.value("missing").toString() == "yes") {
+                continue;
+            }
+            QString blockNumber = slot.value("number").toString();
+            QJsonArray records = slot.value("records").toArray();
+            for (int r = 0; r < records.size(); ++r) {
+                QJsonObject record = records.at(r).toObject();
+                QString type = record.value("type").toString();
+                QString from = blockchainAccountLabel(record.value("from_name").toString(), record.value("from_key").toString());
+                QString to = blockchainAccountLabel(record.value("to_name").toString(), record.value("to_key").toString());
+                QString member = blockchainAccountLabel(record.value("member_name").toString(), record.value("member_key").toString());
+                QString account = member;
+                if (!record.value("from_key").toString().isEmpty() || !record.value("to_key").toString().isEmpty()) {
+                    account = tr("%1 -> %2").arg(from).arg(to);
+                }
+                QString amount = record.value("amount").toString();
+                QString fee = record.value("fee").toString();
+                QString hash = record.value("hash").toString();
+
+                int row = m_blockExplorerRecordsTable->rowCount();
+                m_blockExplorerRecordsTable->insertRow(row);
+                QStringList values;
+                values << epochNumber
+                       << blockNumber
+                       << (type.isEmpty() ? tr("-") : type)
+                       << account
+                       << (amount.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(amount)))
+                       << shortAddress(hash);
+                QString tooltip = tr("Block %1 record %2\nType: %3\nFrom: %4\nTo: %5\nAmount: %6\nFee: %7\nHash: %8")
+                    .arg(blockNumber)
+                    .arg(record.value("index").toString())
+                    .arg(type)
+                    .arg(from)
+                    .arg(to)
+                    .arg(amount.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(amount)))
+                    .arg(fee.isEmpty() ? tr("-") : tr("%1 SFR").arg(formatSfrValue(fee)))
+                    .arg(hash);
+                for (int column = 0; column < values.size(); ++column) {
+                    QTableWidgetItem *item = new QTableWidgetItem(values.at(column));
+                    item->setToolTip(tooltip);
+                    m_blockExplorerRecordsTable->setItem(row, column, item);
+                }
+            }
+        }
+    }
+    if (m_blockExplorerRecordsTable->rowCount() == 0) {
+        int row = m_blockExplorerRecordsTable->rowCount();
+        m_blockExplorerRecordsTable->insertRow(row);
+        m_blockExplorerRecordsTable->setItem(row, 0, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->setItem(row, 1, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->setItem(row, 2, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->setItem(row, 3, new QTableWidgetItem(tr("No records in loaded epochs")));
+        m_blockExplorerRecordsTable->setItem(row, 4, new QTableWidgetItem(tr("-")));
+        m_blockExplorerRecordsTable->setItem(row, 5, new QTableWidgetItem(tr("-")));
+    }
+    m_blockExplorerRecordsTable->resizeRowsToContents();
+    m_blockExplorerRecordsTable->setUpdatesEnabled(true);
+}
+
 void MainWindow::applyPeers(const QString &json)
 {
     if (!m_peersTable || !m_peerMap) {
@@ -4208,6 +4468,18 @@ void MainWindow::showBlockchain()
     refreshWalletStatus();
 }
 
+void MainWindow::showBlockExplorer()
+{
+    m_contentStack->setCurrentIndex(8);
+    setActiveNav(m_blockExplorerButton);
+    if (m_blockExplorerStartEpoch >= 0) {
+        requestJson(QString("/api/block-explorer?epoch=%1&count=%2").arg(m_blockExplorerStartEpoch).arg(m_blockExplorerCount));
+    } else {
+        requestJson(QString("/api/block-explorer?count=%1").arg(m_blockExplorerCount));
+    }
+    refreshWalletStatus();
+}
+
 void MainWindow::previousBlockchainPage()
 {
     if (m_blockchainPage > 0) {
@@ -4226,22 +4498,43 @@ void MainWindow::nextBlockchainPage()
     }
 }
 
+void MainWindow::previousBlockExplorerPage()
+{
+    if (m_blockExplorerStartEpoch < 0) {
+        return;
+    }
+    m_blockExplorerStartEpoch -= m_blockExplorerCount;
+    if (m_blockExplorerStartEpoch < 0) {
+        m_blockExplorerStartEpoch = 0;
+    }
+    requestJson(QString("/api/block-explorer?epoch=%1&count=%2").arg(m_blockExplorerStartEpoch).arg(m_blockExplorerCount));
+}
+
+void MainWindow::nextBlockExplorerPage()
+{
+    if (m_blockExplorerStartEpoch < 0) {
+        return;
+    }
+    m_blockExplorerStartEpoch += m_blockExplorerCount;
+    requestJson(QString("/api/block-explorer?epoch=%1&count=%2").arg(m_blockExplorerStartEpoch).arg(m_blockExplorerCount));
+}
+
 void MainWindow::showPeers()
 {
-    m_contentStack->setCurrentIndex(8);
+    m_contentStack->setCurrentIndex(9);
     setActiveNav(m_peersButton);
     refreshWalletStatus();
 }
 
 void MainWindow::showTerminal()
 {
-    m_contentStack->setCurrentIndex(9);
+    m_contentStack->setCurrentIndex(10);
     setActiveNav(m_terminalButton);
 }
 
 void MainWindow::showOptions()
 {
-    m_contentStack->setCurrentIndex(10);
+    m_contentStack->setCurrentIndex(11);
     setActiveNav(m_optionsButton);
 }
 
@@ -5003,6 +5296,8 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         applyMempool(QString::fromUtf8(body));
     } else if (path == "/api/blockchain/recent") {
         applyBlockchain(QString::fromUtf8(body));
+    } else if (path.startsWith("/api/block-explorer")) {
+        applyBlockExplorer(QString::fromUtf8(body));
     } else if (path == "/api/peers") {
         applyPeers(QString::fromUtf8(body));
     } else if (path == "/api/network/users") {
