@@ -4180,13 +4180,33 @@ void MainWindow::applyBlockExplorer(const QString &json)
                 epochLayout->addWidget(meta);
 
                 QJsonArray slotArray = epoch.value("slots").toArray();
-                BlockActivityWidget *strip = new BlockActivityWidget;
-                strip->setMinimumHeight(54);
-                strip->setDisplaySlotCount(slotArray.size());
-                qint64 endBlockNumber = endBlock.toLongLong();
-                strip->setChainContext(endBlockNumber, firstBlockOk ? firstBlockNumber : -1, epochSize);
-                strip->setBlocks(slotArray);
-                epochLayout->addWidget(strip);
+                const int rowCount = 3;
+                int slotsPerRow = (slotArray.size() + rowCount - 1) / rowCount;
+                if (slotsPerRow < 1) {
+                    slotsPerRow = 1;
+                }
+                for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+                    int firstSlotIndex = rowIndex * slotsPerRow;
+                    if (firstSlotIndex >= slotArray.size()) {
+                        break;
+                    }
+                    int lastSlotIndex = qMin(firstSlotIndex + slotsPerRow, slotArray.size());
+                    QJsonArray rowSlots;
+                    for (int slotIndex = firstSlotIndex; slotIndex < lastSlotIndex; ++slotIndex) {
+                        rowSlots.append(slotArray.at(slotIndex));
+                    }
+
+                    QJsonObject lastSlot = rowSlots.at(rowSlots.size() - 1).toObject();
+                    bool endBlockOk = false;
+                    qint64 endBlockNumber = lastSlot.value("number").toString().toLongLong(&endBlockOk);
+
+                    BlockActivityWidget *strip = new BlockActivityWidget;
+                    strip->setMinimumHeight(48);
+                    strip->setDisplaySlotCount(rowSlots.size());
+                    strip->setChainContext(endBlockOk ? endBlockNumber : -1, firstBlockOk ? firstBlockNumber : -1, epochSize);
+                    strip->setBlocks(rowSlots);
+                    epochLayout->addWidget(strip);
+                }
                 layout->addWidget(epochPanel);
             }
             layout->addStretch();
