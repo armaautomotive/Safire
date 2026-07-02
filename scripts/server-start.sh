@@ -30,7 +30,7 @@ fi
 
 args=("$@")
 if [[ ${#args[@]} -eq 0 ]]; then
-  args=(--node-port "$DEFAULT_NODE_PORT")
+  args=(--node-port "$DEFAULT_NODE_PORT" --headless)
   if [[ -n "${SAFIRE_PUBLIC_URL:-}" ]]; then
     args+=(--public-url "$SAFIRE_PUBLIC_URL")
   fi
