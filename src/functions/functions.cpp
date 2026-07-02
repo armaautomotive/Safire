@@ -181,6 +181,40 @@ bool pendingRecordLooksUsable(CFunctions& functions, CFunctions::record_structur
         functions.isRecordSizeValid(record);
 }
 
+bool recordExistsInAcceptedChain(CBlockDB& blockDB, const std::string& recordHash)
+{
+    if(recordHash.length() == 0){
+        return false;
+    }
+
+    long firstBlockId = blockDB.getFirstBlockId();
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(firstBlockId < 0 || latestBlockId < 0){
+        return false;
+    }
+
+    CFunctions::block_structure block = blockDB.getBlock(firstBlockId);
+    int guard = 0;
+    while(block.number > 0 && guard < 100000){
+        for(int i = 0; i < block.records.size(); i++){
+            if(block.records.at(i).hash.compare(recordHash) == 0){
+                return true;
+            }
+        }
+
+        if(block.number == latestBlockId){
+            break;
+        }
+        CFunctions::block_structure nextBlock = blockDB.getNextBlock(block);
+        if(nextBlock.number <= 0 || nextBlock.number == block.number){
+            break;
+        }
+        block = nextBlock;
+        guard++;
+    }
+    return false;
+}
+
 std::vector<std::string> mempoolKeysWithPrefix(leveldb::DB* db, const std::string& prefix)
 {
     std::vector<std::string> keys;
@@ -224,12 +258,14 @@ std::vector<CFunctions::record_structure> databaseMempoolRecords(CFunctions& fun
         return records;
     }
 
+    CBlockDB blockDB;
     std::vector<std::string> keys = mempoolKeysWithPrefix(db, MEMPOOL_RECORD_PREFIX);
     for(int i = 0; i < keys.size(); ++i){
         std::string json;
         if(db->Get(leveldb::ReadOptions(), keys.at(i), &json).ok()){
             CFunctions::record_structure record = functions.parseRecordJson(json);
-            if(pendingRecordLooksUsable(functions, record)){
+            bool alreadyAccepted = record.hash.length() > 0 && recordExistsInAcceptedChain(blockDB, record.hash);
+            if(pendingRecordLooksUsable(functions, record) && alreadyAccepted == false){
                 records.push_back(record);
             }
         }
@@ -360,6 +396,10 @@ int CFunctions::addToQueue(record_structure record){
     }
 
     CBlockDB blockDB;
+    if(record.hash.length() > 0 && recordExistsInAcceptedChain(blockDB, record.hash)){
+        return 1;
+    }
+
     leveldb::DB* db = blockDB.getDatabase();
     if(db){
         if(record.hash.length() > 0){
