@@ -1913,7 +1913,9 @@ QWidget *MainWindow::createBlockExplorerPage()
     m_blockExplorerRecordsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_blockExplorerRecordsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_blockExplorerRecordsTable->setWordWrap(true);
-    layout->addWidget(m_blockExplorerRecordsTable, 1);
+    m_blockExplorerRecordsTable->setMinimumHeight(112);
+    m_blockExplorerRecordsTable->setMaximumHeight(168);
+    layout->addWidget(m_blockExplorerRecordsTable);
 
     connect(m_blockExplorerPrevButton, SIGNAL(clicked()), this, SLOT(previousBlockExplorerPage()));
     connect(m_blockExplorerNextButton, SIGNAL(clicked()), this, SLOT(nextBlockExplorerPage()));
