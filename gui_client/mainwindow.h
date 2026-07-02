@@ -50,10 +50,13 @@ private slots:
     void showMempool();
     void showBlockchain();
     void showBlockExplorer();
+    void showFunding();
     void showPeers();
     void showTerminal();
     void showOptions();
     void copyReceiveAddress();
+    void copyDevelopmentFundAddress();
+    void prepareDevelopmentDonation();
     void submitPayment();
     void joinNetwork();
     void setWalletName();
@@ -99,6 +102,7 @@ private:
     QWidget *createMempoolPage();
     QWidget *createBlockchainPage();
     QWidget *createBlockExplorerPage();
+    QWidget *createFundingPage();
     QWidget *createPeersPage();
     QWidget *createTerminalPage();
     QWidget *createOptionsPage();
@@ -169,6 +173,7 @@ private:
     bool saveStorageProfile(const QString &profile) const;
     bool blockCreatorModeEnabled() const;
     bool saveBlockCreatorMode(bool enabled) const;
+    bool backendApiReady(int timeoutMs = 120) const;
     bool ensureBackendRunning();
 
     QStackedWidget *m_rootStack;
@@ -292,6 +297,7 @@ private:
     QPushButton *m_mempoolButton;
     QPushButton *m_blockchainButton;
     QPushButton *m_blockExplorerButton;
+    QPushButton *m_fundingButton;
     QPushButton *m_peersButton;
     QPushButton *m_terminalButton;
     QPushButton *m_optionsButton;

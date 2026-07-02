@@ -958,12 +958,6 @@ long CBlockDB::getForkVariantCount(){
         return 0;
     }
 
-    std::string cachedValue;
-    db->Get(leveldb::ReadOptions(), forkVariantCountKey(), &cachedValue);
-    if(cachedValue.length() > 0){
-        return boost::lexical_cast<long>(cachedValue);
-    }
-
     long forkVariants = scanForkVariantCount(db);
     db->Put(leveldb::WriteOptions(), forkVariantCountKey(), boost::lexical_cast<std::string>(forkVariants));
     return forkVariants;

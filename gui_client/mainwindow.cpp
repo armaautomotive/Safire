@@ -914,6 +914,8 @@ private:
 
 namespace {
 
+const char *kDevelopmentFundAddress = "03E8B15A4AF13ED91C0FC34A271B55F73CB3B4EED88D385C6F6E36BD25E3EDDAED";
+
 QLabel *makeLabel(const QString &text, const QString &objectName)
 {
     QLabel *label = new QLabel(text);
@@ -1161,6 +1163,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_mempoolButton(0),
       m_blockchainButton(0),
       m_blockExplorerButton(0),
+      m_fundingButton(0),
       m_peersButton(0),
       m_terminalButton(0),
       m_optionsButton(0),
@@ -1313,6 +1316,7 @@ QWidget *MainWindow::createShellPage()
     m_mempoolButton = createNavButton(tr("Mempool"));
     m_blockchainButton = createNavButton(tr("Blockchain"));
     m_blockExplorerButton = createNavButton(tr("Block Explorer"));
+    m_fundingButton = createNavButton(tr("Funding"));
     m_peersButton = createNavButton(tr("Peers"));
     m_terminalButton = createNavButton(tr("Terminal"));
     m_optionsButton = createNavButton(tr("Options"));
@@ -1326,6 +1330,7 @@ QWidget *MainWindow::createShellPage()
     nav->addWidget(m_mempoolButton);
     nav->addWidget(m_blockchainButton);
     nav->addWidget(m_blockExplorerButton);
+    nav->addWidget(m_fundingButton);
     nav->addWidget(m_peersButton);
     nav->addWidget(m_terminalButton);
     nav->addWidget(m_optionsButton);
@@ -1344,6 +1349,7 @@ QWidget *MainWindow::createShellPage()
     m_contentStack->addWidget(createMempoolPage());
     m_contentStack->addWidget(createBlockchainPage());
     m_contentStack->addWidget(createBlockExplorerPage());
+    m_contentStack->addWidget(createFundingPage());
     m_contentStack->addWidget(createPeersPage());
     m_contentStack->addWidget(createTerminalPage());
     m_contentStack->addWidget(createOptionsPage());
@@ -1357,6 +1363,7 @@ QWidget *MainWindow::createShellPage()
     connect(m_mempoolButton, SIGNAL(clicked()), this, SLOT(showMempool()));
     connect(m_blockchainButton, SIGNAL(clicked()), this, SLOT(showBlockchain()));
     connect(m_blockExplorerButton, SIGNAL(clicked()), this, SLOT(showBlockExplorer()));
+    connect(m_fundingButton, SIGNAL(clicked()), this, SLOT(showFunding()));
     connect(m_peersButton, SIGNAL(clicked()), this, SLOT(showPeers()));
     connect(m_terminalButton, SIGNAL(clicked()), this, SLOT(showTerminal()));
     connect(m_optionsButton, SIGNAL(clicked()), this, SLOT(showOptions()));
@@ -1919,6 +1926,53 @@ QWidget *MainWindow::createBlockExplorerPage()
 
     connect(m_blockExplorerPrevButton, SIGNAL(clicked()), this, SLOT(previousBlockExplorerPage()));
     connect(m_blockExplorerNextButton, SIGNAL(clicked()), this, SLOT(nextBlockExplorerPage()));
+    return page;
+}
+
+QWidget *MainWindow::createFundingPage()
+{
+    QFrame *page = makePanel("Panel");
+    QVBoxLayout *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(26, 24, 26, 24);
+    layout->setSpacing(14);
+
+    layout->addWidget(createSectionTitle(tr("Funding")));
+    layout->addWidget(makeLabel(tr("Safire is intended to stay free, open, and useful. Development can be funded by voluntary wallet donations and paid infrastructure services instead of mandatory founder fees."), "Muted"));
+
+    QFrame *fundCard = makePanel("AccountCard");
+    QVBoxLayout *fundLayout = new QVBoxLayout(fundCard);
+    fundLayout->setContentsMargins(18, 18, 18, 18);
+    fundLayout->setSpacing(10);
+    fundLayout->addWidget(makeLabel(tr("Development Fund"), "SmallTitle"));
+    fundLayout->addWidget(makeLabel(tr("For the test network, this can use the genesis creator wallet as the founder/development fund. The genesis block number itself is not a receiving address; donations should go to a normal Safire wallet address."), "Muted"));
+
+    QLineEdit *addressEdit = new QLineEdit(QString::fromLatin1(kDevelopmentFundAddress));
+    addressEdit->setReadOnly(true);
+    fundLayout->addWidget(addressEdit);
+
+    QHBoxLayout *fundActions = new QHBoxLayout;
+    QPushButton *copyButton = createSecondaryButton(tr("Copy Address"));
+    QPushButton *donateButton = createPrimaryButton(tr("Prepare Donation"));
+    fundActions->addWidget(copyButton);
+    fundActions->addWidget(donateButton);
+    fundActions->addStretch();
+    fundLayout->addLayout(fundActions);
+    layout->addWidget(fundCard);
+
+    QFrame *policyCard = makePanel("AccountCard");
+    QVBoxLayout *policyLayout = new QVBoxLayout(policyCard);
+    policyLayout->setContentsMargins(18, 18, 18, 18);
+    policyLayout->setSpacing(8);
+    policyLayout->addWidget(makeLabel(tr("Funding Model"), "SmallTitle"));
+    policyLayout->addWidget(makeLabel(tr("Near term: users may voluntarily send donations from the normal Send page."), "Muted"));
+    policyLayout->addWidget(makeLabel(tr("Later: the protocol can support votes for a recommended development fund address, suggested donation amount, and suggested interval."), "Muted"));
+    policyLayout->addWidget(makeLabel(tr("Transfers should remain opt-in while the network is young so users can trust that Safire is not extracting value from their wallets."), "Muted"));
+    layout->addWidget(policyCard);
+
+    layout->addStretch();
+
+    connect(copyButton, SIGNAL(clicked()), this, SLOT(copyDevelopmentFundAddress()));
+    connect(donateButton, SIGNAL(clicked()), this, SLOT(prepareDevelopmentDonation()));
     return page;
 }
 
@@ -2774,7 +2828,7 @@ void MainWindow::applyChainRecoveryResult(const QString &json, bool transportErr
 void MainWindow::setActiveNav(QPushButton *activeButton)
 {
     QList<QPushButton *> buttons;
-    buttons << m_balanceButton << m_accountsButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_blockchainButton << m_blockExplorerButton << m_peersButton << m_terminalButton << m_optionsButton;
+    buttons << m_balanceButton << m_accountsButton << m_sendButton << m_receiveButton << m_contactsButton << m_historyButton << m_mempoolButton << m_blockchainButton << m_blockExplorerButton << m_fundingButton << m_peersButton << m_terminalButton << m_optionsButton;
     for (int i = 0; i < buttons.size(); ++i) {
         QPushButton *button = buttons.at(i);
         if (!button) {
@@ -3134,10 +3188,7 @@ bool MainWindow::saveBlockCreatorMode(bool enabled) const
 
 bool MainWindow::ensureBackendRunning()
 {
-    QTcpSocket probe;
-    probe.connectToHost("127.0.0.1", m_backendPort);
-    if (probe.waitForConnected(120)) {
-        probe.disconnectFromHost();
+    if (backendApiReady()) {
         m_backendStartBlocked = false;
         m_backendLockDetected = false;
         if (m_terminalStatusLabel) {
@@ -3210,6 +3261,17 @@ bool MainWindow::ensureBackendRunning()
         return false;
     }
 
+    if (!backendApiReady(12000)) {
+        appendTerminalText(tr("Console backend started, but the API did not become ready on port %1.\n").arg(m_backendPort));
+        if (m_terminalStatusLabel) {
+            m_terminalStatusLabel->setText(tr("Starting"));
+        }
+        if (m_networkLabel) {
+            m_networkLabel->setText(tr("Backend: waiting for API"));
+        }
+        return false;
+    }
+
     if (m_terminalStatusLabel) {
         m_terminalStatusLabel->setText(tr("Running"));
     }
@@ -3220,6 +3282,24 @@ bool MainWindow::ensureBackendRunning()
         m_terminalStopButton->setEnabled(true);
     }
     return true;
+}
+
+bool MainWindow::backendApiReady(int timeoutMs) const
+{
+    const qint64 deadline = QDateTime::currentMSecsSinceEpoch() + timeoutMs;
+    do {
+        QTcpSocket probe;
+        probe.connectToHost("127.0.0.1", m_backendPort);
+        if (probe.waitForConnected(120)) {
+            probe.disconnectFromHost();
+            return true;
+        }
+        if (m_terminalProcess && m_terminalProcess->state() == QProcess::NotRunning) {
+            return false;
+        }
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    } while (QDateTime::currentMSecsSinceEpoch() < deadline);
+    return false;
 }
 
 void MainWindow::saveOptions()
@@ -4655,6 +4735,12 @@ void MainWindow::showBlockExplorer()
     refreshWalletStatus();
 }
 
+void MainWindow::showFunding()
+{
+    m_contentStack->setCurrentIndex(9);
+    setActiveNav(m_fundingButton);
+}
+
 void MainWindow::previousBlockchainPage()
 {
     if (m_blockchainPage > 0) {
@@ -4698,20 +4784,20 @@ void MainWindow::nextBlockExplorerPage()
 
 void MainWindow::showPeers()
 {
-    m_contentStack->setCurrentIndex(9);
+    m_contentStack->setCurrentIndex(10);
     setActiveNav(m_peersButton);
     refreshWalletStatus();
 }
 
 void MainWindow::showTerminal()
 {
-    m_contentStack->setCurrentIndex(10);
+    m_contentStack->setCurrentIndex(11);
     setActiveNav(m_terminalButton);
 }
 
 void MainWindow::showOptions()
 {
-    m_contentStack->setCurrentIndex(11);
+    m_contentStack->setCurrentIndex(12);
     setActiveNav(m_optionsButton);
 }
 
@@ -4719,6 +4805,23 @@ void MainWindow::copyReceiveAddress()
 {
     QApplication::clipboard()->setText(receiveAddress());
     QMessageBox::information(this, tr("Safire"), tr("Address copied."));
+}
+
+void MainWindow::copyDevelopmentFundAddress()
+{
+    QApplication::clipboard()->setText(QString::fromLatin1(kDevelopmentFundAddress));
+    QMessageBox::information(this, tr("Safire"), tr("Development fund address copied."));
+}
+
+void MainWindow::prepareDevelopmentDonation()
+{
+    showSend();
+    if (m_sendToEdit) {
+        m_sendToEdit->setText(QString::fromLatin1(kDevelopmentFundAddress));
+    }
+    if (m_sendAmountEdit) {
+        m_sendAmountEdit->setFocus();
+    }
 }
 
 void MainWindow::filterNetworkUsers(const QString &text)
@@ -5370,7 +5473,7 @@ void MainWindow::refreshWalletStatus()
         } else {
             requestJson(QString("/api/block-explorer?epoch=%1&count=%2").arg(m_blockExplorerStartEpoch).arg(m_blockExplorerCount));
         }
-    } else if (page == 9) {
+    } else if (page == 10) {
         requestJson("/api/peers");
     }
 }

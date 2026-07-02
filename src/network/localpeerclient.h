@@ -83,6 +83,9 @@ public:
 
 private:
     static bool shouldSkipPeerForScore(const peer_status& status);
+    static void notePeerSuccess(const std::string& peerUrl);
+    static void notePeerFailure(const std::string& peerUrl, const std::string& error);
+    static std::vector<std::string> getGossipPeers(int maxPeers, bool includeCreatorPriority);
     static void savePeerCache();
     static void purgeUnavailablePeers();
     static std::vector<std::string> peers;

@@ -9,6 +9,7 @@
 //
 
 #include "request_handler.h"
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -48,10 +49,29 @@ namespace {
 
 const double API_DEFAULT_TRANSACTION_FEE = 0.0;
 const char* HANDOFF_FILE = "handoff.dat";
+const int PEER_EXCHANGE_MAX_PEERS = 24;
+const int PEER_EXCHANGE_RANDOM_PEERS = 4;
+const long ANNOUNCE_RATE_WINDOW_SECONDS = 60;
+const int MAX_PEER_ANNOUNCES_PER_WINDOW = 20;
+const int MAX_BLOCK_ANNOUNCES_PER_WINDOW = 80;
+const int MAX_RECORD_ANNOUNCES_PER_WINDOW = 80;
+const int MAX_SAME_HASH_ANNOUNCES_PER_WINDOW = 12;
+const int MAX_RATE_LIMIT_BUCKETS = 20000;
 std::atomic<bool> api_sync_in_progress(false);
 std::atomic<bool> api_chain_recovery_in_progress(false);
 std::mutex api_chain_recovery_status_mutex;
 std::string api_chain_recovery_last_status = "{\"status\":\"ok\",\"recovery_running\":\"no\",\"message\":\"No chain recovery has run yet.\"}";
+std::mutex api_rate_limit_mutex;
+
+struct api_rate_limit_bucket
+{
+  long window_start;
+  int count;
+};
+
+std::map<std::string, api_rate_limit_bucket> api_rate_limit_buckets;
+
+void text_reply(reply& rep, reply::status_type status, const std::string& content, const std::string& content_type);
 
 size_t request_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -113,6 +133,122 @@ std::string json_escape(const std::string& value)
     }
   }
   return escaped.str();
+}
+
+std::string trim_trailing_slash(std::string value)
+{
+  while (!value.empty() && value[value.size() - 1] == '/')
+  {
+    value.erase(value.size() - 1);
+  }
+  return value;
+}
+
+std::string normalize_peer_url(const std::string& value)
+{
+  std::string url = trim_trailing_slash(value);
+  if (url.find("http://") != 0 && url.find("https://") != 0)
+  {
+    return "";
+  }
+  return url;
+}
+
+std::string lowercase(std::string value)
+{
+  for (std::size_t i = 0; i < value.size(); ++i)
+  {
+    value[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(value[i])));
+  }
+  return value;
+}
+
+std::string request_header_value(const request& req, const std::string& header_name)
+{
+  std::string wanted = lowercase(header_name);
+  for (std::size_t i = 0; i < req.headers.size(); ++i)
+  {
+    if (lowercase(req.headers.at(i).name).compare(wanted) == 0)
+    {
+      return req.headers.at(i).value;
+    }
+  }
+  return "";
+}
+
+std::string first_forwarded_address(const std::string& value)
+{
+  std::size_t comma = value.find(",");
+  std::string address = comma == std::string::npos ? value : value.substr(0, comma);
+  std::size_t start = address.find_first_not_of(" \t\r\n");
+  if (start == std::string::npos)
+  {
+    return "";
+  }
+  std::size_t end = address.find_last_not_of(" \t\r\n");
+  return address.substr(start, end - start + 1);
+}
+
+std::string gossip_rate_key(const request& req, const std::string& fallback)
+{
+  std::string forwarded = first_forwarded_address(request_header_value(req, "X-Forwarded-For"));
+  if (!forwarded.empty())
+  {
+    return forwarded;
+  }
+  std::string realIp = first_forwarded_address(request_header_value(req, "X-Real-IP"));
+  if (!realIp.empty())
+  {
+    return realIp;
+  }
+  std::string peerUrl = normalize_peer_url(fallback);
+  if (!peerUrl.empty())
+  {
+    return peerUrl;
+  }
+  return "unknown";
+}
+
+bool gossip_rate_limited(const std::string& bucket_key, int max_count, long window_seconds)
+{
+  CNetworkTime netTime;
+  long now = netTime.getLocalEpoch();
+  std::lock_guard<std::mutex> lock(api_rate_limit_mutex);
+  if (api_rate_limit_buckets.size() > MAX_RATE_LIMIT_BUCKETS)
+  {
+    for (std::map<std::string, api_rate_limit_bucket>::iterator it = api_rate_limit_buckets.begin();
+         it != api_rate_limit_buckets.end();)
+    {
+      if (it->second.window_start <= 0 || now - it->second.window_start >= window_seconds)
+      {
+        api_rate_limit_buckets.erase(it++);
+      }
+      else
+      {
+        ++it;
+      }
+    }
+    if (api_rate_limit_buckets.size() > MAX_RATE_LIMIT_BUCKETS)
+    {
+      return true;
+    }
+  }
+  api_rate_limit_bucket& bucket = api_rate_limit_buckets[bucket_key];
+  if (bucket.window_start <= 0 || now - bucket.window_start >= window_seconds)
+  {
+    bucket.window_start = now;
+    bucket.count = 0;
+  }
+  bucket.count += 1;
+  return bucket.count > max_count;
+}
+
+void rate_limited_reply(reply& rep, const std::string& message)
+{
+  std::stringstream ss;
+  ss << "{\"status\":\"rate_limited\",";
+  ss << "\"message\":\"" << json_escape(message) << "\"}";
+  text_reply(rep, reply::service_unavailable, ss.str(), "application/json");
 }
 
 std::string query_value(const std::string& path, const std::string& key)
@@ -948,6 +1084,68 @@ std::string reorg_json(CBlockDB& block_db)
   ss << "\"time\":\"" << info.time << "\",";
   ss << "\"reason\":\"" << json_escape(info.reason) << "\"}";
   return ss.str();
+}
+
+bool peer_exchange_preferred(const CLocalPeerClient::peer_status& peer)
+{
+  return peer.reachable && peer.genesisMatch && peer.rulesCompatible && peer.score >= -20;
+}
+
+std::vector<CLocalPeerClient::peer_status> peer_exchange_sample(std::vector<CLocalPeerClient::peer_status> peers, int limit)
+{
+  if (limit <= 0)
+  {
+    limit = PEER_EXCHANGE_MAX_PEERS;
+  }
+  if (limit > PEER_EXCHANGE_MAX_PEERS)
+  {
+    limit = PEER_EXCHANGE_MAX_PEERS;
+  }
+
+  std::vector<CLocalPeerClient::peer_status> preferred;
+  std::vector<CLocalPeerClient::peer_status> others;
+  for (int i = 0; i < peers.size(); ++i)
+  {
+    if (peer_exchange_preferred(peers.at(i)))
+    {
+      preferred.push_back(peers.at(i));
+    }
+    else
+    {
+      others.push_back(peers.at(i));
+    }
+  }
+
+  std::sort(preferred.begin(), preferred.end(),
+    [](const CLocalPeerClient::peer_status& a, const CLocalPeerClient::peer_status& b){
+      if (a.score == b.score)
+      {
+        if (a.lastSuccessEpoch == b.lastSuccessEpoch)
+        {
+          return a.latestBlockId > b.latestBlockId;
+        }
+        return a.lastSuccessEpoch > b.lastSuccessEpoch;
+      }
+      return a.score > b.score;
+    });
+  std::random_shuffle(others.begin(), others.end());
+
+  std::vector<CLocalPeerClient::peer_status> selected;
+  int randomSlots = std::min(PEER_EXCHANGE_RANDOM_PEERS, limit);
+  int preferredLimit = std::max(0, limit - randomSlots);
+  for (int i = 0; i < preferred.size() && selected.size() < preferredLimit; ++i)
+  {
+    selected.push_back(preferred.at(i));
+  }
+  for (int i = 0; i < others.size() && selected.size() < limit; ++i)
+  {
+    selected.push_back(others.at(i));
+  }
+  for (int i = preferredLimit; i < preferred.size() && selected.size() < limit; ++i)
+  {
+    selected.push_back(preferred.at(i));
+  }
+  return selected;
 }
 
 bool best_peer_status(const std::vector<CLocalPeerClient::peer_status>& local_peers,
@@ -1834,6 +2032,7 @@ std::string network_users_json(CBlockDB& block_db)
 std::string peers_json(CBlockDB& block_db)
 {
   std::vector<CLocalPeerClient::peer_status> peers = CLocalPeerClient::getPeerStatuses();
+  peers = peer_exchange_sample(peers, PEER_EXCHANGE_MAX_PEERS);
   std::string advertisedPeer = CLocalPeerClient::getAdvertisedPeer();
   long firstBlockId = block_db.getFirstBlockId();
   long latestBlockId = block_db.getLatestBlockId();
@@ -1855,6 +2054,7 @@ std::string peers_json(CBlockDB& block_db)
   ss << "\"consensus_rules_version\":\"" << CLocalPeerClient::CONSENSUS_RULES_VERSION << "\",";
   ss << "\"epoch_size_blocks\":\"" << CSelector::getEpochSizeBlocks() << "\",";
   ss << "\"selection_lag_epochs\":\"" << CSelector::getSelectionLagEpochs() << "\",";
+  ss << "\"peer_limit\":\"" << PEER_EXCHANGE_MAX_PEERS << "\",";
   ss << "\"self_url\":\"" << json_escape(advertisedPeer) << "\",";
   ss << "\"peers\":[";
   bool wrotePeer = false;
@@ -2844,6 +3044,13 @@ void request_handler::handle_request(const request& req, reply& rep)
       text_reply(rep, reply::bad_request, "{\"status\":\"error\",\"message\":\"Missing peer URL.\"}", "application/json");
       return;
     }
+    std::string peerRateKey = gossip_rate_key(req, peerUrl);
+    if (gossip_rate_limited("peer-announce:source:" + peerRateKey, MAX_PEER_ANNOUNCES_PER_WINDOW, ANNOUNCE_RATE_WINDOW_SECONDS) ||
+        gossip_rate_limited("peer-announce:url:" + peerUrl, MAX_SAME_HASH_ANNOUNCES_PER_WINDOW, ANNOUNCE_RATE_WINDOW_SECONDS))
+    {
+      rate_limited_reply(rep, "Too many peer announce requests.");
+      return;
+    }
 
     if (CLocalPeerClient::getAdvertisedPeer().length() > 0 &&
         peerUrl.compare(CLocalPeerClient::getAdvertisedPeer()) == 0)
@@ -3764,6 +3971,113 @@ void request_handler::handle_request(const request& req, reply& rep)
     return;
   }
 
+  if (request_path.find("/api/blocks/announce?") == 0
+      || (req.method == "POST" && request_path == "/api/blocks/announce"))
+  {
+    std::string blockNumberValue = submitted_value_any(req, request_path, "block");
+    std::string blockHash = submitted_value_any(req, request_path, "hash");
+    std::string fromPeer = submitted_value_any(req, request_path, "from");
+    if (fromPeer.empty())
+    {
+      fromPeer = submitted_value_any(req, request_path, "url");
+    }
+    long blockNumber = ::atol(blockNumberValue.c_str());
+
+    if (blockNumber <= 0 || blockHash.empty())
+    {
+      text_reply(rep, reply::bad_request,
+        "{\"status\":\"invalid\",\"message\":\"missing block or hash\"}",
+        "application/json");
+      return;
+    }
+    std::string blockRateKey = gossip_rate_key(req, fromPeer);
+    if (gossip_rate_limited("block-announce:source:" + blockRateKey, MAX_BLOCK_ANNOUNCES_PER_WINDOW, ANNOUNCE_RATE_WINDOW_SECONDS) ||
+        gossip_rate_limited("block-announce:hash:" + blockHash, MAX_SAME_HASH_ANNOUNCES_PER_WINDOW, ANNOUNCE_RATE_WINDOW_SECONDS))
+    {
+      rate_limited_reply(rep, "Too many block announce requests.");
+      return;
+    }
+
+    CFunctions::block_structure existingBlock = blockDB.getBlockByHash(blockHash);
+    if (existingBlock.number > 0)
+    {
+      std::stringstream ss;
+      ss << "{\"status\":\"known\",";
+      ss << "\"block\":\"" << existingBlock.number << "\",";
+      ss << "\"hash\":\"" << json_escape(existingBlock.hash) << "\"}";
+      text_reply(rep, reply::ok, ss.str(), "application/json");
+      return;
+    }
+
+    std::string peerUrl = normalize_peer_url(fromPeer);
+    if (peerUrl.empty())
+    {
+      text_reply(rep, reply::accepted,
+        "{\"status\":\"missing_source\",\"message\":\"block unknown and no fetch peer supplied\"}",
+        "application/json");
+      return;
+    }
+
+    std::stringstream fetchUrl;
+    fetchUrl << peerUrl << "/api/blocks/hash/" << blockHash;
+    std::string response = request_http_get(fetchUrl.str());
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(response);
+    bool stored = false;
+    bool canonical = false;
+    bool rebroadcast = false;
+    std::string message = "announced block not fetched";
+    for (int i = 0; i < blocks.size(); ++i)
+    {
+      CFunctions::block_structure block = blocks.at(i);
+      if (block.number != blockNumber || block.hash.compare(blockHash) != 0)
+      {
+        continue;
+      }
+
+      long latestBefore = blockDB.getLatestBlockId();
+      bool alreadyStored = blockDB.getBlockByHash(block.hash).number > 0;
+      bool blockAdded = blockDB.AddBlock(block);
+      stored = alreadyStored || blockAdded;
+      if (alreadyStored == false && blockAdded && blockDB.getFirstBlockId() == -1 && block.previous_block_id <= 0)
+      {
+        blockDB.setFirstBlockId(block.number);
+      }
+      if (blockAdded && blockDB.getLatestBlockId() < block.number)
+      {
+        blockDB.rebuildBestChainIndex();
+      }
+
+      long latestAfter = blockDB.getLatestBlockId();
+      CFunctions::block_structure canonicalBlock = blockDB.getBlock(block.number);
+      canonical = canonicalBlock.number == block.number &&
+        canonicalBlock.hash.compare(block.hash) == 0 &&
+        latestAfter >= block.number;
+      message = canonical ? "announced block accepted into canonical chain" : "announced block stored but not connected";
+
+      CNetworkTime netTime;
+      long currentSlot = netTime.getEpoch() / 15;
+      bool recentBlock = block.number + 120 >= currentSlot;
+      bool advancedTip = latestAfter >= block.number && latestAfter >= latestBefore;
+      if (alreadyStored == false && blockAdded && canonical && advancedTip && recentBlock)
+      {
+        CLocalPeerClient::broadcastBlock(block);
+        rebroadcast = true;
+      }
+      break;
+    }
+
+    std::stringstream ss;
+    ss << "{\"status\":\"" << (canonical ? "accepted" : (stored ? "stored" : "missing")) << "\",";
+    ss << "\"stored\":\"" << (stored ? "yes" : "no") << "\",";
+    ss << "\"canonical\":\"" << (canonical ? "yes" : "no") << "\",";
+    ss << "\"rebroadcast\":\"" << (rebroadcast ? "yes" : "no") << "\",";
+    ss << "\"block\":\"" << blockNumber << "\",";
+    ss << "\"hash\":\"" << json_escape(blockHash) << "\",";
+    ss << "\"message\":\"" << json_escape(message) << "\"}";
+    text_reply(rep, stored ? reply::accepted : reply::not_found, ss.str(), "application/json");
+    return;
+  }
+
   if (request_path.find("/api/blocks/submit?") == 0
       || (req.method == "POST" && request_path == "/api/blocks/submit"))
   {
@@ -3842,6 +4156,21 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"latest_block_id\":\"" << latestBlockId << "\",";
     ss << "\"message\":\"" << json_escape(message) << "\"}";
     text_reply(rep, stored ? reply::accepted : reply::bad_request, ss.str(), "application/json");
+    return;
+  }
+
+  std::string blockByHashPrefix = "/api/blocks/hash/";
+  if (request_path.find(blockByHashPrefix) == 0)
+  {
+    std::string blockHash = request_path.substr(blockByHashPrefix.length());
+    CFunctions::block_structure block = blockDB.getBlockByHash(blockHash);
+    if (block.number <= 0 || block.hash.length() == 0)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    text_reply(rep, reply::ok, functions.blockJSON(block), "application/json");
     return;
   }
 
@@ -3972,6 +4301,99 @@ void request_handler::handle_request(const request& req, reply& rep)
 
     functions.addToQueue(record);
     text_reply(rep, reply::accepted, "accepted", "text/plain");
+    return;
+  }
+
+  std::string recordByHashPrefix = "/api/records/hash/";
+  if (request_path.find(recordByHashPrefix) == 0)
+  {
+    std::string recordHash = request_path.substr(recordByHashPrefix.length());
+    exchange_record_location location = find_exchange_record(blockDB, recordHash);
+    if (location.found == false)
+    {
+      text_reply(rep, reply::not_found, "", "text/plain");
+      return;
+    }
+
+    text_reply(rep, reply::ok, functions.recordJSON(location.record), "application/json");
+    return;
+  }
+
+  if (request_path.find("/api/records/announce?") == 0
+      || (req.method == "POST" && request_path == "/api/records/announce"))
+  {
+    std::string recordHash = submitted_value_any(req, request_path, "hash");
+    std::string fromPeer = submitted_value_any(req, request_path, "from");
+    if (fromPeer.empty())
+    {
+      fromPeer = submitted_value_any(req, request_path, "url");
+    }
+
+    if (recordHash.empty())
+    {
+      text_reply(rep, reply::bad_request,
+        "{\"status\":\"invalid\",\"message\":\"missing hash\"}",
+        "application/json");
+      return;
+    }
+    std::string recordRateKey = gossip_rate_key(req, fromPeer);
+    if (gossip_rate_limited("record-announce:source:" + recordRateKey, MAX_RECORD_ANNOUNCES_PER_WINDOW, ANNOUNCE_RATE_WINDOW_SECONDS) ||
+        gossip_rate_limited("record-announce:hash:" + recordHash, MAX_SAME_HASH_ANNOUNCES_PER_WINDOW, ANNOUNCE_RATE_WINDOW_SECONDS))
+    {
+      rate_limited_reply(rep, "Too many record announce requests.");
+      return;
+    }
+
+    exchange_record_location existing = find_exchange_record(blockDB, recordHash);
+    if (existing.found)
+    {
+      std::stringstream ss;
+      ss << "{\"status\":\"known\",";
+      ss << "\"hash\":\"" << json_escape(recordHash) << "\",";
+      ss << "\"pending\":\"" << (existing.pending ? "yes" : "no") << "\"}";
+      text_reply(rep, reply::ok, ss.str(), "application/json");
+      return;
+    }
+
+    std::string peerUrl = normalize_peer_url(fromPeer);
+    if (peerUrl.empty())
+    {
+      text_reply(rep, reply::accepted,
+        "{\"status\":\"missing_source\",\"message\":\"record unknown and no fetch peer supplied\"}",
+        "application/json");
+      return;
+    }
+
+    std::stringstream fetchUrl;
+    fetchUrl << peerUrl << "/api/records/hash/" << recordHash;
+    std::string response = request_http_get(fetchUrl.str());
+    CFunctions::record_structure record = functions.parseRecordJson(response);
+    if (record.hash.compare(recordHash) != 0 ||
+        (record.sender_public_key.empty() && record.recipient_public_key.empty()) ||
+        functions.isRecordSizeValid(record) == false)
+    {
+      text_reply(rep, reply::not_found,
+        "{\"status\":\"missing\",\"message\":\"announced record not fetched\"}",
+        "application/json");
+      return;
+    }
+
+    int queued = functions.addToQueue(record);
+    if (queued == 0)
+    {
+      text_reply(rep, reply::bad_request,
+        "{\"status\":\"invalid\",\"message\":\"announced record could not be queued\"}",
+        "application/json");
+      return;
+    }
+
+    CLocalPeerClient::broadcastRecord(record);
+    std::stringstream ss;
+    ss << "{\"status\":\"accepted\",";
+    ss << "\"hash\":\"" << json_escape(record.hash) << "\",";
+    ss << "\"rebroadcast\":\"yes\",";
+    ss << "\"message\":\"announced record queued\"}";
+    text_reply(rep, reply::accepted, ss.str(), "application/json");
     return;
   }
 

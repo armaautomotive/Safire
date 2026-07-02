@@ -74,6 +74,7 @@ const int MAX_BLOCKS_PER_SYNC_REQUEST = 250;
 const int MAX_BLOCKS_PER_PUSH_BATCH = 200;
 const int MAX_KNOWN_PEERS = 64;
 const int MAX_ACTIVE_SYNC_PEERS = 12;
+const int MAX_GOSSIP_FANOUT = 8;
 const long ANNOUNCE_INTERVAL_SECONDS = 60;
 const long PEER_STATUS_REFRESH_SECONDS = 10;
 
@@ -432,6 +433,15 @@ bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structur
 
     response = httpGet(peer + "/api/blocks/submit?block=" + encodedBlock);
     return response.find("\"status\":\"accepted\"") != std::string::npos || response == "accepted";
+}
+
+bool acceptedResponse(const std::string& response)
+{
+    return response.find("\"status\":\"accepted\"") != std::string::npos ||
+        response.find("\"status\":\"stored\"") != std::string::npos ||
+        response.find("\"status\":\"known\"") != std::string::npos ||
+        response.find("\"status\":\"ok\"") != std::string::npos ||
+        response == "accepted";
 }
 
 std::vector<CFunctions::block_structure> connectedBlocksAfter(long blockNumber)
@@ -893,7 +903,7 @@ void CLocalPeerClient::discoverPeers()
     if (!running) {
         return;
     }
-    std::vector<std::string> currentPeers = peers;
+    std::vector<std::string> currentPeers = getGossipPeers(MAX_GOSSIP_FANOUT, false);
     for (int i = 0; i < currentPeers.size(); ++i) {
         if (!running) {
             break;
@@ -901,8 +911,10 @@ void CLocalPeerClient::discoverPeers()
         std::string peer = currentPeers.at(i);
         std::string response = httpGet(peer + "/api/peers");
         if (response.empty()) {
+            notePeerFailure(peer, "empty peers response");
             continue;
         }
+        notePeerSuccess(peer);
 
         std::vector<std::string> discoveredPeers = parsePeerUrlsFromJson(response);
         for (int j = 0; j < discoveredPeers.size(); ++j) {
@@ -931,7 +943,7 @@ void CLocalPeerClient::announceToPeers()
 
     std::stringstream body;
     body << "{\"url\":\"" << advertisedPeerUrl << "\"}";
-    std::vector<std::string> currentPeers = peers;
+    std::vector<std::string> currentPeers = getGossipPeers(MAX_GOSSIP_FANOUT, false);
     for (int i = 0; i < currentPeers.size(); ++i) {
         if (!running) {
             break;
@@ -948,8 +960,14 @@ void CLocalPeerClient::announceToPeers()
             response.find("\"status\":\"known\"") == std::string::npos) {
             std::string encodedPeer = urlEncode(advertisedPeerUrl);
             if (!encodedPeer.empty()) {
-                httpGet(peer + "/api/peers/announce?url=" + encodedPeer);
+                response = httpGet(peer + "/api/peers/announce?url=" + encodedPeer);
             }
+        }
+        if (response.find("\"status\":\"ok\"") != std::string::npos ||
+            response.find("\"status\":\"known\"") != std::string::npos) {
+            notePeerSuccess(peer);
+        } else {
+            notePeerFailure(peer, response.empty() ? "peer announce failed" : response);
         }
     }
 }
@@ -967,6 +985,104 @@ bool CLocalPeerClient::shouldSkipPeerForScore(const peer_status& status)
 
     std::string peer = normalizePeerUrl(status.url);
     return configuredPeers.find(peer) == configuredPeers.end();
+}
+
+void CLocalPeerClient::notePeerSuccess(const std::string& peerUrl)
+{
+    std::string peer = normalizePeerUrl(peerUrl);
+    if (peer.empty()) {
+        return;
+    }
+    if (peerStatuses.find(peer) == peerStatuses.end()) {
+        peerStatuses[peer] = emptyPeerStatus(peer);
+    }
+    CNetworkTime netTime;
+    peerStatuses[peer].successes += 1;
+    peerStatuses[peer].lastSeenEpoch = netTime.getLocalEpoch();
+    peerStatuses[peer].lastSuccessEpoch = peerStatuses[peer].lastSeenEpoch;
+    peerStatuses[peer].firstFailureEpoch = 0;
+    peerStatuses[peer].reachable = true;
+    peerStatuses[peer].score = std::min(100, peerStatuses[peer].score + 3);
+    peerStatuses[peer].lastError = "";
+    savePeerCache();
+}
+
+void CLocalPeerClient::notePeerFailure(const std::string& peerUrl, const std::string& error)
+{
+    std::string peer = normalizePeerUrl(peerUrl);
+    if (peer.empty()) {
+        return;
+    }
+    if (peerStatuses.find(peer) == peerStatuses.end()) {
+        peerStatuses[peer] = emptyPeerStatus(peer);
+    }
+    CNetworkTime netTime;
+    long now = netTime.getLocalEpoch();
+    peerStatuses[peer].failures += 1;
+    peerStatuses[peer].lastSeenEpoch = now;
+    if (peerStatuses[peer].firstFailureEpoch == 0) {
+        peerStatuses[peer].firstFailureEpoch = now;
+    }
+    peerStatuses[peer].score = std::max(-100, peerStatuses[peer].score - 8);
+    peerStatuses[peer].lastError = error.empty() ? "request failed" : error;
+    savePeerCache();
+}
+
+std::vector<std::string> CLocalPeerClient::getGossipPeers(int maxPeers, bool includeCreatorPriority)
+{
+    std::vector<std::string> orderedPeers;
+    std::set<std::string> seenPeers;
+    if (maxPeers <= 0) {
+        return orderedPeers;
+    }
+
+    if (includeCreatorPriority) {
+        std::vector<std::string> priorityPeers = getPriorityPeersForUpcomingCreators(30);
+        for (int i = 0; i < priorityPeers.size() && orderedPeers.size() < maxPeers; ++i) {
+            std::string peer = normalizePeerUrl(priorityPeers.at(i));
+            if (peer.empty() || seenPeers.find(peer) != seenPeers.end()) {
+                continue;
+            }
+            if (peerStatuses.find(peer) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[peer])) {
+                continue;
+            }
+            orderedPeers.push_back(peer);
+            seenPeers.insert(peer);
+        }
+    }
+
+    std::vector<peer_status> statuses = getPeerStatuses(false);
+    std::sort(statuses.begin(), statuses.end(),
+        [](const peer_status& a, const peer_status& b){
+            if (a.score == b.score) {
+                if (a.lastSuccessEpoch == b.lastSuccessEpoch) {
+                    return a.latestBlockId > b.latestBlockId;
+                }
+                return a.lastSuccessEpoch > b.lastSuccessEpoch;
+            }
+            return a.score > b.score;
+        });
+    for (int i = 0; i < statuses.size() && orderedPeers.size() < maxPeers; ++i) {
+        std::string peer = normalizePeerUrl(statuses.at(i).url);
+        if (peer.empty() || seenPeers.find(peer) != seenPeers.end()) {
+            continue;
+        }
+        if (shouldSkipPeerForScore(statuses.at(i))) {
+            continue;
+        }
+        orderedPeers.push_back(peer);
+        seenPeers.insert(peer);
+    }
+
+    for (int i = 0; i < peers.size() && orderedPeers.size() < maxPeers; ++i) {
+        std::string peer = normalizePeerUrl(peers.at(i));
+        if (peer.empty() || seenPeers.find(peer) != seenPeers.end()) {
+            continue;
+        }
+        orderedPeers.push_back(peer);
+        seenPeers.insert(peer);
+    }
+    return orderedPeers;
 }
 
 void CLocalPeerClient::syncThread(int argc, char* argv[])
@@ -1162,7 +1278,15 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
             }
         }
         if (latestBlockId <= beforeLatestBlockId) {
-            break;
+            bool pulled = pullPeerForkRepairWindow(peer, firstBlockId, beforeLatestBlockId, peerLatestBlockId, maxBlocksPerSync - received, changed);
+            latestBlockId = blockDB.getLatestBlockId();
+            if (pulled == false || latestBlockId <= beforeLatestBlockId) {
+                pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync - received, changed);
+                latestBlockId = blockDB.getLatestBlockId();
+            }
+            if (latestBlockId <= beforeLatestBlockId) {
+                break;
+            }
         }
         received += sawBlocks;
     }
@@ -1552,14 +1676,7 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
         return;
     }
     std::string recordJson = functions.recordJSON(record);
-    std::vector<std::string> orderedPeers = getPriorityPeersForUpcomingCreators(20);
-    std::set<std::string> seenPeers(orderedPeers.begin(), orderedPeers.end());
-    for (int i = 0; i < peers.size(); ++i) {
-        if (seenPeers.find(peers.at(i)) == seenPeers.end()) {
-            orderedPeers.push_back(peers.at(i));
-            seenPeers.insert(peers.at(i));
-        }
-    }
+    std::vector<std::string> orderedPeers = getGossipPeers(MAX_GOSSIP_FANOUT, true);
     for (int i = 0; i < orderedPeers.size(); ++i) {
         if (!running) {
             break;
@@ -1567,14 +1684,32 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
         if (peerStatuses.find(orderedPeers.at(i)) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[orderedPeers.at(i)])) {
             continue;
         }
-        std::string response = httpPost(orderedPeers.at(i) + "/api/records/submit", recordJson);
+        std::string response;
+        if (!advertisedPeerUrl.empty() && record.hash.length() > 0) {
+            std::stringstream announceBody;
+            announceBody << "{\"hash\":\"" << record.hash << "\",";
+            announceBody << "\"from\":\"" << advertisedPeerUrl << "\"}";
+            response = httpPost(orderedPeers.at(i) + "/api/records/announce", announceBody.str());
+            if (acceptedResponse(response)) {
+                notePeerSuccess(orderedPeers.at(i));
+                continue;
+            }
+        }
+
+        response = httpPost(orderedPeers.at(i) + "/api/records/submit", recordJson);
         if (response.find("accepted") != std::string::npos) {
+            notePeerSuccess(orderedPeers.at(i));
             continue;
         }
 
         std::string encodedRecord = urlEncode(recordJson);
         if (!encodedRecord.empty()) {
-            httpGet(orderedPeers.at(i) + "/api/records/submit?record=" + encodedRecord);
+            response = httpGet(orderedPeers.at(i) + "/api/records/submit?record=" + encodedRecord);
+        }
+        if (response.find("accepted") != std::string::npos) {
+            notePeerSuccess(orderedPeers.at(i));
+        } else {
+            notePeerFailure(orderedPeers.at(i), response.empty() ? "record broadcast failed" : response);
         }
     }
 }
@@ -1596,14 +1731,7 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
             return;
         }
     }
-    std::vector<std::string> orderedPeers = getPriorityPeersForUpcomingCreators(20);
-    std::set<std::string> seenPeers(orderedPeers.begin(), orderedPeers.end());
-    for (int i = 0; i < peers.size(); ++i) {
-        if (seenPeers.find(peers.at(i)) == seenPeers.end()) {
-            orderedPeers.push_back(peers.at(i));
-            seenPeers.insert(peers.at(i));
-        }
-    }
+    std::vector<std::string> orderedPeers = getGossipPeers(MAX_GOSSIP_FANOUT, true);
     for (int i = 0; i < orderedPeers.size(); ++i) {
         if (!running) {
             break;
@@ -1611,14 +1739,33 @@ void CLocalPeerClient::broadcastBlock(const CFunctions::block_structure& block)
         if (peerStatuses.find(orderedPeers.at(i)) != peerStatuses.end() && shouldSkipPeerForScore(peerStatuses[orderedPeers.at(i)])) {
             continue;
         }
-        std::string response = httpPost(orderedPeers.at(i) + "/api/blocks/submit", blockJson);
-        if (response.find("\"status\":\"accepted\"") != std::string::npos || response == "accepted") {
+        std::string response;
+        if (!advertisedPeerUrl.empty()) {
+            std::stringstream announceBody;
+            announceBody << "{\"block\":\"" << block.number << "\",";
+            announceBody << "\"hash\":\"" << block.hash << "\",";
+            announceBody << "\"from\":\"" << advertisedPeerUrl << "\"}";
+            response = httpPost(orderedPeers.at(i) + "/api/blocks/announce", announceBody.str());
+            if (acceptedResponse(response)) {
+                notePeerSuccess(orderedPeers.at(i));
+                continue;
+            }
+        }
+
+        response = httpPost(orderedPeers.at(i) + "/api/blocks/submit", blockJson);
+        if (acceptedResponse(response)) {
+            notePeerSuccess(orderedPeers.at(i));
             continue;
         }
 
         std::string encodedBlock = urlEncode(blockJson);
         if (!encodedBlock.empty()) {
-            httpGet(orderedPeers.at(i) + "/api/blocks/submit?block=" + encodedBlock);
+            response = httpGet(orderedPeers.at(i) + "/api/blocks/submit?block=" + encodedBlock);
+        }
+        if (acceptedResponse(response)) {
+            notePeerSuccess(orderedPeers.at(i));
+        } else {
+            notePeerFailure(orderedPeers.at(i), response.empty() ? "block broadcast failed" : response);
         }
     }
 }
@@ -1630,20 +1777,18 @@ void CLocalPeerClient::broadcastHandoff(const CFunctions::block_structure& block
         return;
     }
 
-    std::vector<std::string> localPeers = getPriorityPeersForUpcomingCreators(20);
-    std::set<std::string> seenPeers(localPeers.begin(), localPeers.end());
-    std::vector<std::string> allPeers = getPeers();
-    for (int i = 0; i < allPeers.size(); ++i) {
-        if (seenPeers.find(allPeers.at(i)) == seenPeers.end()) {
-            localPeers.push_back(allPeers.at(i));
-            seenPeers.insert(allPeers.at(i));
-        }
-    }
+    std::vector<std::string> localPeers = getGossipPeers(MAX_GOSSIP_FANOUT, true);
     for (int i = 0; i < localPeers.size(); ++i) {
         std::string peer = normalizePeerUrl(localPeers.at(i));
         if (peer.empty()) {
             continue;
         }
-        httpPost(peer + "/api/handoff/submit", body);
+        std::string response = httpPost(peer + "/api/handoff/submit", body);
+        if (response.find("\"status\":\"accepted\"") != std::string::npos ||
+            response.find("\"status\":\"ok\"") != std::string::npos) {
+            notePeerSuccess(peer);
+        } else {
+            notePeerFailure(peer, response.empty() ? "handoff broadcast failed" : response);
+        }
     }
 }
