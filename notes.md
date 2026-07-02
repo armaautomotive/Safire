@@ -37,6 +37,47 @@ The first two epochs bootstrap from the genesis checkpoint. At 15 second slots, 
 
 This design intentionally allows skipped slots. If no blocks are created for some time, the next valid creator can build on the latest accepted parent it knows, while creator selection still comes from the older staggered checkpoint. A full outage across an epoch should recover as long as nodes still share the last finalized checkpoint and reconnect to peers.
 
+## Heartbeat Eligibility Liveness Risk
+
+There is a potential liveness failure in using accepted `HEARTBEAT` records as the gate for block creator eligibility. If the chain reaches a state where there are no valid heartbeat entries in the selection window, the hashing function may have no eligible creator to choose.
+
+In that case, the chain could effectively become orphaned or frozen: no node is authorized to create the next block, so no new `HEARTBEAT`, `JOIN_NETWORK`, transfer, carry-forward, or recovery transaction can be added. Existing funds would also be stuck because transactions require a future block to be accepted.
+
+Possible causes include:
+
+- a network outage that prevents heartbeat records from being created or propagated
+- too many clients going offline or disabling creator mode
+- malicious users joining, advertising availability, and then failing to produce future heartbeat continuity
+- a bug or fork that excludes otherwise valid heartbeat records from the accepted chain
+- an overly short heartbeat eligibility window
+
+This needs a consensus-level recovery rule before production. Possible directions to review later include a longer eligibility window, fallback to the last known eligible creator set, emergency recovery from an older checkpoint, genesis/foundation recovery keys, or allowing a bounded recovery block type when no eligible heartbeat set exists. Any recovery rule must be deterministic and hard to abuse, because it affects who can create blocks and move the chain forward.
+
+## Synchronous Block Slots vs Asynchronous Networking
+
+Safire's block schedule is time-based and deterministic, but the peer-to-peer network is asynchronous. Every block creator needs the latest accepted parent block before it can safely create the next block. That creates a tight latency budget:
+
+- the previous block must propagate across the peer network
+- the next creator must receive it
+- the next creator must validate the parent and update local state
+- the node must select valid pending records from the mempool
+- the node must construct the next block, record hashes, Merkle root, and block hash
+- the node must broadcast the new block quickly enough for the following creators to continue
+
+This means a short block time can fail even if the consensus rules are correct. The network can stall simply because the selected node did not receive and validate the latest parent in time.
+
+The protocol should make as much work asynchronous as possible while keeping block validity deterministic. Possible directions:
+
+- continuously gossip pending records so upcoming creators already have similar mempools
+- use the staggered epoch schedule to identify upcoming creators early
+- prioritize direct peer connections and block relay to upcoming creators
+- send compact block announcements first, followed by missing records only when needed
+- allow peers to pre-build candidate block templates from known mempool records
+- use creator handoff messages to push the new block directly to the next likely creators
+- measure propagation delay and choose a production block interval based on real network data
+
+The final block cannot be fully asynchronous because it must commit to exactly one parent hash and one canonical state transition. The asynchronous layer should therefore be treated as acceleration and coordination, not authority. A node should only publish a block after validating the parent chain and should reject any block whose parent, creator, records, or hashes do not match deterministic consensus rules.
+
 ## Block Creation Requires Checkpoint-State Consensus
 
 Safire block creator selection must be based on the accepted chain state at the staggered selection checkpoint.

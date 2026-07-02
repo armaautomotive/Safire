@@ -3673,9 +3673,11 @@ void MainWindow::applyWalletStatus(const QString &json)
     if (m_natLabel) {
         if (natEnabled != "yes") {
             m_natLabel->setText(tr("Public peer: off"));
+            m_natLabel->setToolTip(QString());
         } else if (natMapped == "yes") {
             QString endpoint = natExternalAddress.isEmpty() ? QString::number(m_backendPort) : tr("%1:%2").arg(natExternalAddress).arg(natExternalPort);
             m_natLabel->setText(tr("Public peer: mapped via %1 (%2)").arg(natMethod.isEmpty() ? tr("router") : natMethod).arg(endpoint));
+            m_natLabel->setToolTip(tr("This node is reachable by other peers at %1.").arg(endpoint));
         } else if (natMessage == "automatic router mapping unavailable" ||
                    natMessage == "router gateway not found" ||
                    natMessage == "router did not answer NAT-PMP" ||
@@ -3685,9 +3687,31 @@ void MainWindow::applyWalletStatus(const QString &json)
                    natMessage == "router does not expose UPnP port mapping" ||
                    natMessage == "router refused UPnP port mapping" ||
                    natMessage == "local network address not found") {
-            m_natLabel->setText(tr("Public peer: unavailable"));
+            QString compactReason = natMessage;
+            if (natMessage == "router did not answer UPnP discovery") {
+                compactReason = tr("UPnP no response");
+            } else if (natMessage == "router did not answer NAT-PMP") {
+                compactReason = tr("NAT-PMP no response");
+            } else if (natMessage == "router does not support NAT-PMP") {
+                compactReason = tr("NAT-PMP unsupported");
+            } else if (natMessage == "router does not expose UPnP port mapping") {
+                compactReason = tr("UPnP no port map");
+            } else if (natMessage == "router refused UPnP port mapping") {
+                compactReason = tr("UPnP refused");
+            } else if (natMessage == "router refused automatic port mapping") {
+                compactReason = tr("router refused");
+            } else if (natMessage == "router gateway not found") {
+                compactReason = tr("gateway not found");
+            } else if (natMessage == "local network address not found") {
+                compactReason = tr("local address missing");
+            } else if (natMessage == "automatic router mapping unavailable") {
+                compactReason = tr("router unavailable");
+            }
+            m_natLabel->setText(tr("Public peer: unavailable (%1)").arg(compactReason));
+            m_natLabel->setToolTip(tr("Automatic public peer mapping failed: %1").arg(natMessage.isEmpty() ? tr("router did not map the port") : natMessage));
         } else {
             m_natLabel->setText(tr("Public peer: waiting - %1").arg(natMessage.isEmpty() ? tr("router did not map the port") : natMessage));
+            m_natLabel->setToolTip(tr("Automatic public peer mapping is still trying: %1").arg(natMessage.isEmpty() ? tr("router did not map the port") : natMessage));
         }
     }
     if (m_supplyLabel) {

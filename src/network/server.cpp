@@ -12,6 +12,7 @@
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/version.hpp>
 #include <vector>
 
 namespace http {
@@ -26,8 +27,14 @@ server::server(const std::string& address, const std::string& port,
 {
   // Open the acceptor with the option to reuse the address (i.e. SO_REUSEADDR).
   boost::asio::ip::tcp::resolver resolver(io_service_);
+#if BOOST_VERSION >= 106600
+  boost::asio::ip::tcp::resolver::results_type endpoints =
+      resolver.resolve(address, port);
+  boost::asio::ip::tcp::endpoint endpoint = endpoints.begin()->endpoint();
+#else
   boost::asio::ip::tcp::resolver::query query(address, port);
   boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
+#endif
   acceptor_.open(endpoint.protocol());
   acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
   acceptor_.bind(endpoint);
@@ -44,7 +51,7 @@ void server::run()
   for (std::size_t i = 0; i < thread_pool_size_; ++i)
   {
     boost::shared_ptr<boost::thread> thread(new boost::thread(
-          boost::bind(&boost::asio::io_service::run, &io_service_)));
+          boost::bind(&io_context_type::run, &io_service_)));
     threads.push_back(thread);
   }
 

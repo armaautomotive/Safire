@@ -17,7 +17,7 @@
 namespace http {
 namespace server3 {
 
-connection::connection(boost::asio::io_service& io_service,
+connection::connection(io_context_type& io_service,
     request_handler& handler)
   : strand_(io_service),
     socket_(io_service),

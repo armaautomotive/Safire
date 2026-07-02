@@ -41,11 +41,10 @@ public:
 
     void printCommands();
     void printAdvancedCommands();
-    void processUserInput();
+    bool processUserInput();
 };
 
 #endif // SAFIRE_CLI_H
-
 
 
 

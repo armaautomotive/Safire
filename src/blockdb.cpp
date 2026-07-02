@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <ctime>
 #include <map>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <unistd.h>   // open and close
@@ -27,6 +28,10 @@ bool CBlockDB::schemaMigrated = false;
 const int CBlockDB::CURRENT_SCHEMA_VERSION;
 
 namespace {
+
+std::mutex g_bestChainRebuildMutex;
+const std::size_t MAX_REBUILD_CHAIN_CANDIDATES = 256;
+const std::size_t MAX_REBUILD_CHAIN_DEPTH = 20000;
 
 std::string blockHashKey(const std::string& hash);
 std::string canonicalHashKey(long number);
@@ -208,12 +213,22 @@ void collectReachableChainCandidates(
     std::set<std::string>& pathHashes,
     std::vector<std::vector<CFunctions::block_structure> >& candidates
 ){
+    if(candidates.size() >= MAX_REBUILD_CHAIN_CANDIDATES){
+        return;
+    }
     if(block.hash.length() == 0 || pathHashes.find(block.hash) != pathHashes.end()){
         return;
     }
 
     path.push_back(block);
     pathHashes.insert(block.hash);
+
+    if(path.size() >= MAX_REBUILD_CHAIN_DEPTH){
+        candidates.push_back(path);
+        pathHashes.erase(block.hash);
+        path.pop_back();
+        return;
+    }
 
     std::map<std::string, std::vector<CFunctions::block_structure> >::const_iterator childrenIt = childrenByParentHash.find(block.hash);
     if(childrenIt != childrenByParentHash.end() && childrenIt->second.size() > 0){
@@ -226,6 +241,9 @@ void collectReachableChainCandidates(
                 return a.hash.compare(b.hash) < 0;
             });
         for(int i = 0; i < children.size(); ++i){
+            if(candidates.size() >= MAX_REBUILD_CHAIN_CANDIDATES){
+                break;
+            }
             collectReachableChainCandidates(children.at(i), childrenByParentHash, path, pathHashes, candidates);
         }
     } else {
@@ -793,6 +811,8 @@ long CBlockDB::getConnectedLatestBlockId(){
 }
 
 long CBlockDB::rebuildBestChainIndex(){
+    std::lock_guard<std::mutex> rebuildLock(g_bestChainRebuildMutex);
+
     long firstBlockId = getFirstBlockId();
     if(firstBlockId < 0){
         return -1;
@@ -854,38 +874,112 @@ long CBlockDB::rebuildBestChainIndex(){
             return a.hash.compare(b.hash) < 0;
         });
 
-    std::vector<std::vector<CFunctions::block_structure> > candidateChains;
-    for(int i = 0; i < genesisCandidates.size(); i++){
-        std::vector<CFunctions::block_structure> path;
-        std::set<std::string> pathHashes;
-        collectReachableChainCandidates(genesisCandidates.at(i), childrenByParentHash, path, pathHashes, candidateChains);
+    std::vector<CFunctions::block_structure> orderedBlocks;
+    for(int i = 0; i < blocks.size(); i++){
+        if(blocks.at(i).hash.length() > 0){
+            orderedBlocks.push_back(blocks.at(i));
+        }
     }
-
-    std::sort(candidateChains.begin(), candidateChains.end(),
-        [](const std::vector<CFunctions::block_structure>& a, const std::vector<CFunctions::block_structure>& b){
-            return preferChainPath(a, b);
+    std::sort(orderedBlocks.begin(), orderedBlocks.end(),
+        [](const CFunctions::block_structure& a, const CFunctions::block_structure& b){
+            if(a.number != b.number){
+                return a.number > b.number;
+            }
+            return a.hash.compare(b.hash) < 0;
         });
 
-    std::vector<CFunctions::block_structure> bestChain;
-    for(int i = 0; i < candidateChains.size(); ++i){
-        std::vector<CFunctions::block_structure> candidate = candidateChains.at(i);
-        while(candidate.size() > 0){
-            std::string reason;
-            if(CChainValidator::validateConnectedChain(candidate, reason)){
-                if(candidate.size() == candidateChains.at(i).size()){
-                    bestChain = candidate;
-                    break;
+    std::map<std::string, long> bestLengthByHash;
+    std::map<std::string, long> bestTipByHash;
+    std::map<std::string, std::string> bestChildByHash;
+
+    for(int i = 0; i < orderedBlocks.size(); ++i){
+        CFunctions::block_structure block = orderedBlocks.at(i);
+        CFunctions::block_structure bestChild;
+        bestChild.number = -1;
+
+        std::map<std::string, std::vector<CFunctions::block_structure> >::const_iterator childrenIt = childrenByParentHash.find(block.hash);
+        if(childrenIt != childrenByParentHash.end()){
+            std::vector<CFunctions::block_structure> children = childrenIt->second;
+            std::sort(children.begin(), children.end(),
+                [](const CFunctions::block_structure& a, const CFunctions::block_structure& b){
+                    if(a.number != b.number){
+                        return a.number > b.number;
+                    }
+                    return a.hash.compare(b.hash) < 0;
+                });
+            for(int childIndex = 0; childIndex < children.size(); ++childIndex){
+                CFunctions::block_structure child = children.at(childIndex);
+                if(child.hash.length() == 0 || child.hash.compare(block.hash) == 0){
+                    continue;
                 }
-                if(preferChainPath(candidate, bestChain)){
-                    bestChain = candidate;
+                if(preferChainChild(child, bestChild, bestLengthByHash, bestTipByHash)){
+                    bestChild = child;
                 }
-                break;
             }
-            candidate.pop_back();
         }
-        if(bestChain.size() > 0 && bestChain.size() == candidateChains.at(i).size()){
+
+        long bestLength = 1;
+        long bestTip = block.number;
+        if(bestChild.number > 0 && bestChild.hash.length() > 0){
+            std::map<std::string, long>::const_iterator lengthIt = bestLengthByHash.find(bestChild.hash);
+            if(lengthIt != bestLengthByHash.end()){
+                bestLength = lengthIt->second + 1;
+            } else {
+                bestLength = 2;
+            }
+
+            std::map<std::string, long>::const_iterator tipIt = bestTipByHash.find(bestChild.hash);
+            if(tipIt != bestTipByHash.end()){
+                bestTip = tipIt->second;
+            } else {
+                bestTip = bestChild.number;
+            }
+
+            bestChildByHash[block.hash] = bestChild.hash;
+        }
+        bestLengthByHash[block.hash] = bestLength;
+        bestTipByHash[block.hash] = bestTip;
+    }
+
+    CFunctions::block_structure bestGenesis;
+    bestGenesis.number = -1;
+    for(int i = 0; i < genesisCandidates.size(); ++i){
+        CFunctions::block_structure candidate = genesisCandidates.at(i);
+        if(preferChainChild(candidate, bestGenesis, bestLengthByHash, bestTipByHash)){
+            bestGenesis = candidate;
+        }
+    }
+
+    std::vector<CFunctions::block_structure> bestChain;
+    std::set<std::string> visitedHashes;
+    CFunctions::block_structure current = bestGenesis;
+    while(current.number > 0 && current.hash.length() > 0){
+        if(visitedHashes.find(current.hash) != visitedHashes.end()){
             break;
         }
+        bestChain.push_back(current);
+        visitedHashes.insert(current.hash);
+        if(bestChain.size() >= MAX_REBUILD_CHAIN_DEPTH){
+            break;
+        }
+
+        std::map<std::string, std::string>::const_iterator nextIt = bestChildByHash.find(current.hash);
+        if(nextIt == bestChildByHash.end()){
+            break;
+        }
+        std::map<std::string, CFunctions::block_structure>::const_iterator blockIt = blockByHash.find(nextIt->second);
+        if(blockIt == blockByHash.end()){
+            break;
+        }
+        current = blockIt->second;
+    }
+
+    while(bestChain.size() > 0){
+        std::string reason;
+        if(CChainValidator::validateConnectedChain(bestChain, reason)){
+            break;
+        }
+        bestChain.pop_back();
     }
     if(bestChain.size() == 0){
         return -1;

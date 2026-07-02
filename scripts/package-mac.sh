@@ -4,13 +4,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$PROJECT_ROOT/dist/mac"
-WORK_DIR="$DIST_DIR/work"
+WORK_DIR_BASE="$DIST_DIR/work"
 APP_NAME="Safire"
 APP_SOURCE="$PROJECT_ROOT/gui_client/Safire.app"
 CORE_BINARY="$PROJECT_ROOT/bin/Safire"
 CONFIG_FILE="${SAFIRE_CONF:-$PROJECT_ROOT/safire.conf}"
 PACKAGE_VERSION="${SAFIRE_PACKAGE_VERSION:-$(git -C "$PROJECT_ROOT" describe --tags --always --dirty 2>/dev/null || date +%Y%m%d%H%M%S)}"
 BUNDLE_ID="${SAFIRE_BUNDLE_ID:-org.safire.wallet}"
+MAC_ARCH="${SAFIRE_MAC_ARCH:-arm64}"
 SIGN=0
 NOTARIZE=0
 SKIP_BUILD=0
@@ -30,6 +31,7 @@ Options:
   --notarize                Submit the dmg using APPLE_NOTARY_PROFILE
   --upload-target TARGET    Upload zip and dmg with scp, e.g. root@host:/var/www/download
   --version VERSION         Override package version
+  --arch ARCH               Build architecture: arm64 or x86_64. Default: arm64
   -h, --help                Show this help
 
 Environment:
@@ -39,6 +41,7 @@ Environment:
   SAFIRE_CONF               safire.conf to bundle
   SAFIRE_UPLOAD_TARGET      scp upload target
   SAFIRE_PACKAGE_VERSION    package version label
+  SAFIRE_MAC_ARCH           Build architecture, default arm64
 USAGE
 }
 
@@ -49,45 +52,82 @@ while [[ $# -gt 0 ]]; do
     --notarize) NOTARIZE=1; SIGN=1; shift ;;
     --upload-target) UPLOAD_TARGET="$2"; shift 2 ;;
     --version) PACKAGE_VERSION="$2"; shift 2 ;;
+    --arch) MAC_ARCH="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
+case "$MAC_ARCH" in
+  arm64|x86_64) ;;
+  *) echo "Unsupported Mac architecture: $MAC_ARCH" >&2; exit 2 ;;
+esac
+
+WORK_DIR="$WORK_DIR_BASE-$MAC_ARCH"
+
+brew_prefix_for_arch() {
+  if [[ "$MAC_ARCH" == "arm64" ]]; then
+    echo "${SAFIRE_HOMEBREW_PREFIX:-/opt/homebrew}"
+  else
+    echo "${SAFIRE_HOMEBREW_PREFIX:-/usr/local}"
+  fi
+}
+
 find_macdeployqt() {
+  local candidates=()
+  if [[ "$MAC_ARCH" == "arm64" ]]; then
+    candidates+=(
+      "/opt/homebrew/opt/qtbase/bin/macdeployqt"
+      "/opt/homebrew/opt/qt/bin/macdeployqt"
+    )
+  else
+    candidates+=(
+      "/usr/local/opt/qtbase/bin/macdeployqt"
+      "/usr/local/opt/qt/bin/macdeployqt"
+    )
+  fi
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      echo "$candidate"
+      return
+    fi
+  done
+  if [[ "$MAC_ARCH" == "arm64" ]]; then
+    for candidate in /opt/homebrew/Cellar/qtbase/*/bin/macdeployqt; do
+      if [[ -x "$candidate" ]]; then
+        echo "$candidate"
+        return
+      fi
+    done
+  else
+    for candidate in /usr/local/Cellar/qtbase/*/bin/macdeployqt; do
+      if [[ -x "$candidate" ]]; then
+        echo "$candidate"
+        return
+      fi
+    done
+  fi
   if command -v macdeployqt >/dev/null 2>&1; then
     command -v macdeployqt
     return
   fi
-  local candidates=(
-    "/usr/local/opt/qtbase/bin/macdeployqt"
-    "/usr/local/opt/qt/bin/macdeployqt"
-    "/opt/homebrew/opt/qtbase/bin/macdeployqt"
-    "/opt/homebrew/opt/qt/bin/macdeployqt"
-  )
-  local candidate
-  for candidate in "${candidates[@]}"; do
-    if [[ -x "$candidate" ]]; then
-      echo "$candidate"
-      return
-    fi
-  done
-  for candidate in /usr/local/Cellar/qtbase/*/bin/macdeployqt /opt/homebrew/Cellar/qtbase/*/bin/macdeployqt; do
-    if [[ -x "$candidate" ]]; then
-      echo "$candidate"
-      return
-    fi
-  done
   return 1
 }
 
 find_qt_plugins() {
-  local candidates=(
-    "/usr/local/opt/qtbase/share/qt/plugins"
-    "/usr/local/opt/qt/share/qt/plugins"
-    "/opt/homebrew/opt/qtbase/share/qt/plugins"
-    "/opt/homebrew/opt/qt/share/qt/plugins"
-  )
+  local candidates=()
+  if [[ "$MAC_ARCH" == "arm64" ]]; then
+    candidates+=(
+      "/opt/homebrew/opt/qtbase/share/qt/plugins"
+      "/opt/homebrew/opt/qt/share/qt/plugins"
+    )
+  else
+    candidates+=(
+      "/usr/local/opt/qtbase/share/qt/plugins"
+      "/usr/local/opt/qt/share/qt/plugins"
+    )
+  fi
 
   local candidate
   for candidate in "${candidates[@]}"; do
@@ -97,12 +137,21 @@ find_qt_plugins() {
     fi
   done
 
-  for candidate in /usr/local/Cellar/qtbase/*/share/qt/plugins /opt/homebrew/Cellar/qtbase/*/share/qt/plugins; do
-    if [[ -f "$candidate/platforms/libqcocoa.dylib" ]]; then
-      echo "$candidate"
-      return
-    fi
-  done
+  if [[ "$MAC_ARCH" == "arm64" ]]; then
+    for candidate in /opt/homebrew/Cellar/qtbase/*/share/qt/plugins; do
+      if [[ -f "$candidate/platforms/libqcocoa.dylib" ]]; then
+        echo "$candidate"
+        return
+      fi
+    done
+  else
+    for candidate in /usr/local/Cellar/qtbase/*/share/qt/plugins; do
+      if [[ -f "$candidate/platforms/libqcocoa.dylib" ]]; then
+        echo "$candidate"
+        return
+      fi
+    done
+  fi
 
   return 1
 }
@@ -112,6 +161,15 @@ is_system_dylib() {
     /usr/lib/*|/System/*|@*) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+require_binary_arch() {
+  local binary="$1"
+  if ! file "$binary" | grep -q "$MAC_ARCH"; then
+    echo "Expected $MAC_ARCH binary, got:" >&2
+    file "$binary" >&2
+    exit 1
+  fi
 }
 
 copy_dylib_dependency() {
@@ -135,8 +193,10 @@ copy_dylib_dependency() {
 find_dylib_by_basename() {
   local name="$1"
   local candidate
+  local brew_prefix
+  brew_prefix="$(brew_prefix_for_arch)"
 
-  for candidate in /usr/local/opt/*/lib/"$name" /usr/local/lib/"$name" /opt/homebrew/opt/*/lib/"$name" /opt/homebrew/lib/"$name"; do
+  for candidate in "$brew_prefix"/opt/*/lib/"$name" "$brew_prefix"/lib/"$name"; do
     if [[ -f "$candidate" ]]; then
       echo "$candidate"
       return
@@ -213,8 +273,8 @@ bundle_binary_dependencies() {
 }
 
 if [[ "$SKIP_BUILD" -eq 0 ]]; then
-  "$PROJECT_ROOT/scripts/build.sh" mac
-  "$PROJECT_ROOT/scripts/gui.sh"
+  SAFIRE_MAC_ARCH="$MAC_ARCH" "$PROJECT_ROOT/scripts/build.sh" mac
+  SAFIRE_MAC_ARCH="$MAC_ARCH" "$PROJECT_ROOT/scripts/gui.sh" --arch "$MAC_ARCH"
 fi
 
 if [[ ! -x "$CORE_BINARY" ]]; then
@@ -238,6 +298,7 @@ cp -R "$APP_SOURCE" "$APP_STAGE"
 
 MACDEPLOYQT="$(find_macdeployqt || true)"
 if [[ -n "$MACDEPLOYQT" ]]; then
+  require_binary_arch "$MACDEPLOYQT"
   "$MACDEPLOYQT" "$APP_STAGE"
 else
   echo "Warning: macdeployqt not found. The app may require Qt on the target Mac." >&2
@@ -258,10 +319,14 @@ if [[ ! -f "$APP_STAGE/Contents/PlugIns/platforms/libqcocoa.dylib" ]]; then
   exit 1
 fi
 
+require_binary_arch "$APP_STAGE/Contents/MacOS/$APP_NAME"
+require_binary_arch "$CORE_BINARY"
+
 mkdir -p "$APP_STAGE/Contents/Resources/bin"
 cp "$CORE_BINARY" "$APP_STAGE/Contents/Resources/bin/Safire"
 chmod +x "$APP_STAGE/Contents/Resources/bin/Safire"
 bundle_binary_dependencies "$APP_STAGE/Contents/Resources/bin/Safire" "$APP_STAGE/Contents/Resources/lib"
+require_binary_arch "$APP_STAGE/Contents/Resources/bin/Safire"
 cp "$CONFIG_FILE" "$APP_STAGE/Contents/Resources/safire.conf"
 
 if [[ "$SIGN" -eq 1 ]]; then
@@ -279,9 +344,9 @@ if [[ "$SIGN" -eq 1 ]]; then
   codesign --verify --deep --strict --verbose=2 "$APP_STAGE"
 fi
 
-ZIP_FILE="$DIST_DIR/${APP_NAME}-mac-${PACKAGE_VERSION}.zip"
+ZIP_FILE="$DIST_DIR/${APP_NAME}-mac-${MAC_ARCH}-${PACKAGE_VERSION}.zip"
 DMG_ROOT="$WORK_DIR/dmg-root"
-DMG_FILE="$DIST_DIR/${APP_NAME}-mac-${PACKAGE_VERSION}.dmg"
+DMG_FILE="$DIST_DIR/${APP_NAME}-mac-${MAC_ARCH}-${PACKAGE_VERSION}.dmg"
 LATEST_ZIP_FILE="$DIST_DIR/${APP_NAME}-mac-latest.zip"
 LATEST_DMG_FILE="$DIST_DIR/${APP_NAME}-mac-latest.dmg"
 

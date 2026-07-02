@@ -1464,8 +1464,9 @@ void CCLI::printAdvancedCommands(){
 *
 * Description: process user commands and print results
 */
-void CCLI::processUserInput(){
+bool CCLI::processUserInput(){
 	bool running = true;
+    bool shutdownRequested = false;
 	CECDSACrypto ecdsa;
 	CFunctions functions;
     CRelayClient relayClient;
@@ -1485,7 +1486,7 @@ void CCLI::processUserInput(){
 	while(running){
 		std::cout << ">";		
 
-		std::string command = readCommandLine(lastCommand);
+        std::string command = readCommandLine(lastCommand);
         if(!std::cin && command.length() == 0){
             running = false;
             continue;
@@ -1956,6 +1957,7 @@ void CCLI::processUserInput(){
             std::cout << " " << message << std::endl;
  
         } else if ( command.find("quit") != std::string::npos ){
+                shutdownRequested = true;
                 running = false;
             
             } else if ( command.find("advanced") != std::string::npos ){
@@ -2020,6 +2022,7 @@ void CCLI::processUserInput(){
             blockDB.DeleteAll();
             
             // quit
+            shutdownRequested = true;
             running = false;
             
         } else if( command.compare("reindex") == 0){
@@ -2207,4 +2210,5 @@ void CCLI::processUserInput(){
 		printCommands();	
 	}
     }
+    return shutdownRequested;
 }

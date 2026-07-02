@@ -11,7 +11,7 @@
 #ifndef HTTP_SERVER3_CONNECTION_HPP
 #define HTTP_SERVER3_CONNECTION_HPP
 
-#include <boost/asio.hpp>
+#include "asio_compat.h"
 #include <boost/array.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
@@ -31,7 +31,7 @@ class connection
 {
 public:
   /// Construct a connection with the given io_service.
-  explicit connection(boost::asio::io_service& io_service,
+  explicit connection(io_context_type& io_service,
       request_handler& handler);
 
   /// Get the socket associated with the connection.
@@ -55,7 +55,7 @@ private:
   void process_request();
 
   /// Strand to ensure the connection's handlers are not called concurrently.
-  boost::asio::io_service::strand strand_;
+  io_context_type::strand strand_;
 
   /// Socket for the connection.
   boost::asio::ip::tcp::socket socket_;

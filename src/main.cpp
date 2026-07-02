@@ -381,8 +381,10 @@ int main(int argc, char* argv[])
 */
     //functions.parseBlockFile();
 
-    // blockBuilder
-    std::thread blockThread(&CBlockBuilder::blockBuilderThread, blockBuilder, argc, argv);
+    boost::shared_ptr<std::thread> blockThread;
+    if(enableBlockCreation){
+        blockThread.reset(new std::thread(&CBlockBuilder::blockBuilderThread, blockBuilder, argc, argv));
+    }
     
     //std::thread p2pNetworkThread(&CP2P::p2pNetworkThread, p2p, argc, argv); // TODO: implement a main class to pass into threads instead of 'p2p' instance. For communication.
     // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
@@ -404,7 +406,15 @@ int main(int argc, char* argv[])
     } else {
         CCLI cli;
         std::cout << std::endl; // Line break
-        cli.processUserInput();
+        bool cliRequestedShutdown = cli.processUserInput();
+        if(cliRequestedShutdown == false && localNodePort.length() > 0){
+            std::signal(SIGINT, requestShutdown);
+            std::signal(SIGTERM, requestShutdown);
+            std::cout << " CLI input closed.       [service mode] " << std::endl;
+            while(g_shutdown_requested == 0){
+                usleep(500000);
+            }
+        }
     }
 
     std::cout << "Shutting down... " << std::endl;
@@ -414,7 +424,9 @@ int main(int argc, char* argv[])
     heartbeat.stop();
     blockBuilder.stop();
     carryforward.stop();
-    blockThread.join();
+    if(blockThread){
+        blockThread->join();
+    }
     heartbeatThread.join();
     carryforwardThread.join();
     if(localSyncThread){

@@ -13,6 +13,7 @@
 # qmake generated files
 .qmake.stash
 /gui_client/Makefile
+/gui_client/.safire-gui-arch
 *.pro.user
 moc_*.cpp
 moc_*.o

@@ -6,8 +6,16 @@ CC_LINUX=g++
 CC_MAC=clang++
 
 OUT_PATH=./bin
+MAC_ARCH ?= arm64
+HOMEBREW_PREFIX ?= $(if $(filter arm64,$(MAC_ARCH)),/opt/homebrew,/usr/local)
+OPENSSL_PREFIX ?= $(if $(wildcard $(HOMEBREW_PREFIX)/opt/openssl),$(HOMEBREW_PREFIX)/opt/openssl,$(HOMEBREW_PREFIX)/opt/openssl@3)
+LEVELDB_PREFIX ?= $(HOMEBREW_PREFIX)/opt/leveldb
+BOOST_PREFIX ?= $(HOMEBREW_PREFIX)/opt/boost
+SNAPPY_PREFIX ?= $(HOMEBREW_PREFIX)/opt/snappy
+BOOST_SYSTEM_LIB ?= $(if $(wildcard $(BOOST_PREFIX)/lib/libboost_system.*),-lboost_system,)
+BOOST_THREAD_LIB ?= $(if $(wildcard $(BOOST_PREFIX)/lib/libboost_thread-mt.*),boost_thread-mt,boost_thread)
  
-SRC_PATH_MAC=-I./src -I/usr/local/opt/openssl/include -I/usr/local/include -I/usr/local/Cellar/boost/1.62.0/include -I./src/leveldb/include
+SRC_PATH_MAC=-I./src -I$(OPENSSL_PREFIX)/include -I$(HOMEBREW_PREFIX)/include -I$(BOOST_PREFIX)/include -I./src/leveldb/include
 SRC_PATH_LINUX=-I./src -I/usr/include/openssl -I/usr/local/include -I./src/leveldb/include
 #FILES= ./src/crypto/aes.cpp ./src/main.cpp 
 #FILES= ./src/main.cpp ./src/crypto/sha256.cpp ./src/crypto/hmac_sha256.cpp ./src/support/cleanse.cpp ./src/support/lockedpool.cpp  ./src/key.cpp ./src/pubkey.cpp ./src/random.cpp ./src/crypto/sha512.cpp ./src/hash.cpp ./src/crypto/ripemd160.cpp ./src/crypto/hmac_sha512.cpp  ./src/ecdsacrypto.cpp 
@@ -26,8 +34,8 @@ SOURCES = $(FILES:%.cpp=$(SRC_PATH)/%.cpp)
 
 #  gcc -o yourname -Bstatic -L<dir-of-libcrypto.a> -lcrypto . . . yourfile.c
 # MacOS Doesn’t support static linking.
-CFLAGS_MAC= -arch x86_64 -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w    `pkg-config --cflags nice`
-LIBS_MAC= -L/usr/local/opt/openssl/lib -L/usr/local/lib /usr/local/opt/leveldb/lib/libleveldb.a -lssl -lcrypto -lboost_system -lboost_thread-mt -lboost_filesystem -lsnappy -lcurl -lz   `pkg-config --libs nice`
+CFLAGS_MAC= -arch $(MAC_ARCH) -std=c++11 -stdlib=libc++ -Wdeprecated -Wc++98-compat -w    `PKG_CONFIG_PATH="$(HOMEBREW_PREFIX)/lib/pkgconfig:$(HOMEBREW_PREFIX)/share/pkgconfig:$$PKG_CONFIG_PATH" pkg-config --cflags nice`
+LIBS_MAC= -L$(OPENSSL_PREFIX)/lib -L$(BOOST_PREFIX)/lib -L$(SNAPPY_PREFIX)/lib -L$(HOMEBREW_PREFIX)/lib $(LEVELDB_PREFIX)/lib/libleveldb.a -lssl -lcrypto $(BOOST_SYSTEM_LIB) -l$(BOOST_THREAD_LIB) -lboost_filesystem -lsnappy -lcurl -lz   `PKG_CONFIG_PATH="$(HOMEBREW_PREFIX)/lib/pkgconfig:$(HOMEBREW_PREFIX)/share/pkgconfig:$$PKG_CONFIG_PATH" pkg-config --libs nice`
 # -lsecp256k1
 # -lboost_system -lboost_asio
 # -L./usr/local/Cellar/boost/1.62.0/lib

@@ -13,6 +13,7 @@
 #include <curl/curl.h>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <unistd.h>
@@ -24,6 +25,8 @@ std::string CLocalPeerClient::advertisedPeerUrl = "";
 bool CLocalPeerClient::running = true;
 
 namespace {
+
+std::mutex g_syncFromPeerMutex;
 
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -69,7 +72,7 @@ std::string peerCachePath()
 }
 
 const long PEER_PURGE_SECONDS = 3L * 24L * 60L * 60L;
-const int MAX_BLOCKS_PER_SYNC_BATCH = 1000;
+const int MAX_BLOCKS_PER_SYNC_BATCH = 5000;
 const int MAX_BLOCKS_PER_SYNC_REQUEST = 250;
 const int MAX_BLOCKS_PER_PUSH_BATCH = 200;
 const int MAX_KNOWN_PEERS = 64;
@@ -686,6 +689,68 @@ bool pullPeerCanonicalChain(const std::string& peer, long peerLatestBlockId, int
     return received > 0;
 }
 
+bool pullPeerCanonicalChainFromBlock(const std::string& peer, long startBlockId, long peerLatestBlockId, int maxBlocksPerSync, bool& changed)
+{
+    if (peerLatestBlockId < 0 || startBlockId < 0) {
+        return false;
+    }
+
+    CBlockDB blockDB;
+    long latestBeforeRepair = blockDB.getLatestBlockId();
+    CFunctions functions;
+    std::string response = httpGet(peer + "/api/blocks/" + boost::lexical_cast<std::string>(startBlockId));
+    if (response.empty()) {
+        return false;
+    }
+
+    std::vector<CFunctions::block_structure> blocks = functions.parseBlockJson(response);
+    if (blocks.empty() || blocks.at(0).number <= 0 || blocks.at(0).hash.empty()) {
+        return false;
+    }
+
+    CFunctions::block_structure peerBlock = blocks.at(0);
+    changed = storeBlock(peerBlock) || changed;
+    int received = 1;
+
+    while (peerBlock.number > 0 && peerBlock.number < peerLatestBlockId && received < maxBlocksPerSync) {
+        int requestLimit = std::min(MAX_BLOCKS_PER_SYNC_REQUEST, maxBlocksPerSync - received);
+        response = httpGet(peer + "/api/blocks/batch-after-hash/" + peerBlock.hash + "/" + boost::lexical_cast<std::string>(requestLimit));
+        if (response.empty()) {
+            response = httpGet(peer + "/api/blocks/after-hash/" + peerBlock.hash);
+        }
+        if (response.empty()) {
+            break;
+        }
+
+        blocks = functions.parseBlockJson(response);
+        if (blocks.empty()) {
+            break;
+        }
+
+        int storedThisBatch = 0;
+        for (int i = 0; i < blocks.size() && received < maxBlocksPerSync; ++i) {
+            if (blocks.at(i).number <= 0 || blocks.at(i).hash.empty()) {
+                break;
+            }
+            peerBlock = blocks.at(i);
+            changed = storeBlock(peerBlock) || changed;
+            ++received;
+            ++storedThisBatch;
+        }
+
+        if (storedThisBatch == 0) {
+            break;
+        }
+    }
+
+    long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
+    if (repairedLatestBlockId > latestBeforeRepair) {
+        changed = true;
+    }
+
+    return received > 0;
+}
+
 bool pullPeerBlocksByNumberRange(const std::string& peer, long startBlockId, long peerLatestBlockId, int maxBlocksPerSync, bool& changed)
 {
     if (peerLatestBlockId < 0) {
@@ -733,12 +798,16 @@ bool pullPeerForkRepairWindow(const std::string& peer,
         return false;
     }
 
-    const long forkRepairLookbackSlots = 60;
+    const long forkRepairLookbackSlots = 3000;
     long startBlockId = localLatestBlockId - forkRepairLookbackSlots;
     if (startBlockId < firstBlockId) {
         startBlockId = firstBlockId;
     }
 
+    bool pulled = pullPeerCanonicalChainFromBlock(peer, startBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
+    if (pulled) {
+        return true;
+    }
     return pullPeerBlocksByNumberRange(peer, startBlockId, peerLatestBlockId, maxBlocksPerSync, changed);
 }
 
@@ -1133,6 +1202,11 @@ void CLocalPeerClient::syncThread(int argc, char* argv[])
 
 bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
 {
+    std::unique_lock<std::mutex> syncLock(g_syncFromPeerMutex, std::try_to_lock);
+    if (!syncLock.owns_lock()) {
+        return false;
+    }
+
     const int maxBlocksPerSync = MAX_BLOCKS_PER_SYNC_BATCH;
     bool changed = false;
     if (!running) {
