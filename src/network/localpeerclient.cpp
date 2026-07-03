@@ -1749,6 +1749,9 @@ void CLocalPeerClient::broadcastRecord(const CFunctions::record_structure& recor
     if(functions.isRecordSizeValid(record) == false){
         return;
     }
+    if(CFunctions::isExpiredHeartbeatRecord(record)){
+        return;
+    }
     std::string recordJson = functions.recordJSON(record);
     std::vector<std::string> orderedPeers = getGossipPeers(MAX_GOSSIP_FANOUT, true);
     for (int i = 0; i < orderedPeers.size(); ++i) {

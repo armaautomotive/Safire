@@ -97,6 +97,8 @@ public:
         std::string value;                  // Meta (vote description)
         bool internal_validated = false;	// local toggle to indicate the record has been internally validated.
     };
+
+    static bool isExpiredHeartbeatRecord(const record_structure& record, long currentBlock = -1);
     
     struct block_structure {
         std::string network;                // name of network block belongs to.

@@ -18,6 +18,7 @@ public:
     std::string defaultPeer;
     std::string publicPeerUrl;
     std::string storageProfile;
+    std::string recoveryPublicKey;
     bool strictGenesis;
     bool enableNatTraversal;
     bool enableBlockCreation;
@@ -31,6 +32,7 @@ public:
         defaultPeer = "";
         publicPeerUrl = "";
         storageProfile = "desktop";
+        recoveryPublicKey = "";
         strictGenesis = true;
         enableNatTraversal = false;
         enableBlockCreation = true;
@@ -62,6 +64,7 @@ public:
         outfile << "default_peer=" << defaultPeer << "\n";
         outfile << "public_peer_url=" << publicPeerUrl << "\n";
         outfile << "storage_profile=" << normalizeStorageProfile(storageProfile) << "\n";
+        outfile << "recovery_public_key=" << recoveryPublicKey << "\n";
         outfile << "strict_genesis=" << (strictGenesis ? "1" : "0") << "\n";
         outfile << "enable_nat=" << (enableNatTraversal ? "1" : "0") << "\n";
         outfile << "creator_mode=" << (enableBlockCreation ? "1" : "0") << "\n";
@@ -146,6 +149,10 @@ public:
                 config.publicPeerUrl = value;
             } else if(key.compare("storage_profile") == 0 || key.compare("storage") == 0){
                 config.storageProfile = normalizeStorageProfile(value);
+            } else if(key.compare("recovery_public_key") == 0 ||
+                      key.compare("genesis_public_key") == 0 ||
+                      key.compare("recovery_key") == 0){
+                config.recoveryPublicKey = value;
             } else if(key.compare("strict_genesis") == 0){
                 config.strictGenesis = value.compare("0") != 0 &&
                     value.compare("false") != 0 &&

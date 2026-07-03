@@ -89,6 +89,11 @@ long CSelector::getSelectionLagEpochs()
     return 2;
 }
 
+long CSelector::getRecoveryWindowBlocks()
+{
+    return 10;
+}
+
 long CSelector::getEpochForBlock(long blockNumber, long genesisBlock)
 {
     if (genesisBlock <= 0 || blockNumber <= genesisBlock) {
@@ -140,6 +145,46 @@ std::string CSelector::getSelectedUserForBlock(long blockNumber, const std::stri
         return "";
     }
     return activeUsers.at(index);
+}
+
+std::string CSelector::getAuthorizedCreatorForBlock(
+    long blockNumber,
+    const std::string& selectionSeedHash,
+    const std::vector<std::string>& checkpointActiveUsers,
+    const std::string& latestSeedHash,
+    const std::vector<std::string>& latestActiveUsers,
+    const std::string& recoveryPublicKey,
+    long consecutiveRecoveryBlocks,
+    bool* recoveryMode,
+    bool* latestStateFallback)
+{
+    if(recoveryMode){
+        *recoveryMode = false;
+    }
+    if(latestStateFallback){
+        *latestStateFallback = false;
+    }
+
+    if(checkpointActiveUsers.size() > 0 && selectionSeedHash.length() > 0){
+        return getSelectedUserForBlock(blockNumber, selectionSeedHash, checkpointActiveUsers);
+    }
+
+    if(latestActiveUsers.size() > 0 && latestSeedHash.length() > 0){
+        if(latestStateFallback){
+            *latestStateFallback = true;
+        }
+        return getSelectedUserForBlock(blockNumber, latestSeedHash, latestActiveUsers);
+    }
+
+    if(recoveryPublicKey.length() > 0 &&
+       consecutiveRecoveryBlocks < getRecoveryWindowBlocks()){
+        if(recoveryMode){
+            *recoveryMode = true;
+        }
+        return recoveryPublicKey;
+    }
+
+    return "";
 }
 
 /**

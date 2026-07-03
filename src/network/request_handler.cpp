@@ -98,6 +98,48 @@ std::string request_http_get(const std::string& url)
   curl_easy_cleanup(curl);
   return read_buffer;
 }
+
+std::string configured_recovery_public_key(CBlockDB& block_db, const CNetworkConfig& config)
+{
+  if (config.recoveryPublicKey.length() > 0)
+  {
+    return config.recoveryPublicKey;
+  }
+  long first_block_id = block_db.getFirstBlockId();
+  if (first_block_id > 0)
+  {
+    CFunctions::block_structure first_block = block_db.getBlock(first_block_id);
+    return first_block.creator_key;
+  }
+  return "";
+}
+
+long consecutive_recovery_blocks(CBlockDB& block_db, CFunctions::block_structure parent, const std::string& recovery_public_key)
+{
+  if (recovery_public_key.length() == 0)
+  {
+    return 0;
+  }
+
+  long count = 0;
+  while (parent.number > 0 &&
+         parent.creator_key.compare(recovery_public_key) == 0 &&
+         count < CSelector::getRecoveryWindowBlocks())
+  {
+    count++;
+    if (parent.previous_block_hash.length() == 0)
+    {
+      break;
+    }
+    CFunctions::block_structure previous = block_db.getBlockByHash(parent.previous_block_hash);
+    if (previous.number <= 0 || previous.number == parent.number)
+    {
+      break;
+    }
+    parent = previous;
+  }
+  return count;
+}
 const double API_MAX_TRANSACTION_FEE = 0.1;
 const char* API_SETTINGS_FILE = "settings.dat";
 
@@ -637,6 +679,10 @@ bool queue_and_broadcast_record(CFunctions& functions, CFunctions::record_struct
   {
     error = functions.recordSizeError(record);
     return false;
+  }
+  if (CFunctions::isExpiredHeartbeatRecord(record))
+  {
+    return true;
   }
 
   if (functions.addToQueue(record) == 0)
@@ -1302,7 +1348,7 @@ std::string recent_blockchain_json(CBlockDB& block_db)
       selection_states_by_boundary[selection_boundary] = CLedgerState::build(block_db, "", selection_boundary);
     }
     CLedgerState::state selection_state = selection_states_by_boundary[selection_boundary];
-    std::vector<std::string> active_member_keys = CLedgerState::activeMemberKeysAt(selection_state, selection_state.latest_block_id);
+    std::vector<std::string> active_member_keys = CLedgerState::activeMemberKeysAt(selection_state, slot);
     if (active_member_keys.size() > 0 && selection_state.latest_block.hash.length() > 0)
     {
       std::string expected_creator = CSelector::getSelectedUserForBlock(slot, selection_state.latest_block.hash, active_member_keys);
@@ -1603,7 +1649,7 @@ std::string block_explorer_json(CBlockDB& block_db, long requested_epoch, int ep
         selection_states_by_boundary[selection_boundary] = CLedgerState::build(block_db, "", selection_boundary);
       }
       CLedgerState::state selection_state = selection_states_by_boundary[selection_boundary];
-      std::vector<std::string> active_member_keys = CLedgerState::activeMemberKeysAt(selection_state, selection_state.latest_block_id);
+      std::vector<std::string> active_member_keys = CLedgerState::activeMemberKeysAt(selection_state, slot);
       std::string expected_creator = "";
       if (active_member_keys.size() > 0 && selection_state.latest_block.hash.length() > 0)
       {
@@ -3249,21 +3295,41 @@ void request_handler::handle_request(const request& req, reply& rep)
     long nextTimeBlock = currentTimeBlock + 1;
     std::string currentCreator = "";
     std::string nextCreator = "";
+    bool currentRecoveryMode = false;
+    bool nextRecoveryMode = false;
+    bool currentLatestFallback = false;
+    bool nextLatestFallback = false;
     long currentSelectionBoundary = CSelector::getSelectionBoundaryBlock(currentTimeBlock, firstBlockId);
     long nextSelectionBoundary = CSelector::getSelectionBoundaryBlock(nextTimeBlock, firstBlockId);
     CLedgerState::state currentSelectionState = CLedgerState::build(blockDB, "", currentSelectionBoundary);
     CLedgerState::state nextSelectionState = nextSelectionBoundary == currentSelectionBoundary ?
       currentSelectionState : CLedgerState::build(blockDB, "", nextSelectionBoundary);
-    std::vector<std::string> currentActiveMemberKeys = CLedgerState::activeMemberKeysAt(currentSelectionState, currentSelectionState.latest_block_id);
-    std::vector<std::string> nextActiveMemberKeys = CLedgerState::activeMemberKeysAt(nextSelectionState, nextSelectionState.latest_block_id);
-    if (currentActiveMemberKeys.size() > 0 && currentSelectionState.latest_block.hash.length() > 0)
-    {
-      currentCreator = CSelector::getSelectedUserForBlock(currentTimeBlock, currentSelectionState.latest_block.hash, currentActiveMemberKeys);
-    }
-    if (nextActiveMemberKeys.size() > 0 && nextSelectionState.latest_block.hash.length() > 0)
-    {
-      nextCreator = CSelector::getSelectedUserForBlock(nextTimeBlock, nextSelectionState.latest_block.hash, nextActiveMemberKeys);
-    }
+    std::vector<std::string> currentActiveMemberKeys = CLedgerState::activeMemberKeysAt(currentSelectionState, currentTimeBlock);
+    std::vector<std::string> nextActiveMemberKeys = CLedgerState::activeMemberKeysAt(nextSelectionState, nextTimeBlock);
+    std::vector<std::string> currentLatestActiveMemberKeys = CLedgerState::activeMemberKeysAt(chainState, currentTimeBlock);
+    std::vector<std::string> nextLatestActiveMemberKeys = CLedgerState::activeMemberKeysAt(chainState, nextTimeBlock);
+    std::string recoveryPublicKey = configured_recovery_public_key(blockDB, config);
+    long recoveryRun = consecutive_recovery_blocks(blockDB, latestBlock, recoveryPublicKey);
+    currentCreator = CSelector::getAuthorizedCreatorForBlock(
+      currentTimeBlock,
+      currentSelectionState.latest_block.hash,
+      currentActiveMemberKeys,
+      latestBlock.hash,
+      currentLatestActiveMemberKeys,
+      recoveryPublicKey,
+      recoveryRun,
+      &currentRecoveryMode,
+      &currentLatestFallback);
+    nextCreator = CSelector::getAuthorizedCreatorForBlock(
+      nextTimeBlock,
+      nextSelectionState.latest_block.hash,
+      nextActiveMemberKeys,
+      latestBlock.hash,
+      nextLatestActiveMemberKeys,
+      recoveryPublicKey,
+      recoveryRun,
+      &nextRecoveryMode,
+      &nextLatestFallback);
     bool walletCreatorEligible = false;
     for (int i = 0; i < currentActiveMemberKeys.size(); ++i)
     {
@@ -3271,6 +3337,17 @@ void request_handler::handle_request(const request& req, reply& rep)
       {
         walletCreatorEligible = true;
         break;
+      }
+    }
+    if (walletCreatorEligible == false && currentLatestFallback)
+    {
+      for (int i = 0; i < currentLatestActiveMemberKeys.size(); ++i)
+      {
+        if (currentLatestActiveMemberKeys.at(i).compare(creatorPublicKey) == 0)
+        {
+          walletCreatorEligible = true;
+          break;
+        }
       }
     }
     long creatorEligibilityBlock = -1;
@@ -3306,11 +3383,17 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"public_key\":\"" << publicKey << "\",";
     ss << "\"public_name\":\"" << json_escape(name_for_key(memberNames, publicKey)) << "\",";
     ss << "\"active_member_count\":\"" << currentActiveMemberKeys.size() << "\",";
+    ss << "\"latest_active_member_count\":\"" << currentLatestActiveMemberKeys.size() << "\",";
     ss << "\"epoch_size_blocks\":\"" << CSelector::getEpochSizeBlocks() << "\",";
     ss << "\"selection_lag_epochs\":\"" << CSelector::getSelectionLagEpochs() << "\",";
     ss << "\"selection_boundary_block\":\"" << currentSelectionBoundary << "\",";
     ss << "\"selection_checkpoint_block\":\"" << currentSelectionState.latest_block.number << "\",";
     ss << "\"selection_checkpoint_hash\":\"" << json_escape(currentSelectionState.latest_block.hash) << "\",";
+    ss << "\"recovery_public_key\":\"" << json_escape(recoveryPublicKey) << "\",";
+    ss << "\"recovery_window_blocks\":\"" << CSelector::getRecoveryWindowBlocks() << "\",";
+    ss << "\"recovery_run_blocks\":\"" << recoveryRun << "\",";
+    ss << "\"recovery_mode\":\"" << (currentRecoveryMode ? "yes" : "no") << "\",";
+    ss << "\"latest_state_creator_fallback\":\"" << (currentLatestFallback ? "yes" : "no") << "\",";
     ss << "\"current_block_id\":\"" << currentTimeBlock << "\",";
     ss << "\"current_block_creator\":\"" << json_escape(currentCreator) << "\",";
     ss << "\"current_block_creator_name\":\"" << json_escape(name_for_key(memberNames, currentCreator)) << "\",";
@@ -3319,6 +3402,8 @@ void request_handler::handle_request(const request& req, reply& rep)
     ss << "\"next_block_creator\":\"" << json_escape(nextCreator) << "\",";
     ss << "\"next_block_creator_name\":\"" << json_escape(name_for_key(memberNames, nextCreator)) << "\",";
     ss << "\"next_block_creator_is_wallet\":\"" << (nextCreator.compare(creatorPublicKey) == 0 ? "yes" : "no") << "\",";
+    ss << "\"next_recovery_mode\":\"" << (nextRecoveryMode ? "yes" : "no") << "\",";
+    ss << "\"next_latest_state_creator_fallback\":\"" << (nextLatestFallback ? "yes" : "no") << "\",";
     ss << "\"seconds_until_next_block\":\"" << secondsUntilNextBlock << "\",";
     ss << "\"balance\":\"" << confirmedChainState.wallet_balance << "\",";
     ss << "\"tip_balance\":\"" << chainState.wallet_balance << "\",";

@@ -334,6 +334,53 @@ std::vector<std::string> activeMemberKeysForBlock(const std::vector<CLedgerState
     return active;
 }
 
+std::string configuredRecoveryPublicKey(const CNetworkConfig& config, const std::string& genesisCreatorKey)
+{
+    if(config.recoveryPublicKey.length() > 0){
+        return config.recoveryPublicKey;
+    }
+    return genesisCreatorKey;
+}
+
+long consecutiveRecoveryBlocksInStore(CBlockDB& blockDB, CFunctions::block_structure parent, const std::string& recoveryPublicKey)
+{
+    if(recoveryPublicKey.length() == 0){
+        return 0;
+    }
+
+    long count = 0;
+    while(parent.number > 0 &&
+          parent.creator_key.compare(recoveryPublicKey) == 0 &&
+          count < CSelector::getRecoveryWindowBlocks()){
+        count++;
+        if(parent.previous_block_hash.length() == 0){
+            break;
+        }
+        CFunctions::block_structure previous = blockDB.getBlockByHash(parent.previous_block_hash);
+        if(previous.number <= 0 || previous.number == parent.number){
+            break;
+        }
+        parent = previous;
+    }
+    return count;
+}
+
+long consecutiveRecoveryBlocksInBranch(const std::vector<CFunctions::block_structure>& chain, int previousIndex, const std::string& recoveryPublicKey)
+{
+    if(recoveryPublicKey.length() == 0){
+        return 0;
+    }
+
+    long count = 0;
+    for(int i = previousIndex; i >= 0 && count < CSelector::getRecoveryWindowBlocks(); --i){
+        if(chain.at(i).creator_key.compare(recoveryPublicKey) != 0){
+            break;
+        }
+        count++;
+    }
+    return count;
+}
+
 const BranchSnapshot* selectionSnapshotForBlock(const std::vector<BranchSnapshot>& snapshots, long blockNumber, long genesisBlock)
 {
     if (snapshots.size() == 0) {
@@ -500,12 +547,28 @@ bool CChainValidator::validateBlockForStorage(CBlockDB& blockDB, const CFunction
             if (selectionState.latest_block.hash.length() == 0) {
                 selectionState = parentState;
             }
-            std::vector<std::string> activeMemberKeys = CLedgerState::activeMemberKeysAt(selectionState, selectionState.latest_block_id);
-            if (activeMemberKeys.empty()) {
-                reason = "no active members can create blocks";
+            CNetworkConfig config = CNetworkConfig::load();
+            CFunctions::block_structure genesisBlock = blockDB.getBlock(firstBlockId);
+            std::string recoveryPublicKey = configuredRecoveryPublicKey(config, genesisBlock.creator_key);
+            std::vector<std::string> activeMemberKeys = CLedgerState::activeMemberKeysAt(selectionState, block.number);
+            std::vector<std::string> latestActiveMemberKeys = CLedgerState::activeMemberKeysAt(parentState, block.number);
+            long recoveryRun = consecutiveRecoveryBlocksInStore(blockDB, parent, recoveryPublicKey);
+            bool recoveryMode = false;
+            bool latestStateFallback = false;
+            std::string selectedCreator = CSelector::getAuthorizedCreatorForBlock(
+                block.number,
+                selectionState.latest_block.hash,
+                activeMemberKeys,
+                parent.hash,
+                latestActiveMemberKeys,
+                recoveryPublicKey,
+                recoveryRun,
+                &recoveryMode,
+                &latestStateFallback);
+            if (selectedCreator.length() == 0) {
+                reason = "no active members or recovery creator can create blocks";
                 return false;
             }
-            std::string selectedCreator = CSelector::getSelectedUserForBlock(block.number, selectionState.latest_block.hash, activeMemberKeys);
             if (selectedCreator.compare(block.creator_key) != 0) {
                 reason = "block creator is not selected for this slot";
                 return false;
@@ -727,12 +790,26 @@ bool CChainValidator::validateConnectedChain(const std::vector<CFunctions::block
                 reason = "selection checkpoint is missing";
                 return false;
             }
-            std::vector<std::string> activeMemberKeys = activeMemberKeysForBlock(selectionSnapshot->members, selectionSnapshot->chain_has_heartbeat_records, selectionBoundary);
-            if (activeMemberKeys.empty()) {
-                reason = "no active members can create blocks";
+            std::string recoveryPublicKey = configuredRecoveryPublicKey(config, chain.front().creator_key);
+            std::vector<std::string> activeMemberKeys = activeMemberKeysForBlock(selectionSnapshot->members, selectionSnapshot->chain_has_heartbeat_records, block.number);
+            std::vector<std::string> latestActiveMemberKeys = activeMemberKeysForBlock(members, chainHasHeartbeatRecords, block.number);
+            long recoveryRun = consecutiveRecoveryBlocksInBranch(chain, b - 1, recoveryPublicKey);
+            bool recoveryMode = false;
+            bool latestStateFallback = false;
+            std::string selectedCreator = CSelector::getAuthorizedCreatorForBlock(
+                block.number,
+                selectionSnapshot->block_hash,
+                activeMemberKeys,
+                parent.hash,
+                latestActiveMemberKeys,
+                recoveryPublicKey,
+                recoveryRun,
+                &recoveryMode,
+                &latestStateFallback);
+            if (selectedCreator.length() == 0) {
+                reason = "no active members or recovery creator can create blocks";
                 return false;
             }
-            std::string selectedCreator = CSelector::getSelectedUserForBlock(block.number, selectionSnapshot->block_hash, activeMemberKeys);
             if (selectedCreator.compare(block.creator_key) != 0) {
                 reason = "block creator is not selected for this slot";
                 return false;

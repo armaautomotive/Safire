@@ -516,6 +516,9 @@ bool queueAndBroadcastRecord(CFunctions& functions, CRelayClient& relayClient, C
         std::cout << " Record not sent: " << functions.recordSizeError(record) << "." << std::endl;
         return false;
     }
+    if(CFunctions::isExpiredHeartbeatRecord(record)){
+        return true;
+    }
     if(functions.addToQueue(record) == 0){
         std::cout << " Record not sent: unable to queue record." << std::endl;
         return false;
@@ -850,7 +853,7 @@ std::vector<CFunctions::record_structure> selectionMembersForSlot(CBlockDB& bloc
     long selectionBoundary = CSelector::getSelectionBoundaryBlock(timeBlock, blockDB.getFirstBlockId());
     CLedgerState::state selectionState = CLedgerState::build(blockDB, "", selectionBoundary);
     seedBlock = selectionState.latest_block;
-    std::vector<std::string> activeKeys = CLedgerState::activeMemberKeysAt(selectionState, selectionState.latest_block_id);
+    std::vector<std::string> activeKeys = CLedgerState::activeMemberKeysAt(selectionState, timeBlock);
     std::set<std::string> activeSet(activeKeys.begin(), activeKeys.end());
     for(int i = 0; i < selectionState.members.size(); i++){
         if(activeSet.find(selectionState.members.at(i).public_key) == activeSet.end()){

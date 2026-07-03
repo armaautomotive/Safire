@@ -37,6 +37,7 @@ bool hasPendingHeartbeat(CFunctions& functions, const std::string& publicKey)
     for(int i = 0; i < records.size(); i++){
         CFunctions::record_structure record = records.at(i);
         if(record.transaction_type == CFunctions::HEART_BEAT &&
+           CFunctions::isExpiredHeartbeatRecord(record) == false &&
            record.sender_public_key.compare(publicKey) == 0){
             return true;
         }
@@ -116,6 +117,44 @@ bool recordExistsInAcceptedChain(CBlockDB& blockDB, const std::string& recordHas
     return false;
 }
 
+std::string configuredRecoveryPublicKey(CBlockDB& blockDB)
+{
+    CNetworkConfig config = CNetworkConfig::load();
+    if(config.recoveryPublicKey.length() > 0){
+        return config.recoveryPublicKey;
+    }
+
+    long firstBlockId = blockDB.getFirstBlockId();
+    if(firstBlockId > 0){
+        CFunctions::block_structure firstBlock = blockDB.getBlock(firstBlockId);
+        return firstBlock.creator_key;
+    }
+    return "";
+}
+
+long consecutiveRecoveryBlocks(CBlockDB& blockDB, CFunctions::block_structure parent, const std::string& recoveryPublicKey)
+{
+    if(recoveryPublicKey.length() == 0){
+        return 0;
+    }
+
+    long count = 0;
+    while(parent.number > 0 &&
+          parent.creator_key.compare(recoveryPublicKey) == 0 &&
+          count < CSelector::getRecoveryWindowBlocks()){
+        count++;
+        if(parent.previous_block_hash.length() == 0){
+            break;
+        }
+        CFunctions::block_structure previous = blockDB.getBlockByHash(parent.previous_block_hash);
+        if(previous.number <= 0 || previous.number == parent.number){
+            break;
+        }
+        parent = previous;
+    }
+    return count;
+}
+
 void replacePendingQueueRecords(CFunctions& functions, const std::vector<CFunctions::record_structure>& records)
 {
     functions.parseQueueRecords();
@@ -133,6 +172,10 @@ void pruneAcceptedQueueRecords(CFunctions& functions, CBlockDB& blockDB)
 
     for(int i = 0; i < records.size(); i++){
         CFunctions::record_structure record = records.at(i);
+        if(CFunctions::isExpiredHeartbeatRecord(record)){
+            changed = true;
+            continue;
+        }
         if(record.hash.length() > 0){
             if(seenHashes.find(record.hash) != seenHashes.end()){
                 changed = true;
@@ -365,6 +408,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         config.network = networkName;
         config.genesisBlock = block.number;
         config.genesisHash = block.hash;
+        config.recoveryPublicKey = publicKey;
         config.strictGenesis = true;
         config.enableBlockCreation = true;
         config.hasBlockCreationSetting = true;
@@ -485,8 +529,23 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
         if(previous_block.number > 0 && previous_block.number < timeBlock){
             long selectionBoundary = CSelector::getSelectionBoundaryBlock(timeBlock, blockDB.getFirstBlockId());
             CLedgerState::state selectionState = CLedgerState::build(blockDB, "", selectionBoundary);
-            std::vector<std::string> activeMemberKeys = CLedgerState::activeMemberKeysAt(selectionState, selectionState.latest_block_id);
-            std::string selectedCreator = CSelector::getSelectedUserForBlock(timeBlock, selectionState.latest_block.hash, activeMemberKeys);
+            CLedgerState::state latestState = CLedgerState::build(blockDB, "", previous_block.number);
+            std::vector<std::string> activeMemberKeys = CLedgerState::activeMemberKeysAt(selectionState, timeBlock);
+            std::vector<std::string> latestActiveMemberKeys = CLedgerState::activeMemberKeysAt(latestState, timeBlock);
+            std::string recoveryPublicKey = configuredRecoveryPublicKey(blockDB);
+            long recoveryRun = consecutiveRecoveryBlocks(blockDB, previous_block, recoveryPublicKey);
+            bool recoveryMode = false;
+            bool latestStateFallback = false;
+            std::string selectedCreator = CSelector::getAuthorizedCreatorForBlock(
+                timeBlock,
+                selectionState.latest_block.hash,
+                activeMemberKeys,
+                previous_block.hash,
+                latestActiveMemberKeys,
+                recoveryPublicKey,
+                recoveryRun,
+                &recoveryMode,
+                &latestStateFallback);
             build_block = selectedCreator.compare(publicKey) == 0;
         }
         // Can't build block unless a member of the block.

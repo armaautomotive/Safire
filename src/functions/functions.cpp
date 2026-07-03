@@ -15,6 +15,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <cmath>
+#include <cerrno>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
@@ -178,7 +179,8 @@ long nextMempoolSequence(leveldb::DB* db)
 bool pendingRecordLooksUsable(CFunctions& functions, CFunctions::record_structure record)
 {
     return (record.sender_public_key.length() > 0 || record.recipient_public_key.length() > 0) &&
-        functions.isRecordSizeValid(record);
+        functions.isRecordSizeValid(record) &&
+        CFunctions::isExpiredHeartbeatRecord(record) == false;
 }
 
 bool recordExistsInAcceptedChain(CBlockDB& blockDB, const std::string& recordHash)
@@ -260,6 +262,8 @@ std::vector<CFunctions::record_structure> databaseMempoolRecords(CFunctions& fun
 
     CBlockDB blockDB;
     std::vector<std::string> keys = mempoolKeysWithPrefix(db, MEMPOOL_RECORD_PREFIX);
+    leveldb::WriteBatch cleanupBatch;
+    bool cleanupNeeded = false;
     for(int i = 0; i < keys.size(); ++i){
         std::string json;
         if(db->Get(leveldb::ReadOptions(), keys.at(i), &json).ok()){
@@ -267,8 +271,17 @@ std::vector<CFunctions::record_structure> databaseMempoolRecords(CFunctions& fun
             bool alreadyAccepted = record.hash.length() > 0 && recordExistsInAcceptedChain(blockDB, record.hash);
             if(pendingRecordLooksUsable(functions, record) && alreadyAccepted == false){
                 records.push_back(record);
+            } else {
+                cleanupBatch.Delete(keys.at(i));
+                if(record.hash.length() > 0){
+                    cleanupBatch.Delete(MEMPOOL_HASH_PREFIX + record.hash);
+                }
+                cleanupNeeded = true;
             }
         }
+    }
+    if(cleanupNeeded){
+        db->Write(leveldb::WriteOptions(), &cleanupBatch);
     }
     return records;
 }
@@ -308,6 +321,31 @@ std::vector<CFunctions::record_structure> dedupePendingRecords(const std::vector
     return records;
 }
 
+}
+
+bool CFunctions::isExpiredHeartbeatRecord(const record_structure& record, long currentBlock)
+{
+    if(record.transaction_type != CFunctions::HEART_BEAT){
+        return false;
+    }
+
+    if(record.time.length() == 0){
+        return true;
+    }
+
+    char* end = NULL;
+    errno = 0;
+    long heartbeatBlock = std::strtol(record.time.c_str(), &end, 10);
+    if(errno != 0 || end == record.time.c_str() || *end != '\0'){
+        return true;
+    }
+
+    if(currentBlock < 0){
+        CSelector selector;
+        currentBlock = selector.getCurrentTimeBlock();
+    }
+
+    return heartbeatBlock < (currentBlock - CFunctions::HEARTBEAT_VALID_BLOCKS);
 }
 
 /**
@@ -393,6 +431,9 @@ bool CFunctions::isRecordSizeValid(record_structure record){
 int CFunctions::addToQueue(record_structure record){
     if(isRecordSizeValid(record) == false){
         return 0;
+    }
+    if(isExpiredHeartbeatRecord(record)){
+        return 1;
     }
 
     CBlockDB blockDB;
