@@ -7,6 +7,7 @@
 #include <sstream>
 #include <sstream>
 #include <string>
+#include <cstdlib>
 #include <boost/filesystem.hpp>
 
 inline char CPlatform::separator()
@@ -25,19 +26,19 @@ inline char CPlatform::separator()
 * Description: 
 */
 std::string CPlatform::getSafirePath(){
-    std::string path;
     const char *homeDir = getenv("HOME");
-    //std::cout << " dir " << homeDir << "\n";
-    std::stringstream ss;
-    ss << homeDir << separator() << "safire";
-    path = ss.str();
-    const char* c_path = path.c_str();
-    boost::filesystem::path dir(c_path);
-    if(boost::filesystem::create_directory(dir))
+    boost::filesystem::path dir;
+    if(homeDir == NULL || std::string(homeDir).length() == 0){
+        dir = boost::filesystem::path(".");
+    }else{
+        dir = boost::filesystem::path(homeDir) / "safire";
+    }
+    boost::filesystem::create_directories(dir);
+    std::string path = dir.string();
+    if(boost::filesystem::exists(dir))
     {
-        std::cerr<< "Directory Created: "<< path <<std::endl;
+        std::cerr << "Safire path: " << path << std::endl;
     }
     return path;
 }
-
 

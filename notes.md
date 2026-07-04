@@ -1,5 +1,19 @@
 # Safire Notes
 
+## Project Goal
+
+Safire's main purpose is to build an elegant peer-to-peer payment system for real-world transactions: fast, reliable, and prestigious enough to feel trustworthy in serious use.
+
+The system should avoid mining if possible, and should deliberately address the common downsides and criticisms of digital currencies. The goal is not only to move value, but to make a currency network that feels practical, efficient, resilient, and worthy of everyday confidence.
+
+## Current Challenges / Blockers
+
+### Reliable Block Creator Selection Without Mining
+
+The current time-and-membership-hash approach is intended to avoid mining by selecting a block creator from known network members. The blocker is that network availability is not reliable or knowable in advance. A node can appear eligible, but there is no deterministic way to prove it will be online, reachable, synchronized, and ready to create the block when its slot arrives.
+
+Bitcoin mining avoids this particular problem because the miner proves work after doing it. The network does not need to predict which miner will be available ahead of time. Anyone can attempt the work, and everyone else can verify the resulting hash cheaply. Safire needs an alternative that preserves the no-mining goal while still giving the network a reliable, verifiable way to make progress.
+
 ## Blockchain Pruning And Carry Forward Records
 
 When Safire purges old blockchain data to save disk space, nodes should keep the genesis block and accepted `CARRY_FORWARD` records.

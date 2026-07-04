@@ -1053,6 +1053,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_loadedDataPaths(),
       m_backendPort(4899),
       m_accountRefreshTicks(0),
+      m_backendApiFailureCount(0),
+      m_backendLastRestartMs(0),
       m_backendStartBlocked(false),
       m_backendLockDetected(false),
       m_backendRestartPending(false),
@@ -3247,6 +3249,7 @@ bool MainWindow::ensureBackendRunning()
         args << "--enable-nat";
     }
     appendTerminalText(tr("\nStarting console backend: %1\n").arg(corePath));
+    m_backendLastRestartMs = QDateTime::currentMSecsSinceEpoch();
     m_terminalProcess->start(corePath, args);
 
     if (!m_terminalProcess->waitForStarted(2000)) {
@@ -3281,6 +3284,7 @@ bool MainWindow::ensureBackendRunning()
     if (m_terminalStopButton) {
         m_terminalStopButton->setEnabled(true);
     }
+    noteBackendApiSuccess();
     return true;
 }
 
@@ -3291,8 +3295,19 @@ bool MainWindow::backendApiReady(int timeoutMs) const
         QTcpSocket probe;
         probe.connectToHost("127.0.0.1", m_backendPort);
         if (probe.waitForConnected(120)) {
+            QByteArray request("GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+            probe.write(request);
+            if (probe.waitForBytesWritten(120) && probe.waitForReadyRead(600)) {
+                QByteArray response = probe.readAll();
+                while (probe.waitForReadyRead(80)) {
+                    response += probe.readAll();
+                }
+                probe.disconnectFromHost();
+                if (response.contains("\"status\":\"ok\"")) {
+                    return true;
+                }
+            }
             probe.disconnectFromHost();
-            return true;
         }
         if (m_terminalProcess && m_terminalProcess->state() == QProcess::NotRunning) {
             return false;
@@ -3300,6 +3315,75 @@ bool MainWindow::backendApiReady(int timeoutMs) const
         QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
     } while (QDateTime::currentMSecsSinceEpoch() < deadline);
     return false;
+}
+
+void MainWindow::noteBackendApiSuccess()
+{
+    m_backendApiFailureCount = 0;
+}
+
+void MainWindow::noteBackendApiFailure(const QString &reason)
+{
+    if (!m_terminalProcess || m_terminalProcess->state() == QProcess::NotRunning) {
+        return;
+    }
+    if (m_backendRestartPending || m_backendStartBlocked || m_backendLockDetected) {
+        return;
+    }
+
+    ++m_backendApiFailureCount;
+    appendTerminalText(tr("\nBackend API health check failed (%1/%2): %3\n")
+        .arg(m_backendApiFailureCount)
+        .arg(4)
+        .arg(reason));
+
+    if (m_backendApiFailureCount >= 4) {
+        scheduleBackendRestart(reason);
+    }
+}
+
+void MainWindow::scheduleBackendRestart(const QString &reason)
+{
+    if (!m_terminalProcess || m_terminalProcess->state() == QProcess::NotRunning) {
+        m_backendApiFailureCount = 0;
+        QTimer::singleShot(300, this, SLOT(startTerminal()));
+        return;
+    }
+    if (m_backendRestartPending) {
+        return;
+    }
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_backendLastRestartMs > 0 && now - m_backendLastRestartMs < 60000) {
+        appendTerminalText(tr("Backend auto-restart skipped: restart cooldown is active.\n"));
+        return;
+    }
+
+    m_backendRestartPending = true;
+    m_backendApiFailureCount = 0;
+    m_backendLastRestartMs = now;
+    appendTerminalText(tr("\nBackend API is not responding; restarting console backend. Reason: %1\n").arg(reason));
+    if (m_terminalStatusLabel) {
+        m_terminalStatusLabel->setText(tr("Restarting"));
+    }
+    if (m_networkLabel) {
+        m_networkLabel->setText(tr("Backend: auto-restarting"));
+    }
+    if (m_syncLabel) {
+        m_syncLabel->setText(tr("Sync: restarting backend"));
+    }
+
+    m_terminalProcess->write("quit\n");
+    QTimer::singleShot(1500, this, [this]() {
+        if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
+            m_terminalProcess->terminate();
+        }
+    });
+    QTimer::singleShot(3500, this, [this]() {
+        if (m_terminalProcess && m_terminalProcess->state() != QProcess::NotRunning) {
+            m_terminalProcess->kill();
+        }
+    });
 }
 
 void MainWindow::saveOptions()
@@ -5374,6 +5458,7 @@ void MainWindow::readTerminalOutput()
 void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     Q_UNUSED(exitStatus);
+    m_backendApiFailureCount = 0;
     if (m_terminalProcess) {
         QByteArray bytes = m_terminalProcess->readAllStandardOutput();
         appendTerminalText(QString::fromLocal8Bit(bytes));
@@ -5531,6 +5616,7 @@ void MainWindow::requestJson(const QString &path)
         setLoadingState(path, false);
         if (path == "/api/wallet/status" && m_syncLabel) {
             m_syncLabel->setText(tr("Sync: request timed out"));
+            noteBackendApiFailure(tr("wallet status request timed out"));
         }
         if (guardedReply->isRunning()) {
             guardedReply->abort();
@@ -5551,6 +5637,7 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
     if (!query.isEmpty()) {
         path += "?" + query;
     }
+    bool requestWasPending = m_pendingRequests.contains(path);
     m_pendingRequests.removeAll(path);
     setLoadingState(path, false);
     if (reply->error() != QNetworkReply::NoError) {
@@ -5595,8 +5682,15 @@ void MainWindow::handleWalletStatusReply(QNetworkReply *reply)
         if (m_syncProgressBar) {
             m_syncProgressBar->setRange(0, 0);
         }
+        if (routePath == "/api/wallet/status" && requestWasPending) {
+            noteBackendApiFailure(reply->errorString());
+        }
         reply->deleteLater();
         return;
+    }
+
+    if (routePath == "/api/wallet/status") {
+        noteBackendApiSuccess();
     }
 
     if (isPageDataPath(path) && !m_loadedDataPaths.contains(path)) {

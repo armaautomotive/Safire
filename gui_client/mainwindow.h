@@ -175,6 +175,9 @@ private:
     bool saveBlockCreatorMode(bool enabled) const;
     bool backendApiReady(int timeoutMs = 120) const;
     bool ensureBackendRunning();
+    void noteBackendApiSuccess();
+    void noteBackendApiFailure(const QString &reason);
+    void scheduleBackendRestart(const QString &reason);
 
     QStackedWidget *m_rootStack;
     QStackedWidget *m_contentStack;
@@ -185,6 +188,8 @@ private:
     QStringList m_loadedDataPaths;
     int m_backendPort;
     int m_accountRefreshTicks;
+    int m_backendApiFailureCount;
+    qint64 m_backendLastRestartMs;
     bool m_backendStartBlocked;
     bool m_backendLockDetected;
     bool m_backendRestartPending;

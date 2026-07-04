@@ -80,11 +80,14 @@ Build, start, stop, and restart the server from SSH with the helper scripts:
 <br>
 <code>scripts/build.sh linux</code><br>
 <code>scripts/server-start.sh</code> starts <code>./bin/Safire --node-port 4888</code> with <code>nohup</code> in the background.<br>
-<code>scripts/server-status.sh</code> prints the PID, uptime, and log path.<br>
+<code>scripts/server-status.sh</code> prints the PID, uptime, log path, and API health status.<br>
+<code>scripts/server-health.sh</code> checks <code>/api/status</code> and fails if the node is not answering with <code>{"status":"ok"}</code>.<br>
+<code>scripts/server-watchdog.sh</code> restarts the node after repeated failed health checks. Configure with <code>SAFIRE_WATCHDOG_FAILURE_THRESHOLD</code> and <code>SAFIRE_HEALTH_TIMEOUT</code> if needed.<br>
 <code>scripts/server-stop.sh</code> stops the background server.<br>
 <code>scripts/server-restart.sh</code> stops the server, rebuilds Linux, and starts it again.<br>
 Logs are written to <code>logs/safire-server.log</code> and the PID is written to <code>run/safire-server.pid</code>.<br>
 Pass custom runtime arguments to start or restart if needed, for example <code>scripts/server-start.sh --node-port 4888 --enable-nat</code>.<br>
+For production-like test nodes, install the systemd service and one-minute API watchdog with <code>scripts/install-systemd-service.sh</code>. The service restarts the node after crashes or server reboots, and the watchdog restarts it if the API stops answering.<br>
 
 <b>Distribution packaging:</b><br>
 Build local release artifacts with the packaging helpers:

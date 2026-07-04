@@ -66,6 +66,9 @@ cp "$PROJECT_ROOT/scripts/server-start.sh" "$WORK_DIR/$PACKAGE_NAME/scripts/serv
 cp "$PROJECT_ROOT/scripts/server-stop.sh" "$WORK_DIR/$PACKAGE_NAME/scripts/server-stop.sh"
 cp "$PROJECT_ROOT/scripts/server-status.sh" "$WORK_DIR/$PACKAGE_NAME/scripts/server-status.sh"
 cp "$PROJECT_ROOT/scripts/server-restart.sh" "$WORK_DIR/$PACKAGE_NAME/scripts/server-restart.sh"
+cp "$PROJECT_ROOT/scripts/server-health.sh" "$WORK_DIR/$PACKAGE_NAME/scripts/server-health.sh"
+cp "$PROJECT_ROOT/scripts/server-watchdog.sh" "$WORK_DIR/$PACKAGE_NAME/scripts/server-watchdog.sh"
+cp "$PROJECT_ROOT/scripts/install-systemd-service.sh" "$WORK_DIR/$PACKAGE_NAME/scripts/install-systemd-service.sh"
 chmod +x "$WORK_DIR/$PACKAGE_NAME/scripts/"*.sh
 
 TARBALL="$DIST_DIR/${PACKAGE_NAME}.tar.gz"
