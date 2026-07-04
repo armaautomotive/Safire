@@ -281,9 +281,21 @@ std::string forkVariantCountKey(){
     return "fork_variant_count";
 }
 
-long scanForkVariantCount(leveldb::DB* db){
+std::string forkVariantLatestBlockKey(){
+    return "fork_variant_latest_block";
+}
+
+struct ForkVariantStats {
+    long count;
+    long latest_block;
+};
+
+ForkVariantStats scanForkVariantStats(leveldb::DB* db){
+    ForkVariantStats stats;
+    stats.count = 0;
+    stats.latest_block = -1;
     if(!db){
-        return 0;
+        return stats;
     }
 
     std::map<long, long> variantsByBlock;
@@ -301,13 +313,20 @@ long scanForkVariantCount(leveldb::DB* db){
     }
     delete it;
 
-    long forkVariants = 0;
     for(std::map<long, long>::iterator it = variantsByBlock.begin(); it != variantsByBlock.end(); ++it){
         if(it->second > 1){
-            forkVariants += it->second - 1;
+            stats.count += it->second - 1;
+            if(it->first > stats.latest_block){
+                stats.latest_block = it->first;
+            }
         }
     }
-    return forkVariants;
+    return stats;
+}
+
+long scanForkVariantCount(leveldb::DB* db){
+    ForkVariantStats stats = scanForkVariantStats(db);
+    return stats.count;
 }
 
 bool hasForkVariantAtOrAfter(leveldb::DB* db, long minimumBlock){
@@ -455,9 +474,13 @@ bool tryValidatedCheckpointFastPath(CBlockDB& blockDB, leveldb::DB* db, long& la
     long forkCount = 0;
     if(readKey(db, forkVariantCountKey(), forkCountValue) &&
        parseLongValue(forkCountValue, forkCount) &&
-       forkCount > 0 &&
-       hasForkVariantAtOrAfter(db, checkpointBlock)){
-        return false;
+       forkCount > 0){
+        long latestForkVariantBlock = -1;
+        bool latestForkKnown = readLongKey(db, forkVariantLatestBlockKey(), latestForkVariantBlock);
+        if((latestForkKnown == false || latestForkVariantBlock >= checkpointBlock) &&
+           hasForkVariantAtOrAfter(db, checkpointBlock)){
+            return false;
+        }
     }
 
     long steps = 0;
@@ -723,6 +746,11 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
             forkCount = scanForkVariantCount(db);
         }
         db->Put(writeOptions, forkVariantCountKey(), boost::lexical_cast<std::string>(forkCount));
+        long latestForkVariantBlock = -1;
+        readLongKey(db, forkVariantLatestBlockKey(), latestForkVariantBlock);
+        if(block.number > latestForkVariantBlock){
+            db->Put(writeOptions, forkVariantLatestBlockKey(), boost::lexical_cast<std::string>(block.number));
+        }
     }
     if(sameSlotVariant && shouldWriteCanonical == false){
         return true;
@@ -1241,9 +1269,13 @@ long CBlockDB::getForkVariantCount(){
         return 0;
     }
 
-    long forkVariants = scanForkVariantCount(db);
-    db->Put(leveldb::WriteOptions(), forkVariantCountKey(), boost::lexical_cast<std::string>(forkVariants));
-    return forkVariants;
+    ForkVariantStats stats = scanForkVariantStats(db);
+    leveldb::WriteOptions writeOptions;
+    db->Put(writeOptions, forkVariantCountKey(), boost::lexical_cast<std::string>(stats.count));
+    if(stats.latest_block > 0){
+        db->Put(writeOptions, forkVariantLatestBlockKey(), boost::lexical_cast<std::string>(stats.latest_block));
+    }
+    return stats.count;
 }
 
 std::vector<CBlockDB::fork_variant> CBlockDB::getForkVariants(int limit){
