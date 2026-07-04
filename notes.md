@@ -207,6 +207,16 @@ Carry-forward records can now be created on a monthly period by every profile. S
 
 Physical pruning should not delete old raw blocks until the client can rebuild balances and validation state from genesis plus accepted carry-forward/checkpoint records. The safe pruning milestone is a state-checkpoint reader that proves the post-prune state root matches the unpruned chain before deleting older records.
 
+## Rolling Validation Checkpoints
+
+A years-old chain should not require every recovery path to scan and validate from genesis. Nodes should maintain a buried validated checkpoint, then treat recovery as:
+
+- prove the checkpoint block/hash still matches the canonical local index
+- validate block envelopes and parent links from the checkpoint to the tip
+- fall back to a full rebuild from genesis if the checkpoint is missing, stale, forked, or inconsistent
+
+This does not replace consensus validation for new blocks. It is a performance anchor for finalized local history, so common auto-recovery scales with recent history instead of total chain age. Later production work should add signed/state-root checkpoints so pruned nodes can prove balances, membership, and accepted records without retaining every historical block.
+
 ## Local Simulation Harness
 
 A local simulation harness can run many Safire processes in isolated directories under `sim/<name>/`. Each virtual node has its own wallet, queue, peer cache, config, and block database while sharing the same compiled binary.

@@ -16,6 +16,7 @@
 #include "leveldb/db.h"
 #include "platform.h"
 #include "log.h";
+#include "ecdsacrypto.h"
 #include "networkconfig.h"
 #include "functions/chainvalidator.h"
 #include <boost/lexical_cast.hpp>
@@ -32,6 +33,8 @@ namespace {
 std::mutex g_bestChainRebuildMutex;
 const std::size_t MAX_REBUILD_CHAIN_CANDIDATES = 256;
 const std::size_t MAX_REBUILD_CHAIN_DEPTH = 20000;
+const long VALIDATED_CHECKPOINT_DEPTH = 2000;
+const long CHECKPOINT_FAST_VALIDATE_LIMIT = 20000;
 
 std::string blockHashKey(const std::string& hash);
 std::string canonicalHashKey(long number);
@@ -305,6 +308,185 @@ long scanForkVariantCount(leveldb::DB* db){
         }
     }
     return forkVariants;
+}
+
+bool hasForkVariantAtOrAfter(leveldb::DB* db, long minimumBlock){
+    if(!db || minimumBlock <= 0){
+        return false;
+    }
+
+    std::map<long, long> variantsByBlock;
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for(it->SeekToFirst(); it->Valid(); it->Next()){
+        std::string key = it->key().ToString();
+        if(boost::algorithm::starts_with(key, "slot:") == false){
+            continue;
+        }
+
+        std::size_t firstColon = key.find(":");
+        std::size_t secondColon = key.find(":", firstColon + 1);
+        if(firstColon == std::string::npos || secondColon == std::string::npos){
+            continue;
+        }
+
+        long blockNumber = -1;
+        std::string blockNumberText = key.substr(firstColon + 1, secondColon - firstColon - 1);
+        if(parseLongValue(blockNumberText, blockNumber) == false || blockNumber < minimumBlock){
+            continue;
+        }
+
+        variantsByBlock[blockNumber]++;
+        if(variantsByBlock[blockNumber] > 1){
+            delete it;
+            return true;
+        }
+    }
+    delete it;
+    return false;
+}
+
+bool blockEnvelopeIsValid(const CFunctions::block_structure& block){
+    if(block.number <= 0 || block.hash.length() == 0 || block.creator_key.length() == 0){
+        return false;
+    }
+    if(block.records.size() > CFunctions::MAX_BLOCK_RECORDS){
+        return false;
+    }
+
+    CFunctions functions;
+    if(block.records_merkle_root.length() > 0 &&
+       functions.getRecordsMerkleRoot(block.records).compare(block.records_merkle_root) != 0){
+        return false;
+    }
+    if(functions.getBlockHash(block).compare(block.hash) != 0){
+        return false;
+    }
+
+    CECDSACrypto ecdsa;
+    return block.signature.length() > 0 &&
+        ecdsa.VerifyMessageCompressed(block.hash, block.signature, block.creator_key) == 1;
+}
+
+bool readValidatedCheckpoint(leveldb::DB* db, long& checkpointBlock, std::string& checkpointHash){
+    checkpointBlock = -1;
+    checkpointHash = "";
+    if(readLongKey(db, chainMetaKey("validated_checkpoint_block"), checkpointBlock) == false){
+        return false;
+    }
+    if(readKey(db, chainMetaKey("validated_checkpoint_hash"), checkpointHash) == false){
+        return false;
+    }
+    return checkpointBlock > 0 && checkpointHash.length() > 0;
+}
+
+bool checkpointMatchesCanonical(leveldb::DB* db, long checkpointBlock, const std::string& checkpointHash, CFunctions::block_structure& checkpoint){
+    checkpoint.number = -1;
+    if(checkpointBlock <= 0 || checkpointHash.length() == 0){
+        return false;
+    }
+    std::string canonicalHash = rawCanonicalHash(db, checkpointBlock);
+    if(canonicalHash.compare(checkpointHash) != 0){
+        return false;
+    }
+    checkpoint = rawBlockByHash(db, checkpointHash);
+    return checkpoint.number == checkpointBlock &&
+        checkpoint.hash.compare(checkpointHash) == 0 &&
+        blockEnvelopeIsValid(checkpoint);
+}
+
+void maybeAdvanceValidatedCheckpoint(leveldb::DB* db, const CFunctions::block_structure& tip){
+    if(!db || tip.number <= 0 || tip.hash.length() == 0 || blockEnvelopeIsValid(tip) == false){
+        return;
+    }
+
+    long currentCheckpointBlock = -1;
+    std::string currentCheckpointHash;
+    bool hasCheckpoint = readValidatedCheckpoint(db, currentCheckpointBlock, currentCheckpointHash);
+    if(hasCheckpoint && tip.number - currentCheckpointBlock < VALIDATED_CHECKPOINT_DEPTH * 2){
+        return;
+    }
+
+    CFunctions::block_structure checkpoint = tip;
+    long walked = 0;
+    while(walked < VALIDATED_CHECKPOINT_DEPTH && checkpoint.previous_block_hash.length() > 0){
+        CFunctions::block_structure previous = rawBlockByHash(db, checkpoint.previous_block_hash);
+        if(childConnectsToParent(checkpoint, previous) == false || blockEnvelopeIsValid(previous) == false){
+            break;
+        }
+        checkpoint = previous;
+        walked++;
+    }
+
+    if(checkpoint.number <= 0 || checkpoint.hash.length() == 0){
+        return;
+    }
+    if(hasCheckpoint && checkpoint.number <= currentCheckpointBlock){
+        return;
+    }
+
+    leveldb::WriteOptions writeOptions;
+    db->Put(writeOptions, chainMetaKey("validated_checkpoint_block"), boost::lexical_cast<std::string>(checkpoint.number));
+    db->Put(writeOptions, chainMetaKey("validated_checkpoint_hash"), checkpoint.hash);
+}
+
+bool tryValidatedCheckpointFastPath(CBlockDB& blockDB, leveldb::DB* db, long& latestBestBlockId){
+    latestBestBlockId = -1;
+    if(!db){
+        return false;
+    }
+
+    long latestBlockId = blockDB.getLatestBlockId();
+    if(latestBlockId <= 0){
+        return false;
+    }
+
+    long checkpointBlock = -1;
+    std::string checkpointHash;
+    if(readValidatedCheckpoint(db, checkpointBlock, checkpointHash) == false || latestBlockId < checkpointBlock){
+        return false;
+    }
+
+    CFunctions::block_structure current;
+    if(checkpointMatchesCanonical(db, checkpointBlock, checkpointHash, current) == false){
+        return false;
+    }
+
+    std::string forkCountValue;
+    long forkCount = 0;
+    if(readKey(db, forkVariantCountKey(), forkCountValue) &&
+       parseLongValue(forkCountValue, forkCount) &&
+       forkCount > 0 &&
+       hasForkVariantAtOrAfter(db, checkpointBlock)){
+        return false;
+    }
+
+    long steps = 0;
+    while(current.number < latestBlockId && steps < CHECKPOINT_FAST_VALIDATE_LIMIT){
+        std::string nextHash;
+        if(readKey(db, nextHashKey(current.hash), nextHash) == false){
+            return false;
+        }
+        CFunctions::block_structure next = rawBlockByHash(db, nextHash);
+        if(childConnectsToParent(next, current) == false || blockEnvelopeIsValid(next) == false){
+            return false;
+        }
+        current = next;
+        steps++;
+    }
+
+    if(current.number != latestBlockId || steps >= CHECKPOINT_FAST_VALIDATE_LIMIT){
+        return false;
+    }
+
+    CFunctions::block_structure canonicalTip = blockDB.getBlock(latestBlockId);
+    if(canonicalTip.number != latestBlockId || canonicalTip.hash.compare(current.hash) != 0){
+        return false;
+    }
+
+    db->Put(leveldb::WriteOptions(), chainMetaKey("connected_latest"), boost::lexical_cast<std::string>(current.number));
+    maybeAdvanceValidatedCheckpoint(db, current);
+    latestBestBlockId = current.number;
+    return true;
 }
 
 }
@@ -593,6 +775,7 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
            latestBlock.hash.length() > 0 &&
            latestBlock.hash.compare(block.previous_block_hash) == 0){
             setLatestBlockId(block.number);
+            maybeAdvanceValidatedCheckpoint(db, block);
         }
     }
 
@@ -829,6 +1012,11 @@ long CBlockDB::rebuildBestChainIndex(){
         previousTip = getBlock(previousTipId);
     }
 
+    long checkpointFastTip = -1;
+    if(tryValidatedCheckpointFastPath(*this, db, checkpointFastTip)){
+        return checkpointFastTip;
+    }
+
     std::vector<CFunctions::block_structure> blocks = getStoredBlocks();
     if(blocks.size() == 0){
         return -1;
@@ -1026,6 +1214,7 @@ long CBlockDB::rebuildBestChainIndex(){
 
     setLatestBlockId(latestBestBlockId);
     db->Put(writeOptions, chainMetaKey("connected_latest"), boost::lexical_cast<std::string>(latestBestBlockId));
+    maybeAdvanceValidatedCheckpoint(db, newTip);
     if(previousTip.number > 0 &&
        previousTip.hash.length() > 0 &&
        newTip.number > 0 &&
