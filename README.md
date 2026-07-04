@@ -92,12 +92,13 @@ For production-like test nodes, install the systemd service and one-minute API w
 <b>Distribution packaging:</b><br>
 Build local release artifacts with the packaging helpers:
 <br>
-<code>scripts/package-mac.sh</code> builds the core, builds the Qt wallet, embeds <code>bin/Safire</code> and <code>safire.conf</code> inside <code>Safire.app</code>, runs <code>macdeployqt</code> when available, then creates <code>dist/mac/Safire-mac-&lt;version&gt;.zip</code> and <code>dist/mac/Safire-mac-&lt;version&gt;.dmg</code>.<br>
+<code>scripts/package-mac.sh</code> builds the arm64 core by default, builds the arm64 Qt wallet, embeds <code>bin/Safire</code> and <code>safire.conf</code> inside <code>Safire.app</code>, runs <code>macdeployqt</code> when available, then creates <code>dist/mac/Safire-mac-arm64-&lt;version&gt;.zip</code>, <code>dist/mac/Safire-mac-arm64-&lt;version&gt;.dmg</code>, and latest aliases.<br>
 <code>scripts/package-linux.sh</code> builds a Linux/server tarball under <code>dist/linux</code> with the core binary, config, README, license, and server helper scripts.<br>
 For Developer ID signing and notarization on macOS, use:
 <br>
 <code>APPLE_SIGN_IDENTITY="Developer ID Application: Subject Reality Software (XSDMH4B293)" APPLE_NOTARY_PROFILE="safire-notary" scripts/package-mac.sh --sign --notarize</code><br>
 To upload artifacts after packaging, pass <code>--upload-target root@example.com:/var/www/download</code> or set <code>SAFIRE_UPLOAD_TARGET</code>.<br>
+To build the arm64 Mac release and upload it to the live Safire server, use <code>scripts/package-mac.sh --deploy-safire-org</code>. Override the destination with <code>SAFIRE_ORG_UPLOAD_TARGET</code> if the web root changes.<br>
 
 <b>Website and test node deployment:</b><br>
 The static website lives in <code>web/</code>. Deploy it to a web root with:

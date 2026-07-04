@@ -16,6 +16,7 @@ SIGN=0
 NOTARIZE=0
 SKIP_BUILD=0
 UPLOAD_TARGET="${SAFIRE_UPLOAD_TARGET:-}"
+SAFIRE_ORG_UPLOAD_TARGET="${SAFIRE_ORG_UPLOAD_TARGET:-root@safire.org:/var/www/html/}"
 APPLE_SIGN_IDENTITY="${APPLE_SIGN_IDENTITY:-Developer ID Application: Subject Reality Software (XSDMH4B293)}"
 APPLE_NOTARY_PROFILE="${APPLE_NOTARY_PROFILE:-ads-notary}"
 
@@ -30,6 +31,7 @@ Options:
   --sign                    Codesign the app using APPLE_SIGN_IDENTITY
   --notarize                Submit the dmg using APPLE_NOTARY_PROFILE
   --upload-target TARGET    Upload zip and dmg with scp, e.g. root@host:/var/www/download
+  --deploy-safire-org       Build arm64 and upload zip/dmg to safire.org
   --version VERSION         Override package version
   --arch ARCH               Build architecture: arm64 or x86_64. Default: arm64
   -h, --help                Show this help
@@ -40,6 +42,7 @@ Environment:
   SAFIRE_BUNDLE_ID          bundle identifier, default org.safire.wallet
   SAFIRE_CONF               safire.conf to bundle
   SAFIRE_UPLOAD_TARGET      scp upload target
+  SAFIRE_ORG_UPLOAD_TARGET  safire.org scp target, default root@safire.org:/var/www/html/
   SAFIRE_PACKAGE_VERSION    package version label
   SAFIRE_MAC_ARCH           Build architecture, default arm64
 USAGE
@@ -51,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --sign) SIGN=1; shift ;;
     --notarize) NOTARIZE=1; SIGN=1; shift ;;
     --upload-target) UPLOAD_TARGET="$2"; shift 2 ;;
+    --deploy-safire-org) MAC_ARCH="arm64"; UPLOAD_TARGET="$SAFIRE_ORG_UPLOAD_TARGET"; shift ;;
     --version) PACKAGE_VERSION="$2"; shift 2 ;;
     --arch) MAC_ARCH="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
