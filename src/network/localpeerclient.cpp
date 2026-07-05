@@ -858,6 +858,23 @@ bool pullPeerForkRepairWindow(const std::string& peer,
         return false;
     }
 
+    CBlockDB blockDB;
+    CFunctions::block_structure localTip = blockDB.getBlock(localLatestBlockId);
+    if (localTip.number > 0 &&
+        localTip.previous_block_id >= firstBlockId &&
+        localTip.previous_block_id < localTip.number) {
+        long beforeParentRepair = blockDB.getLatestBlockId();
+        bool parentPulled = pullPeerCanonicalChainFromBlock(peer,
+                                                            localTip.previous_block_id,
+                                                            peerLatestBlockId,
+                                                            maxBlocksPerSync,
+                                                            changed);
+        long afterParentRepair = blockDB.getLatestBlockId();
+        if (parentPulled && afterParentRepair > beforeParentRepair) {
+            return true;
+        }
+    }
+
     const long forkRepairLookbackSlots = 3000;
     long startBlockId = localLatestBlockId - forkRepairLookbackSlots;
     if (startBlockId < firstBlockId) {

@@ -77,6 +77,13 @@ bool readLongKey(leveldb::DB* db, const std::string& key, long& value){
     return parseLongValue(text, value);
 }
 
+void writeLongKey(leveldb::DB* db, const std::string& key, long value){
+    if(!db){
+        return;
+    }
+    db->Put(leveldb::WriteOptions(), key, boost::lexical_cast<std::string>(value));
+}
+
 CFunctions::block_structure parseSingleBlockJson(const std::string& json){
     CFunctions::block_structure block;
     block.number = -1;
@@ -364,6 +371,61 @@ bool hasForkVariantAtOrAfter(leveldb::DB* db, long minimumBlock){
     return false;
 }
 
+long scanHighestStoredBlock(leveldb::DB* db){
+    long highest = -1;
+    if(!db){
+        return highest;
+    }
+
+    CFunctions functions;
+    std::set<std::string> seenHashes;
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    for(it->SeekToFirst(); it->Valid(); it->Next()){
+        std::string key = it->key().ToString();
+        if(boost::algorithm::starts_with(key, "block:") == false &&
+           boost::algorithm::starts_with(key, "b_") == false &&
+           boost::algorithm::starts_with(key, "bf_") == false){
+            continue;
+        }
+
+        std::vector<CFunctions::block_structure> parsedBlocks = functions.parseBlockJson(it->value().ToString());
+        for(int i = 0; i < parsedBlocks.size(); i++){
+            CFunctions::block_structure block = parsedBlocks.at(i);
+            if(block.number > 0 &&
+               block.hash.length() > 0 &&
+               seenHashes.find(block.hash) == seenHashes.end()){
+                seenHashes.insert(block.hash);
+                highest = std::max(highest, block.number);
+            }
+        }
+    }
+    delete it;
+    return highest;
+}
+
+long highestStoredBlock(leveldb::DB* db){
+    long highest = -1;
+    if(readLongKey(db, chainMetaKey("stored_highest_block"), highest)){
+        return highest;
+    }
+
+    highest = scanHighestStoredBlock(db);
+    if(highest > 0){
+        writeLongKey(db, chainMetaKey("stored_highest_block"), highest);
+    }
+    return highest;
+}
+
+void maybeUpdateHighestStoredBlock(leveldb::DB* db, long blockNumber){
+    if(!db || blockNumber <= 0){
+        return;
+    }
+    long highest = -1;
+    if(readLongKey(db, chainMetaKey("stored_highest_block"), highest) == false || blockNumber > highest){
+        writeLongKey(db, chainMetaKey("stored_highest_block"), blockNumber);
+    }
+}
+
 bool blockEnvelopeIsValid(const CFunctions::block_structure& block){
     if(block.number <= 0 || block.hash.length() == 0 || block.creator_key.length() == 0){
         return false;
@@ -462,6 +524,10 @@ bool tryValidatedCheckpointFastPath(CBlockDB& blockDB, leveldb::DB* db, long& la
     long checkpointBlock = -1;
     std::string checkpointHash;
     if(readValidatedCheckpoint(db, checkpointBlock, checkpointHash) == false || latestBlockId < checkpointBlock){
+        return false;
+    }
+
+    if(highestStoredBlock(db) > latestBlockId){
         return false;
     }
 
@@ -723,6 +789,7 @@ bool CBlockDB::AddBlock(CFunctions::block_structure block){
 
     db->Put(writeOptions, hashKey, valueStream.str());
     db->Put(writeOptions, forkBlockKey(block), block.hash);
+    maybeUpdateHighestStoredBlock(db, block.number);
 
     CFunctions::block_structure canonicalBlock = getBlock(block.number);
     bool shouldWriteCanonical = canonicalBlock.number <= 0 || preferBlockVariant(block, canonicalBlock);
