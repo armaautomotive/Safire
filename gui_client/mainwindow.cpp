@@ -1054,10 +1054,12 @@ MainWindow::MainWindow(QWidget *parent)
       m_backendPort(4899),
       m_accountRefreshTicks(0),
       m_backendApiFailureCount(0),
+      m_backendUnexpectedExitCount(0),
       m_backendLastRestartMs(0),
       m_backendStartBlocked(false),
       m_backendLockDetected(false),
       m_backendRestartPending(false),
+      m_backendStopRequested(false),
       m_loadingAccounts(false),
       m_transactionFee(0.0),
       m_publicKey(QString()),
@@ -3249,6 +3251,7 @@ bool MainWindow::ensureBackendRunning()
         args << "--enable-nat";
     }
     appendTerminalText(tr("\nStarting console backend: %1\n").arg(corePath));
+    m_backendStopRequested = false;
     m_backendLastRestartMs = QDateTime::currentMSecsSinceEpoch();
     m_terminalProcess->start(corePath, args);
 
@@ -3320,6 +3323,7 @@ bool MainWindow::backendApiReady(int timeoutMs) const
 void MainWindow::noteBackendApiSuccess()
 {
     m_backendApiFailureCount = 0;
+    m_backendUnexpectedExitCount = 0;
 }
 
 void MainWindow::noteBackendApiFailure(const QString &reason)
@@ -5389,6 +5393,7 @@ void MainWindow::stopTerminal()
     }
 
     appendTerminalText(tr("\nStopping console backend...\n"));
+    m_backendStopRequested = true;
     m_terminalProcess->write("quit\n");
     if (!m_terminalProcess->waitForFinished(2500)) {
         m_terminalProcess->terminate();
@@ -5459,6 +5464,8 @@ void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     Q_UNUSED(exitStatus);
     m_backendApiFailureCount = 0;
+    bool stopRequested = m_backendStopRequested;
+    m_backendStopRequested = false;
     if (m_terminalProcess) {
         QByteArray bytes = m_terminalProcess->readAllStandardOutput();
         appendTerminalText(QString::fromLocal8Bit(bytes));
@@ -5486,6 +5493,35 @@ void MainWindow::terminalFinished(int exitCode, QProcess::ExitStatus exitStatus)
         QTimer::singleShot(300, this, SLOT(startTerminal()));
         QTimer::singleShot(1000, this, SLOT(refreshWalletStatus()));
         return;
+    }
+    if (!stopRequested && !m_backendLockDetected) {
+        ++m_backendUnexpectedExitCount;
+        if (m_backendUnexpectedExitCount > 8) {
+            m_backendStartBlocked = true;
+            appendTerminalText(tr("Backend auto-restart paused after repeated exits.\n"));
+        } else {
+            int delayMs = qMin(10000, 1000 * m_backendUnexpectedExitCount);
+            appendTerminalText(tr("Backend exited unexpectedly; restarting in %1 seconds.\n")
+                .arg(delayMs / 1000));
+            if (m_terminalStatusLabel) {
+                m_terminalStatusLabel->setText(tr("Restarting"));
+            }
+            if (m_networkLabel) {
+                m_networkLabel->setText(tr("Backend: restarting"));
+            }
+            if (m_syncLabel) {
+                m_syncLabel->setText(tr("Sync: restarting backend"));
+            }
+            if (m_terminalStartButton) {
+                m_terminalStartButton->setEnabled(false);
+            }
+            if (m_terminalStopButton) {
+                m_terminalStopButton->setEnabled(false);
+            }
+            QTimer::singleShot(delayMs, this, SLOT(startTerminal()));
+            QTimer::singleShot(delayMs + 1000, this, SLOT(refreshWalletStatus()));
+            return;
+        }
     }
     if (exitCode != 0) {
         m_backendStartBlocked = true;
@@ -5531,6 +5567,9 @@ void MainWindow::terminalError(QProcess::ProcessError error)
     }
     if (m_terminalStopButton) {
         m_terminalStopButton->setEnabled(false);
+    }
+    if (!m_backendStopRequested && !m_backendStartBlocked && !m_backendLockDetected) {
+        QTimer::singleShot(1500, this, SLOT(startTerminal()));
     }
 }
 

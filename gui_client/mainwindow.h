@@ -189,10 +189,12 @@ private:
     int m_backendPort;
     int m_accountRefreshTicks;
     int m_backendApiFailureCount;
+    int m_backendUnexpectedExitCount;
     qint64 m_backendLastRestartMs;
     bool m_backendStartBlocked;
     bool m_backendLockDetected;
     bool m_backendRestartPending;
+    bool m_backendStopRequested;
     bool m_loadingAccounts;
     double m_transactionFee;
     QString m_publicKey;
