@@ -504,10 +504,25 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     long lastLocalBuiltBlockId = -1;
     long lastPendingRecordRebroadcastEpoch = 0;
     long lastPeerSyncRequestEpoch = 0;
+    long lastEvaluatedTimeBlock = -1;
+    long lastEvaluatedLatestBlockId = -1;
+    std::string lastEvaluatedLatestBlockHash = "";
     
     int blockNumber = functions.latest_block.number + 1;
     //long timeBlock = 0;
     while(isBuildingBlocks){
+        timeBlock = selector.getCurrentTimeBlock();
+        previous_block = blockDB.getBlock(blockDB.getLatestBlockId());
+        if(timeBlock == lastEvaluatedTimeBlock &&
+           previous_block.number == lastEvaluatedLatestBlockId &&
+           previous_block.hash.compare(lastEvaluatedLatestBlockHash) == 0){
+            usleep(1000000);
+            continue;
+        }
+        lastEvaluatedTimeBlock = timeBlock;
+        lastEvaluatedLatestBlockId = previous_block.number;
+        lastEvaluatedLatestBlockHash = previous_block.hash;
+
         wallet.readCreatorAccount(privateKey, publicKey);
         //functions.parseBlockFile(publicKey, false); // depricate
         applyLedgerStateToFunctions(functions, CLedgerState::build(blockDB, publicKey));
@@ -520,10 +535,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
             lastPendingRecordRebroadcastEpoch = rebroadcastEpoch;
         }
         
-        timeBlock = selector.getCurrentTimeBlock();
         //std::cout << "here " << std::endl;
-        
-        previous_block = blockDB.getBlock(blockDB.getLatestBlockId());
 
         // Is it the current user's turn to generate a block from the known canonical parent?
         bool build_block = false;
