@@ -1330,6 +1330,138 @@ long CBlockDB::rebuildBestChainIndex(){
     return latestBestBlockId;
 }
 
+bool CBlockDB::adoptStoredChainEndingAtHash(const std::string& tipHash, long& adoptedTipId){
+    adoptedTipId = -1;
+    if(tipHash.length() == 0){
+        return false;
+    }
+
+    std::lock_guard<std::mutex> rebuildLock(g_bestChainRebuildMutex);
+    leveldb::DB* db = getDatabase();
+    if(!db){
+        return false;
+    }
+
+    long firstBlockId = getFirstBlockId();
+    if(firstBlockId <= 0){
+        return false;
+    }
+
+    CFunctions::block_structure previousTip;
+    long previousTipId = getLatestBlockId();
+    previousTip.number = -1;
+    if(previousTipId > 0){
+        previousTip = getBlock(previousTipId);
+    }
+
+    CFunctions::block_structure current = getBlockByHash(tipHash);
+    if(current.number <= 0 || current.hash.compare(tipHash) != 0){
+        return false;
+    }
+
+    std::vector<CFunctions::block_structure> reverseChain;
+    std::set<std::string> visitedHashes;
+    CNetworkConfig config = CNetworkConfig::load();
+    while(current.number > 0 && current.hash.length() > 0){
+        if(visitedHashes.find(current.hash) != visitedHashes.end()){
+            return false;
+        }
+        if(blockEnvelopeIsValid(current) == false){
+            return false;
+        }
+        reverseChain.push_back(current);
+        visitedHashes.insert(current.hash);
+
+        if(current.previous_block_id <= 0){
+            if(current.number != firstBlockId || config.genesisMatches(current.number, current.hash) == false){
+                return false;
+            }
+            break;
+        }
+        if(current.previous_block_hash.length() == 0 || current.previous_block_id >= current.number){
+            return false;
+        }
+
+        CFunctions::block_structure parent = getBlockByHash(current.previous_block_hash);
+        if(childConnectsToParent(current, parent) == false){
+            return false;
+        }
+        current = parent;
+    }
+
+    if(reverseChain.size() == 0 || reverseChain.back().number != firstBlockId){
+        return false;
+    }
+
+    std::reverse(reverseChain.begin(), reverseChain.end());
+    CFunctions::block_structure newTip = reverseChain.back();
+    if(previousTip.number > 0 &&
+       previousTip.hash.length() > 0 &&
+       previousTip.number >= newTip.number &&
+       previousTip.hash.compare(newTip.hash) == 0){
+        adoptedTipId = previousTip.number;
+        return true;
+    }
+
+    leveldb::WriteOptions writeOptions;
+    int firstDivergentIndex = 0;
+    for(int i = 0; i < reverseChain.size(); ++i){
+        CFunctions::block_structure canonicalBlock = getBlock(reverseChain.at(i).number);
+        if(canonicalBlock.number == reverseChain.at(i).number &&
+           canonicalBlock.hash.compare(reverseChain.at(i).hash) == 0){
+            firstDivergentIndex = i + 1;
+            continue;
+        }
+        break;
+    }
+    if(firstDivergentIndex > 0){
+        firstDivergentIndex--;
+    }
+
+    for(int i = firstDivergentIndex; i < reverseChain.size(); ++i){
+        CFunctions functions;
+        CFunctions::block_structure canonicalBlock = reverseChain.at(i);
+        std::string blockJson = functions.blockJSON(canonicalBlock);
+        std::stringstream blockKeyStream;
+        blockKeyStream << "b_" << canonicalBlock.number;
+        db->Put(writeOptions, canonicalHashKey(canonicalBlock.number), canonicalBlock.hash);
+        db->Put(writeOptions, blockHashKey(canonicalBlock.hash), blockJson);
+        db->Put(writeOptions, blockKeyStream.str(), blockJson);
+
+        if(i + 1 < reverseChain.size()){
+            CFunctions::block_structure childBlock = reverseChain.at(i + 1);
+            std::stringstream keyStream;
+            keyStream << "next_block_" << canonicalBlock.number;
+            db->Put(writeOptions, keyStream.str(), boost::lexical_cast<std::string>(childBlock.number));
+            db->Put(writeOptions, nextHashKey(canonicalBlock.hash), childBlock.hash);
+        }
+    }
+
+    setLatestBlockId(newTip.number);
+    db->Put(writeOptions, chainMetaKey("connected_latest"), boost::lexical_cast<std::string>(newTip.number));
+    maybeAdvanceValidatedCheckpoint(db, newTip);
+    adoptedTipId = newTip.number;
+
+    if(previousTip.number > 0 &&
+       previousTip.hash.length() > 0 &&
+       previousTip.hash.compare(newTip.hash) != 0){
+        db->Put(writeOptions, reorgMetaKey("previous_block"), boost::lexical_cast<std::string>(previousTip.number));
+        db->Put(writeOptions, reorgMetaKey("previous_hash"), previousTip.hash);
+        db->Put(writeOptions, reorgMetaKey("new_block"), boost::lexical_cast<std::string>(newTip.number));
+        db->Put(writeOptions, reorgMetaKey("new_hash"), newTip.hash);
+        db->Put(writeOptions, reorgMetaKey("time"), boost::lexical_cast<std::string>(std::time(0)));
+        db->Put(writeOptions, reorgMetaKey("reason"), "peer hash-linked tip adopted");
+
+        CFileLogger log;
+        log.log("Chain reorg: " +
+                boost::lexical_cast<std::string>(previousTip.number) + " " + previousTip.hash +
+                " -> " + boost::lexical_cast<std::string>(newTip.number) + " " + newTip.hash +
+                "\n");
+    }
+
+    return true;
+}
+
 long CBlockDB::getForkVariantCount(){
     leveldb::DB* db = getDatabase();
     if(!db){

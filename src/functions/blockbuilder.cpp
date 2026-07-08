@@ -503,6 +503,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
     
     long lastLocalBuiltBlockId = -1;
     long lastPendingRecordRebroadcastEpoch = 0;
+    long lastPeerSyncRequestEpoch = 0;
     
     int blockNumber = functions.latest_block.number + 1;
     //long timeBlock = 0;
@@ -688,7 +689,11 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                 
                 // Download recent blocks to keep the local chain up to date.
                 long currBlock = selector.getCurrentTimeBlock();
+                CNetworkTime syncRequestTime;
+                long syncRequestEpoch = syncRequestTime.getLocalEpoch();
                 //if(blockDB.getLatestBlockId() < currBlock - 0 && isBuildingBlocks){
+                if(lastPeerSyncRequestEpoch == 0 || syncRequestEpoch - lastPeerSyncRequestEpoch >= 10){
+                    lastPeerSyncRequestEpoch = syncRequestEpoch;
                     log.log("Block builder. Currently behind on chain. Requesting blocks from the network...\n");
                     
                     //std::cout << "Syncronizing Blockchain." << std::endl;
@@ -701,6 +706,7 @@ void CBlockBuilder::blockBuilderThread(int argc, char* argv[]){
                         // Legacy PHP relay disabled. Use CLocalPeerClient /api peer sync instead.
                         // relayClient.sendRequestBlocks(blockDB.getLatestBlockId());
                     }
+                }
                 //}
                 
             }

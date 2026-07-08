@@ -63,6 +63,7 @@ public:
     int getSchemaVersion();
     long getConnectedLatestBlockId();
     long rebuildBestChainIndex();
+    bool adoptStoredChainEndingAtHash(const std::string& tipHash, long& adoptedTipId);
     long getForkVariantCount();
     std::vector<fork_variant> getForkVariants(int limit);
     reorg_info getLastReorgInfo();

@@ -81,6 +81,16 @@ const int MAX_ACTIVE_SYNC_PEERS = 12;
 const int MAX_GOSSIP_FANOUT = 8;
 const long ANNOUNCE_INTERVAL_SECONDS = 60;
 const long PEER_STATUS_REFRESH_SECONDS = 10;
+const long PEER_SYNC_BACKOFF_BASE_SECONDS = 5;
+const long PEER_SYNC_BACKOFF_MAX_SECONDS = 60;
+const int REQUIRED_STABLE_TIP_CHECKS = 2;
+
+std::mutex g_peerSafetyMutex;
+long g_peerSyncBackoffUntilEpoch = 0;
+int g_peerSyncBackoffFailures = 0;
+long g_lastStablePeerBlockId = -1;
+std::string g_lastStablePeerBlockHash = "";
+int g_stablePeerTipChecks = 0;
 
 CLocalPeerClient::peer_status emptyPeerStatus(const std::string& peer)
 {
@@ -124,6 +134,68 @@ long parseLongOrZero(const std::string& value)
         return 0;
     }
     return std::atol(value.c_str());
+}
+
+void resetStablePeerTip()
+{
+    std::lock_guard<std::mutex> lock(g_peerSafetyMutex);
+    g_lastStablePeerBlockId = -1;
+    g_lastStablePeerBlockHash = "";
+    g_stablePeerTipChecks = 0;
+}
+
+bool noteStablePeerTip(long blockId, const std::string& hash)
+{
+    std::lock_guard<std::mutex> lock(g_peerSafetyMutex);
+    if (blockId <= 0 || hash.length() == 0) {
+        g_lastStablePeerBlockId = -1;
+        g_lastStablePeerBlockHash = "";
+        g_stablePeerTipChecks = 0;
+        return false;
+    }
+    if (g_lastStablePeerBlockId == blockId && g_lastStablePeerBlockHash.compare(hash) == 0) {
+        if (g_stablePeerTipChecks < REQUIRED_STABLE_TIP_CHECKS) {
+            g_stablePeerTipChecks++;
+        }
+    } else {
+        g_lastStablePeerBlockId = blockId;
+        g_lastStablePeerBlockHash = hash;
+        g_stablePeerTipChecks = 1;
+    }
+    return g_stablePeerTipChecks >= REQUIRED_STABLE_TIP_CHECKS;
+}
+
+bool peerSyncBackoffActive()
+{
+    CNetworkTime netTime;
+    long now = netTime.getLocalEpoch();
+    std::lock_guard<std::mutex> lock(g_peerSafetyMutex);
+    return g_peerSyncBackoffUntilEpoch > now;
+}
+
+void notePeerSyncProgress()
+{
+    std::lock_guard<std::mutex> lock(g_peerSafetyMutex);
+    g_peerSyncBackoffFailures = 0;
+    g_peerSyncBackoffUntilEpoch = 0;
+}
+
+void notePeerSyncStall()
+{
+    CNetworkTime netTime;
+    long now = netTime.getLocalEpoch();
+    std::lock_guard<std::mutex> lock(g_peerSafetyMutex);
+    if (g_peerSyncBackoffUntilEpoch > now) {
+        return;
+    }
+    if (g_peerSyncBackoffFailures < 12) {
+        g_peerSyncBackoffFailures++;
+    }
+    long delay = PEER_SYNC_BACKOFF_BASE_SECONDS * g_peerSyncBackoffFailures;
+    if (delay > PEER_SYNC_BACKOFF_MAX_SECONDS) {
+        delay = PEER_SYNC_BACKOFF_MAX_SECONDS;
+    }
+    g_peerSyncBackoffUntilEpoch = now + delay;
 }
 
 int protocolVersionFromStatus(const std::string& statusJson)
@@ -418,6 +490,32 @@ int storeParsedBlocks(const std::vector<CFunctions::block_structure>& blocks, bo
         }
     }
     return storedCount;
+}
+
+bool adoptStoredPeerTip(const CLocalPeerClient::peer_status& status, bool& changed)
+{
+    if (status.latestBlockId <= 0 || status.latestBlockHash.length() == 0) {
+        return false;
+    }
+
+    CBlockDB blockDB;
+    long beforeLatestBlockId = blockDB.getLatestBlockId();
+    CFunctions::block_structure storedTip = blockDB.getBlockByHash(status.latestBlockHash);
+    if (storedTip.number != status.latestBlockId ||
+        storedTip.hash.compare(status.latestBlockHash) != 0) {
+        return false;
+    }
+
+    long adoptedTipId = -1;
+    if (blockDB.adoptStoredChainEndingAtHash(status.latestBlockHash, adoptedTipId) == false) {
+        return false;
+    }
+    if (adoptedTipId > beforeLatestBlockId) {
+        changed = true;
+        return true;
+    }
+    return adoptedTipId == beforeLatestBlockId &&
+        blockDB.getLatestBlockHash().compare(status.latestBlockHash) == 0;
 }
 
 bool submitBlockToPeer(const std::string& peer, const CFunctions::block_structure& block, std::string& response)
@@ -1244,6 +1342,10 @@ void CLocalPeerClient::syncThread(int argc, char* argv[])
             lastAnnounceEpoch = now;
         }
         purgeUnavailablePeers();
+        if (peerSyncBackoffActive()) {
+            usleep(1000000 * 2);
+            continue;
+        }
         std::vector<peer_status> statuses = getPeerStatuses();
         std::vector<std::string> priorityPeers = getPriorityPeersForUpcomingCreators(20);
         std::set<std::string> priorityPeerSet(priorityPeers.begin(), priorityPeers.end());
@@ -1283,6 +1385,9 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     if (!syncLock.owns_lock()) {
         return false;
     }
+    if (peerSyncBackoffActive()) {
+        return false;
+    }
 
     const int maxBlocksPerSync = MAX_BLOCKS_PER_SYNC_BATCH;
     bool changed = false;
@@ -1318,16 +1423,19 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
     if(status.rulesCompatible == false){
         peerStatuses[peer].lastError = "consensus rules mismatch";
         savePeerCache();
+        notePeerSyncStall();
         return false;
     }
     if (peerLatestBlockId < 0) {
         peerStatuses[peer].lastError = "missing latest block";
         savePeerCache();
+        notePeerSyncStall();
         return false;
     }
     if(config.genesisMatches(peerFirstBlockId, peerFirstBlockHash) == false){
         peerStatuses[peer].lastError = "genesis mismatch";
         savePeerCache();
+        notePeerSyncStall();
         return false;
     }
     if(firstBlockId > 0){
@@ -1341,14 +1449,19 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
         if(config.genesisMatches(firstBlockId, firstBlock.hash) == false){
             peerStatuses[peer].lastError = "local genesis mismatch";
             savePeerCache();
+            notePeerSyncStall();
             return false;
         }
     }
 
-    long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
-    if (repairedLatestBlockId > latestBlockId) {
-        changed = true;
-        latestBlockId = repairedLatestBlockId;
+    if (adoptStoredPeerTip(status, changed)) {
+        latestBlockId = blockDB.getLatestBlockId();
+    } else {
+        long repairedLatestBlockId = blockDB.rebuildBestChainIndex();
+        if (repairedLatestBlockId > latestBlockId) {
+            changed = true;
+            latestBlockId = repairedLatestBlockId;
+        }
     }
 
     if (peerLatestBlockId > -1 && latestBlockId >= peerLatestBlockId) {
@@ -1360,8 +1473,15 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
             if (pulled == false || afterForkPullLatestBlockId <= beforeRepairLatestBlockId) {
                 pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
             }
+            adoptStoredPeerTip(status, changed);
+            if (changed) {
+                notePeerSyncProgress();
+            } else {
+                notePeerSyncStall();
+            }
             return changed;
         }
+        notePeerSyncProgress();
         return false;
     }
 
@@ -1418,8 +1538,12 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
             if (pulled == false || latestBlockId <= beforeLatestBlockId) {
                 pullPeerCanonicalChain(peer, peerLatestBlockId, maxBlocksPerSync, changed);
             }
+            if (latestBlockId <= beforeLatestBlockId) {
+                adoptStoredPeerTip(status, changed);
+            }
             latestBlockId = blockDB.getLatestBlockId();
             if (latestBlockId > beforeLatestBlockId) {
+                notePeerSyncProgress();
                 continue;
             }
             break;
@@ -1451,8 +1575,13 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
             bool pulled = pullPeerForkRepairWindow(peer, firstBlockId, beforeLatestBlockId, peerLatestBlockId, maxBlocksPerSync - received, changed);
             latestBlockId = blockDB.getLatestBlockId();
             if (pulled == false || latestBlockId <= beforeLatestBlockId) {
+                adoptStoredPeerTip(status, changed);
+                latestBlockId = blockDB.getLatestBlockId();
+            }
+            if (pulled == false || latestBlockId <= beforeLatestBlockId) {
                 break;
             }
+            notePeerSyncProgress();
             continue;
         }
 
@@ -1477,12 +1606,26 @@ bool CLocalPeerClient::syncFromPeer(const std::string& peerUrl)
                 latestBlockId = blockDB.getLatestBlockId();
             }
             if (latestBlockId <= beforeLatestBlockId) {
+                adoptStoredPeerTip(status, changed);
+                latestBlockId = blockDB.getLatestBlockId();
+            }
+            if (latestBlockId <= beforeLatestBlockId) {
+                notePeerSyncStall();
                 break;
             }
         }
         received += sawBlocks;
+        if (latestBlockId > beforeLatestBlockId) {
+            notePeerSyncProgress();
+        }
     }
 
+    adoptStoredPeerTip(status, changed);
+    if (changed) {
+        notePeerSyncProgress();
+    } else if (peerLatestBlockId > -1 && blockDB.getLatestBlockId() < peerLatestBlockId) {
+        notePeerSyncStall();
+    }
     return changed;
 }
 
@@ -1708,6 +1851,8 @@ bool CLocalPeerClient::canCreateBlocks(std::string& reason)
     peer_status bestPeer = getBestPeerStatus();
     if (bestPeer.latestBlockId < 0) {
         reason = "no compatible peer tip";
+        resetStablePeerTip();
+        notePeerSyncStall();
         return false;
     }
 
@@ -1715,26 +1860,42 @@ bool CLocalPeerClient::canCreateBlocks(std::string& reason)
     long localLatestBlockId = blockDB.getLatestBlockId();
     if (localLatestBlockId < 0) {
         reason = "local chain is empty";
+        resetStablePeerTip();
         return false;
     }
 
     if (localLatestBlockId < bestPeer.latestBlockId) {
         reason = "behind peer latest block";
+        resetStablePeerTip();
         return false;
     }
 
     if (bestPeer.latestBlockHash.length() == 0) {
-        return true;
+        reason = "peer latest hash unknown";
+        resetStablePeerTip();
+        return false;
     }
 
-    CFunctions::block_structure localPeerTip = blockDB.getBlock(bestPeer.latestBlockId);
-    if (localPeerTip.number > 0 &&
-        localPeerTip.hash.length() > 0 &&
-        localPeerTip.hash.compare(bestPeer.latestBlockHash) == 0) {
+    if (localLatestBlockId > bestPeer.latestBlockId) {
+        reason = "ahead of peer latest block";
+        resetStablePeerTip();
+        return false;
+    }
+
+    CFunctions::block_structure localTip = blockDB.getBlock(localLatestBlockId);
+    if (localTip.number > 0 &&
+        localTip.hash.length() > 0 &&
+        localTip.hash.compare(bestPeer.latestBlockHash) == 0) {
+        if (noteStablePeerTip(bestPeer.latestBlockId, bestPeer.latestBlockHash) == false) {
+            reason = "peer tip not stable yet";
+            return false;
+        }
         return true;
     }
 
     reason = "peer chain hash mismatch";
+    resetStablePeerTip();
+    notePeerSyncStall();
     return false;
 }
 
